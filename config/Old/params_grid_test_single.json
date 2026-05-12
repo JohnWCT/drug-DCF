@@ -1,0 +1,45 @@
+{
+    "pretrain_params": {
+        "normalization_method": ["zscore"],
+        "pretrain_num_epochs": [8],
+        "pretrain_learning_rate": [0.0005],
+        "dropout_rate": [0.1],
+        "num_layers": [2],
+        "lambda_cls": [1.0],
+        "use_class_weight": [true],
+        "lambda_vae_pretrain": [1.0],
+        "lambda_pvae_pretrain": [1.0],
+        "lambda_ortho_pretrain": [0.0005],
+        "pretrain_beta1": [0.9],
+        "pretrain_beta2": [0.999],
+        "pretrain_weight_decay": [1e-4],
+        "pretrain_scheduler_patience": [15],
+        "pretrain_scheduler_factor": [0.9],
+        "pretrain_grad_clip": [1.0]
+    },
+    "gan_params": {
+        "gan_epochs": [10],
+        "gan_learning_rate": [0.0001],
+        "disc_lr_multiplier": [0.1],
+        "gen_lr_multiplier": [0.01],
+        "critic_iterations": [1],
+        "lambda_gp": [1.0],
+        "lambda_gan": [0.01],
+        "lambda_ortho": [0.00001],
+        "lambda_vae": [0.1],
+        "disc_dropout": [0.1],
+        "early_stopping_patience": [50],
+        "early_stopping_tolerance": [0.0001],
+        "label_smoothing": [0.1],
+        "noise_std": [0.01],
+        "use_non_saturating": [true],
+        "wasserstein_mode": [true],
+        "gradient_penalty_weight": [10.0],
+        "beta1": [0.5],
+        "beta2": [0.9]
+    },
+    "finetune_params": {
+        "ftlr": [0.01],
+        "scheduler_flag": [false]
+    }
+} 

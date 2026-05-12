@@ -1,0 +1,71 @@
+{
+  "_metadata": {
+    "version": "v2",
+    "description": "Optimized parameter grid for step1_finetune_latent_pipeline_All_split.py. Total combinations = 96 (finetune 8 \u00d7 classifier 12 \u00d7 model 1).",
+    "total_combinations": 96,
+    "breakdown": {
+      "finetune_params": "ftlr(2) \u00d7 scheduler_flag(2) \u00d7 loss_type(2) = 8",
+      "classifier_params": "hidden_dims(3) \u00d7 dropout_rate(2) \u00d7 activation(2) \u00d7 use_batch_norm(1=true) = 12",
+      "model_params": "gin_type(1=dapl) = 1"
+    },
+    "design_rationale": [
+      "ftlr: 0.001 (baseline) vs 0.0003 (finer lr, common sweet-spot for AdamW on small heads)",
+      "scheduler_flag: cosine annealing on/off \u2014 affects convergence speed",
+      "loss_type: focal vs bce \u2014 important for imbalanced drug response labels",
+      "hidden_dims: 3 architectures span shallow [64], medium [256,128], and deep [512,256,128]",
+      "dropout_rate: 0.2 (light regularisation) vs 0.4 (heavier, prevent overfit on small datasets)",
+      "activation: relu vs leaky_relu \u2014 leaky_relu can help with dying-ReLU in deep classifiers",
+      "use_batch_norm: fixed True \u2014 empirically superior for drug-response tasks",
+      "gin_type: fixed dapl \u2014 run a separate gin_type comparison grid (params_gin_compare.json) after finding best classifier arch"
+    ]
+  },
+  "finetune_params": {
+    "ftlr": [
+      0.001,
+      0.0003
+    ],
+    "scheduler_flag": [
+      true,
+      false
+    ],
+    "loss_type": [
+      "focal",
+      "bce"
+    ],
+    "focal_loss_gamma": [
+      2.0
+    ]
+  },
+  "classifier_params": {
+    "hidden_dims": [
+      [
+        64
+      ],
+      [
+        256,
+        128
+      ],
+      [
+        512,
+        256,
+        128
+      ]
+    ],
+    "dropout_rate": [
+      0.2,
+      0.4
+    ],
+    "use_batch_norm": [
+      true
+    ],
+    "activation": [
+      "relu",
+      "leaky_relu"
+    ]
+  },
+  "model_params": {
+    "gin_type": [
+      "dapl"
+    ]
+  }
+}

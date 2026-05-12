@@ -1,0 +1,16 @@
+{
+    "pretrain_params": {
+        "pretrain_num_epochs": [800],
+        "pretrain_learning_rate": [0.001, 0.0008],
+        "gan_learning_rate": [0.0002, 0.0001],
+        "train_num_epochs": [1500],
+        "dropout_rate": [0.2, 0.3, 0.4],
+        "num_layers": [1, 2, 3],
+        "lambda_cls": [5.0, 10.0, 15.0],
+        "use_class_weight": [true, false]
+    },
+    "finetune_params": {
+        "ftlr": [0.01, 0.005],
+        "scheduler_flag": [true, false]
+    }
+}

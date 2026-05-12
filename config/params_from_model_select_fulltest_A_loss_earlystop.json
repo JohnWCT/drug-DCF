@@ -1,0 +1,60 @@
+{
+  "pretrain_params": {
+    "pretrain_num_epochs": [
+      300
+    ],
+    "pretrain_learning_rate": [
+      0.0005,
+      0.001
+    ],
+    "gan_learning_rate": [
+      0.0005,
+      0.001
+    ],
+    "train_num_epochs": [
+      600
+    ],
+    "dropout_rate": [
+      0.1
+    ],
+    "encoder_dims": [
+      [
+        512,
+        256,
+        128
+      ],
+      [
+        256,
+        128
+      ]
+    ],
+    "lambda_cls": [
+      1,
+      10,
+      15,
+      20
+    ],
+    "use_class_weight": [
+      false,
+      true
+    ],
+    "gan_early_stop_metric": [
+      "loss"
+    ],
+    "gan_patience": [
+      30
+    ],
+    "gan_early_stop_min_delta": [
+      0.0
+    ],
+    "gan_early_stop_start_epoch": [
+      10
+    ],
+    "pretrain_patience": [
+      30
+    ],
+    "latent_size": [
+      32
+    ]
+  }
+}

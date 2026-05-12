@@ -1,0 +1,35 @@
+{
+    "pretrain_params": {
+        "pretrain_num_epochs": [800, 1000],
+        "pretrain_learning_rate": [0.0005, 0.001],
+        "dropout_rate": [0.1, 0.2],
+        "num_layers": [2, 3],
+        "lambda_cls": [1.0, 2.0, 5.0],
+        "use_class_weight": [true]
+    },
+    "gan_params": {
+        "gan_epochs": [1000],
+        "gan_learning_rate": [0.00005, 0.0001, 0.0002],
+        "disc_lr_multiplier": [0.1, 0.2, 0.5],
+        "gen_lr_multiplier": [0.01, 0.02, 0.05],
+        "critic_iterations": [1, 2, 3],
+        "lambda_gp": [1.0, 2.0, 5.0],
+        "lambda_gan": [0.01, 0.05, 0.1, 0.2],
+        "lambda_ortho": [0.00001, 0.00005, 0.0001],
+        "lambda_vae": [0.1, 0.2, 0.5],
+        "disc_dropout": [0.1, 0.2, 0.3],
+        "early_stopping_patience": [50, 80],
+        "early_stopping_tolerance": [0.0001, 0.0005],
+        "label_smoothing": [0.1, 0.2],
+        "noise_std": [0.01, 0.02, 0.05],
+        "use_non_saturating": [true],
+        "wasserstein_mode": [true],
+        "gradient_penalty_weight": [10.0, 15.0, 20.0],
+        "beta1": [0.5, 0.7, 0.9],
+        "beta2": [0.9, 0.95, 0.99]
+    },
+    "finetune_params": {
+        "ftlr": [0.01],
+        "scheduler_flag": [false]
+    }
+} 

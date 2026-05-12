@@ -1,0 +1,1125 @@
+"""
+VAEwC pretraining + GAN alignment pipeline.
+
+Usage example:
+python pretrain_VAEwC.py \
+  --config config/params_from_model_select_fulltest_A_loss_earlystop.json \
+  --outfolder result/pretrain_vaewc \
+  --target_domain tcga \
+  --overlap_tcga data/TCGA/PMID27354694_DR_OMICS_ad.csv
+"""
+
+import os
+import re
+import json
+import copy
+import pickle
+import argparse
+import itertools
+from collections import defaultdict
+from itertools import chain, cycle
+from typing import Dict, List, Tuple
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from scipy.spatial.distance import cdist
+from sklearn.manifold import TSNE
+from sklearn.cluster import KMeans
+from sklearn.metrics import (
+    adjusted_rand_score,
+    normalized_mutual_info_score,
+    silhouette_score,
+    calinski_harabasz_score,
+    davies_bouldin_score,
+)
+
+import torch
+import torch.nn as nn
+
+from tools.dataprocess import safemakedirs, append_csv_log
+from tools.model_opt import VAE, Discriminator, MLP, vaeloss, init_weights, ortho_loss, compute_gradient_penalty
+from tools.pretrain_common import (
+    TARGET_DOMAIN_CONFIG,
+    to_scalar as _to_scalar,
+    json_safe as _json_safe,
+    tcga_three_segment_key,
+    deduplicate_tcga_latent_dict,
+    prepare_training_target_csv as _prepare_training_target_csv,
+    compute_class_weights as _compute_class_weights,
+)
+
+
+if not torch.cuda.is_available():
+    raise RuntimeError("CUDA GPU is required. No GPU detected.")
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+plt.switch_backend("Agg")
+print("use device:", device)
+
+# Switchable backbone for VAEwC/AEwC shared pipeline.
+MODEL_BACKBONE = VAE
+MODEL_TYPE_NAME = "VAE"
+DEFAULT_SOURCE_CSV = "data/pretrain_ccle.csv"
+PRETRAIN_MODEL_SELECT_FILENAME = "pretrain_model_select.csv"
+# Learning curve display control:
+# skip first N epochs on x-axis when plotting.
+CURVE_SKIP_INITIAL_EPOCHS = 1
+
+
+class PrimaryClassifier(nn.Module):
+    def __init__(self, input_dim: int, num_classes: int, hidden_dims: List[int] = [64], dop: float = 0.1, act_fn=nn.ReLU):
+        super().__init__()
+        self.net = MLP(input_dim=input_dim, output_dim=num_classes, hidden_dims=hidden_dims, dop=dop, act_fn=act_fn)
+
+    def forward(self, x):
+        return self.net(x)
+
+
+def _load_labeled_data_patient_aware(
+    ccle_path,
+    xena_path,
+    batch_size=128,
+    use_class_weight=False,
+    target_domain="tcga",
+    target_cancer_reference_path=None,
+):
+    def _norm_name(v: str) -> str:
+        return str(v).strip().lower().replace("&", "and")
+
+    study_to_source_map = {
+        "LAML": "na",
+        "ACC": "na",
+        "BLCA": "Bladder Cancer",
+        "LGG": "Brain Cancer",
+        "BRCA": "Breast Cancer",
+        "CESC": "Cervical Cancer",
+        "CHOL": "Bile Duct Cancer",
+        "LCML": "na",
+        "COAD": "Colon/Colorectal Cancer",
+        "CNTL": "na",
+        "ESCA": "Esophageal Cancer",
+        "FPPP": "na",
+        "GBM": "Brain Cancer",
+        "HNSC": "Head and Neck Cancer",
+        "KICH": "Kidney Cancer",
+        "KIRC": "Kidney Cancer",
+        "KIRP": "Kidney Cancer",
+        "LIHC": "Liver Cancer",
+        "LUAD": "Lung Cancer",
+        "LUSC": "Lung Cancer",
+        "DLBC": "na",
+        "MESO": "na",
+        "MISC": "na",
+        "OV": "Ovarian Cancer",
+        "PAAD": "Pancreatic Cancer",
+        "PCPG": "na",
+        "PRAD": "Prostate Cancer",
+        "READ": "Colon/Colorectal Cancer",
+        "SARC": "Sarcoma",
+        "SKCM": "Skin Cancer",
+        "STAD": "Gastric Cancer",
+        "TGCT": "na",
+        "THYM": "na",
+        "THCA": "Thyroid Cancer",
+        "UCS": "Endometrial/Uterine Cancer",
+        "UCEC": "Endometrial/Uterine Cancer",
+        "UVM": "Eye Cancer",
+    }
+    ccle_df = pd.read_csv(ccle_path, index_col=0)
+    xena_df = pd.read_csv(xena_path, index_col=0)
+    ccle_df.index = ccle_df.index.astype(str)
+    xena_df.index = xena_df.index.astype(str)
+    # Ensure both domains use identical feature space/order.
+    common_cols = [c for c in ccle_df.columns if c in set(xena_df.columns)]
+    if len(common_cols) == 0:
+        raise ValueError(
+            f"No overlapping feature columns between source ({ccle_path}) "
+            f"and target ({xena_path})."
+        )
+    ccle_df = ccle_df.loc[:, common_cols]
+    xena_df = xena_df.loc[:, common_cols]
+    ccle_info = pd.read_csv(os.path.join("data", "ccle_sample_info_df.csv"), index_col=0, header=0)
+    target_domain = str(target_domain).lower()
+    if target_domain == "tcga":
+        if not target_cancer_reference_path:
+            target_cancer_reference_path = TARGET_DOMAIN_CONFIG["tcga"]["target_cancer_reference"]
+        xena_info = pd.read_csv(target_cancer_reference_path, index_col=0, header=0)
+        xena_info.index = xena_info.index.astype(str)
+        # Support both abbreviation-based and full-name TCGA reference files.
+        # Priority:
+        # 1) Study_Abbreviation column (classic format)
+        # 2) _primary_disease / Study Name style text (new format)
+        # 3) fallback first column
+        study_name_to_abbr = {
+            "Acute Myeloid Leukemia": "LAML",
+            "Adrenocortical carcinoma": "ACC",
+            "Bladder Urothelial Carcinoma": "BLCA",
+            "Brain Lower Grade Glioma": "LGG",
+            "Breast invasive carcinoma": "BRCA",
+            "Cervical squamous cell carcinoma and endocervical adenocarcinoma": "CESC",
+            "Cholangiocarcinoma": "CHOL",
+            "Chronic Myelogenous Leukemia": "LCML",
+            "Colon adenocarcinoma": "COAD",
+            "Controls": "CNTL",
+            "Esophageal carcinoma": "ESCA",
+            "FFPE Pilot Phase II": "FPPP",
+            "Glioblastoma multiforme": "GBM",
+            "Head and Neck squamous cell carcinoma": "HNSC",
+            "Kidney Chromophobe": "KICH",
+            "Kidney renal clear cell carcinoma": "KIRC",
+            "Kidney renal papillary cell carcinoma": "KIRP",
+            "Liver hepatocellular carcinoma": "LIHC",
+            "Lung adenocarcinoma": "LUAD",
+            "Lung squamous cell carcinoma": "LUSC",
+            "Lymphoid Neoplasm Diffuse Large B-cell Lymphoma": "DLBC",
+            "Mesothelioma": "MESO",
+            "Miscellaneous": "MISC",
+            "Ovarian serous cystadenocarcinoma": "OV",
+            "Pancreatic adenocarcinoma": "PAAD",
+            "Pheochromocytoma and Paraganglioma": "PCPG",
+            "Prostate adenocarcinoma": "PRAD",
+            "Rectum adenocarcinoma": "READ",
+            "Sarcoma": "SARC",
+            "Skin Cutaneous Melanoma": "SKCM",
+            "Stomach adenocarcinoma": "STAD",
+            "Testicular Germ Cell Tumors": "TGCT",
+            "Thymoma": "THYM",
+            "Thyroid carcinoma": "THCA",
+            "Uterine Carcinosarcoma": "UCS",
+            "Uterine Corpus Endometrial Carcinoma": "UCEC",
+            "Uveal Melanoma": "UVM",
+        }
+        name_to_source_map = {
+            _norm_name(name): study_to_source_map[abbr]
+            for name, abbr in study_name_to_abbr.items()
+            if abbr in study_to_source_map
+        }
+        # Name-based fallback map for xena_sample_info full-name format.
+        # This is the direct counterpart of the legacy target_to_source_map.
+        target_to_source_map = {
+            'acute myeloid leukemia': 'na',
+            'adrenocortical cancer': 'na',
+            'bladder urothelial carcinoma': 'Bladder Cancer',
+            'brain lower grade glioma': 'Brain Cancer',
+            'breast invasive carcinoma': 'Breast Cancer',
+            'cervical & endocervical cancer': 'Cervical Cancer',
+            'cholangiocarcinoma': 'Bile Duct Cancer',
+            'colon adenocarcinoma': 'Colon/Colorectal Cancer',
+            'diffuse large b-cell lymphoma': 'na',
+            'esophageal carcinoma': 'Esophageal Cancer',
+            'glioblastoma multiforme': 'Brain Cancer',
+            'head & neck squamous cell carcinoma': 'Head and Neck Cancer',
+            'kidney chromophobe': 'Kidney Cancer',
+            'kidney clear cell carcinoma': 'Kidney Cancer',
+            'kidney papillary cell carcinoma': 'Kidney Cancer',
+            'liver hepatocellular carcinoma': 'Liver Cancer',
+            'lung adenocarcinoma': 'Lung Cancer',
+            'lung squamous cell carcinoma': 'Lung Cancer',
+            'mesothelioma': 'na',
+            'ovarian serous cystadenocarcinoma': 'Ovarian Cancer',
+            'pancreatic adenocarcinoma': 'Pancreatic Cancer',
+            'pheochromocytoma & paraganglioma': 'na',
+            'prostate adenocarcinoma': 'Prostate Cancer',
+            'rectum adenocarcinoma': 'Colon/Colorectal Cancer',
+            'sarcoma': 'Sarcoma',
+            'skin cutaneous melanoma': 'Skin Cancer',
+            'stomach adenocarcinoma': 'Gastric Cancer',
+            'testicular germ cell tumor': 'na',
+            'thymoma': 'na',
+            'thyroid carcinoma': 'Thyroid Cancer',
+            'uterine carcinosarcoma': 'Endometrial/Uterine Cancer',
+            'uterine corpus endometrioid carcinoma': 'Endometrial/Uterine Cancer',
+            'uveal melanoma': 'Eye Cancer',
+        }
+        name_to_source_map.update({
+            _norm_name(k): v for k, v in target_to_source_map.items()
+        })
+        # Common aliases/synonyms seen in different exports.
+        name_to_source_map.update({
+            "pheochromocytoma and paraganglioma": "na",
+            "head and neck squamous cell carcinoma": "Head and Neck Cancer",
+            "cervical and endocervical cancer": "Cervical Cancer",
+            "adrenocortical carcinoma": "na",
+            "diffuse large b-cell lymphoma": "na",
+            "kidney renal clear cell carcinoma": "Kidney Cancer",
+            "kidney renal papillary cell carcinoma": "Kidney Cancer",
+            "testicular germ cell tumors": "na",
+            "uterine corpus endometrial carcinoma": "Endometrial/Uterine Cancer",
+        })
+
+        if "Study_Abbreviation" in xena_info.columns:
+            label_series = xena_info["Study_Abbreviation"].astype(str).map(study_to_source_map)
+        else:
+            disease_col = "_primary_disease" if "_primary_disease" in xena_info.columns else None
+            if disease_col is None:
+                candidate_cols = [c for c in xena_info.columns if "study" in c.lower() or "disease" in c.lower()]
+                disease_col = candidate_cols[0] if candidate_cols else xena_info.columns[0]
+            label_series = xena_info[disease_col].astype(str).map(lambda x: name_to_source_map.get(_norm_name(x)))
+
+        xena_info["_primary_disease"] = label_series
+        xena_info["patient_id"] = xena_info.index.map(tcga_three_segment_key)
+        xena_patient_info = xena_info.dropna(subset=["_primary_disease"]).sort_index().groupby("patient_id").first()
+    elif target_domain == "pdx":
+        if not target_cancer_reference_path:
+            target_cancer_reference_path = TARGET_DOMAIN_CONFIG["pdx"]["target_cancer_reference"]
+        xena_info = pd.read_csv(target_cancer_reference_path)
+        if "Model" in xena_info.columns and "cancerType" in xena_info.columns:
+            # Use direct disease names only (no short-code mapping).
+            pdx_to_source_map = {
+                "Breast Cancer": "Breast Cancer",
+                "Skin Cancer": "Skin Cancer",
+                "Colon/Colorectal Cancer": "Colon/Colorectal Cancer",
+                "Lung Cancer": "Lung Cancer",
+                "Pancreatic Cancer": "Pancreatic Cancer",
+            }
+            xena_info["Model"] = xena_info["Model"].astype(str)
+            xena_info["_primary_disease"] = xena_info["cancerType"].astype(str).str.strip().map(pdx_to_source_map)
+            xena_patient_info = (
+                xena_info.dropna(subset=["_primary_disease"])
+                .sort_values("Model")
+                .drop_duplicates(subset=["Model"], keep="first")
+                .set_index("Model")
+            )
+        else:
+            # New PDX setting: all samples are breast cancer and response table
+            # may only contain Sample_id without cancerType annotations.
+            sample_col = "Sample_id" if "Sample_id" in xena_info.columns else xena_info.columns[0]
+            xena_info[sample_col] = xena_info[sample_col].astype(str)
+            xena_patient_info = (
+                xena_info[[sample_col]]
+                .drop_duplicates(subset=[sample_col], keep="first")
+                .set_index(sample_col)
+            )
+            xena_patient_info["_primary_disease"] = "Breast Cancer"
+    else:
+        raise ValueError(f"Unsupported target_domain={target_domain}. Use tcga or pdx.")
+    ccle_info.index = ccle_info.index.astype(str)
+    valid_ccle_ids = ccle_df.index.intersection(ccle_info.index)
+    ccle_info = ccle_info.loc[valid_ccle_ids]
+    ccle_df = ccle_df.loc[valid_ccle_ids]
+    ccle_info = ccle_info.dropna(subset=["primary_disease"])
+    ccle_df = ccle_df.loc[ccle_info.index]
+    disease_count = ccle_info.primary_disease.value_counts()
+    ccle_keep = disease_count[disease_count >= 10].index
+    ccle_info = ccle_info[ccle_info.primary_disease.isin(ccle_keep)]
+    ccle_df = ccle_df.loc[ccle_info.index]
+    # Align TCGA expression (sample-level IDs like TCGA-XX-XXXX-07) to
+    # patient-level IDs (TCGA-XX-XXXX) used by cancer reference mapping.
+    xena_df = xena_df.copy()
+    xena_df["patient_id"] = xena_df.index.map(tcga_three_segment_key)
+    xena_df = (
+        xena_df.sort_index()
+        .groupby("patient_id", as_index=True)
+        .first()
+    )
+    valid_tcga_ids = xena_df.index.intersection(xena_patient_info.index)
+    xena_df = xena_df.loc[valid_tcga_ids]
+    xena_labels = xena_patient_info.loc[valid_tcga_ids, "_primary_disease"]
+    common_labels = sorted(list((set(ccle_info.primary_disease.unique()) & set(xena_labels.unique())) - {"na"}))
+    ccle_mask = ccle_info.primary_disease.isin(common_labels)
+    xena_mask = xena_labels.isin(common_labels)
+    ccle_df = ccle_df.loc[ccle_mask]
+    ccle_labels = ccle_info.loc[ccle_mask, "primary_disease"]
+    xena_df = xena_df.loc[xena_mask]
+    xena_labels = xena_labels.loc[xena_mask]
+    if len(ccle_df) == 0 or len(xena_df) == 0:
+        raise ValueError("No valid labeled samples after filtering. Please verify sample IDs and disease mapping.")
+    from sklearn.model_selection import train_test_split
+    ccle_train, ccle_test, ccle_train_y, ccle_test_y = train_test_split(
+        ccle_df, ccle_labels, test_size=0.2, stratify=ccle_labels, random_state=42
+    )
+    xena_train, xena_test, xena_train_y, xena_test_y = train_test_split(
+        xena_df, xena_labels, test_size=0.2, stratify=xena_labels, random_state=42
+    )
+    label_map = {d: i for i, d in enumerate(common_labels)}
+    mapping_int2str = {i: d for d, i in label_map.items()}
+    ccle_train_label_int = np.array([label_map[x] for x in ccle_train_y], dtype=np.int64)
+    ccle_test_label_int = np.array([label_map[x] for x in ccle_test_y], dtype=np.int64)
+    xena_train_label_int = np.array([label_map[x] for x in xena_train_y], dtype=np.int64)
+    xena_test_label_int = np.array([label_map[x] for x in xena_test_y], dtype=np.int64)
+    source_train_tensor = torch.from_numpy(ccle_train.values).float().to(device)
+    source_test_tensor = torch.from_numpy(ccle_test.values).float().to(device)
+    target_train_tensor = torch.from_numpy(xena_train.values).float().to(device)
+    target_test_tensor = torch.from_numpy(xena_test.values).float().to(device)
+    source_train_label_tensor = torch.from_numpy(ccle_train_label_int).to(device)
+    source_test_label_tensor = torch.from_numpy(ccle_test_label_int).to(device)
+    target_train_label_tensor = torch.from_numpy(xena_train_label_int).to(device)
+    target_test_label_tensor = torch.from_numpy(xena_test_label_int).to(device)
+    source_loader = torch.utils.data.DataLoader(
+        torch.utils.data.TensorDataset(source_train_tensor, source_train_label_tensor),
+        batch_size=batch_size, shuffle=True, drop_last=True
+    )
+    target_loader = torch.utils.data.DataLoader(
+        torch.utils.data.TensorDataset(target_train_tensor, target_train_label_tensor),
+        batch_size=batch_size, shuffle=True, drop_last=True
+    )
+    if use_class_weight:
+        source_weights = _compute_class_weights(ccle_train_label_int, device)
+        target_weights = _compute_class_weights(xena_train_label_int, device)
+        sourcedata = (source_loader, source_test_tensor, source_test_label_tensor, source_weights, mapping_int2str)
+        targetdata = (target_loader, target_test_tensor, target_test_label_tensor, target_weights, mapping_int2str)
+    else:
+        sourcedata = (source_loader, source_test_tensor, source_test_label_tensor, mapping_int2str)
+        targetdata = (target_loader, target_test_tensor, target_test_label_tensor, mapping_int2str)
+    return sourcedata, targetdata
+
+
+def _next_experiment_dir(parent_folder: str) -> Tuple[str, str]:
+    safemakedirs(parent_folder)
+    existing = []
+    for name in os.listdir(parent_folder):
+        m = re.fullmatch(r"exp_(\d+)", name)
+        if m:
+            existing.append(int(m.group(1)))
+    next_id = (max(existing) + 1) if existing else 1
+    exp_name = f"exp_{next_id:03d}"
+    exp_dir = os.path.join(parent_folder, exp_name)
+    safemakedirs(exp_dir)
+    return exp_name, exp_dir
+
+
+def _calculate_mmd(source_latent: np.ndarray, target_latent: np.ndarray, gamma=None) -> float:
+    if source_latent.shape[0] > 1000:
+        source_latent = source_latent[np.random.choice(source_latent.shape[0], 1000, replace=False)]
+    if target_latent.shape[0] > 1000:
+        target_latent = target_latent[np.random.choice(target_latent.shape[0], 1000, replace=False)]
+    if gamma is None:
+        gamma = 1.0 / source_latent.shape[1]
+    xx = np.exp(-gamma * cdist(source_latent, source_latent, "sqeuclidean"))
+    yy = np.exp(-gamma * cdist(target_latent, target_latent, "sqeuclidean"))
+    xy = np.exp(-gamma * cdist(source_latent, target_latent, "sqeuclidean"))
+    return float(max(0.0, xx.mean() + yy.mean() - 2 * xy.mean()))
+
+
+def _calculate_wasserstein(source_latent: np.ndarray, target_latent: np.ndarray) -> float:
+    return float(np.linalg.norm(np.mean(source_latent, axis=0) - np.mean(target_latent, axis=0)))
+
+
+def _sanitize_latent_for_fid(latent: np.ndarray, name: str = "latent") -> np.ndarray:
+    """Drop rows containing NaN / Inf so downstream covariance / sqrtm stays finite.
+
+    Returning an empty array signals the caller that FID cannot be computed
+    from this side and should fall back to ``np.inf``.
+    """
+    if latent is None:
+        return None
+    arr = np.asarray(latent, dtype=np.float64)
+    if arr.ndim != 2:
+        return arr
+    finite_mask = np.isfinite(arr).all(axis=1)
+    dropped = int(arr.shape[0] - finite_mask.sum())
+    if dropped > 0:
+        print(
+            f"[fid] warning: dropped {dropped}/{arr.shape[0]} rows with "
+            f"NaN/Inf from {name} before FID computation"
+        )
+    return arr[finite_mask]
+
+
+def _compute_fid(source_latent: np.ndarray, target_latent: np.ndarray = None) -> float:
+    """Compute Frechet Distance between two latent distributions.
+
+    Robust against NaN/Inf latents and sqrtm convergence failures: any such
+    degenerate case returns ``float('inf')`` so callers using it as an
+    early-stopping metric never crash and never mistake a failed epoch for
+    an improvement (``inf`` will never beat the running best).
+    """
+    try:
+        source_clean = _sanitize_latent_for_fid(source_latent, name="source_latent")
+        if source_clean is None or source_clean.shape[0] < 2:
+            print("[fid] warning: source latent has <2 finite rows; returning inf")
+            return float("inf")
+
+        mu = np.mean(source_clean, axis=0)
+        sigma = np.cov(source_clean, rowvar=False)
+
+        if target_latent is None:
+            prior = np.random.randn(*source_clean.shape)
+            mu2 = np.mean(prior, axis=0)
+            sigma2 = np.cov(prior, rowvar=False)
+        else:
+            target_clean = _sanitize_latent_for_fid(target_latent, name="target_latent")
+            if target_clean is None or target_clean.shape[0] < 2:
+                print("[fid] warning: target latent has <2 finite rows; returning inf")
+                return float("inf")
+            mu2 = np.mean(target_clean, axis=0)
+            sigma2 = np.cov(target_clean, rowvar=False)
+
+        if not (np.isfinite(mu).all() and np.isfinite(sigma).all()
+                and np.isfinite(mu2).all() and np.isfinite(sigma2).all()):
+            print("[fid] warning: non-finite mu/sigma after sanitisation; returning inf")
+            return float("inf")
+
+        from tools.metrics import calculate_frechet_distance
+        value = float(calculate_frechet_distance(mu, sigma, mu2, sigma2))
+        if not np.isfinite(value):
+            return float("inf")
+        return value
+    except Exception as err:  # pragma: no cover - defensive catch-all
+        print(f"[fid] warning: FID computation failed ({err}); returning inf")
+        return float("inf")
+
+
+def _kmeans_combined_metrics(
+    source_latent: np.ndarray,
+    target_latent: np.ndarray,
+    source_labels: np.ndarray,
+    target_labels: np.ndarray,
+    n_clusters: int,
+):
+    metrics = {
+        "kmeans_k": np.nan,
+        "kmeans_ari": np.nan,
+        "kmeans_nmi": np.nan,
+        "kmeans_silhouette": np.nan,
+        "kmeans_calinski_harabasz": np.nan,
+        "kmeans_davies_bouldin": np.nan,
+    }
+    if source_latent is None or target_latent is None:
+        return metrics
+    if len(source_latent) < 2 or len(target_latent) < 2:
+        return metrics
+    latent = np.vstack([source_latent, target_latent])
+    labels = np.concatenate([
+        np.asarray(source_labels, dtype=np.int64),
+        np.asarray(target_labels, dtype=np.int64),
+    ])
+    if len(latent) < 3:
+        return metrics
+    k = int(max(2, min(n_clusters, len(np.unique(labels)), len(latent) - 1)))
+    if k < 2:
+        return metrics
+    km = KMeans(n_clusters=k, random_state=42, n_init=10)
+    cluster_labels = km.fit_predict(latent)
+    ari_raw = float(adjusted_rand_score(labels, cluster_labels))
+    nmi = float(normalized_mutual_info_score(labels, cluster_labels))
+    metrics["kmeans_k"] = int(k)
+    metrics["kmeans_ari"] = ari_raw
+    metrics["kmeans_nmi"] = max(0.0, min(1.0, nmi))
+    try:
+        metrics["kmeans_silhouette"] = float(silhouette_score(latent, cluster_labels))
+    except Exception:
+        metrics["kmeans_silhouette"] = np.nan
+    try:
+        metrics["kmeans_calinski_harabasz"] = float(calinski_harabasz_score(latent, cluster_labels))
+    except Exception:
+        metrics["kmeans_calinski_harabasz"] = np.nan
+    try:
+        metrics["kmeans_davies_bouldin"] = float(davies_bouldin_score(latent, cluster_labels))
+    except Exception:
+        metrics["kmeans_davies_bouldin"] = np.nan
+    return metrics
+
+
+def _plot_gan_tsne(source_z, target_z, source_labels, target_labels, mapping_int2str, save_path):
+    if len(source_z) == 0 or len(target_z) == 0:
+        return
+    all_feats = np.vstack([source_z, target_z])
+    all_feats = np.nan_to_num(all_feats, nan=0.0, posinf=0.0, neginf=0.0)
+    tsne = TSNE(
+        n_components=2,
+        random_state=42,
+        perplexity=min(30, max(2, len(all_feats) - 1)),
+        init="random",
+        learning_rate="auto",
+    )
+    out = tsne.fit_transform(all_feats)
+    split = len(source_z)
+    s2 = out[:split]
+    t2 = out[split:]
+    plt.figure(figsize=(9, 7))
+    all_labels = np.unique(np.concatenate([source_labels, target_labels]))
+    cmap = plt.cm.get_cmap("tab20", max(20, len(all_labels)))
+    colors = {lab: cmap(i % cmap.N) for i, lab in enumerate(all_labels)}
+    for lab in np.unique(source_labels):
+        idx = np.where(source_labels == lab)[0]
+        plt.scatter(s2[idx, 0], s2[idx, 1], c=[colors[lab]], s=14, alpha=0.85, marker="o", edgecolors="k", linewidths=0.3)
+    for lab in np.unique(target_labels):
+        idx = np.where(target_labels == lab)[0]
+        plt.scatter(t2[idx, 0], t2[idx, 1], c=[colors[lab]], s=12, alpha=0.5, marker="^", edgecolors="k", linewidths=0.3)
+    plt.title("GAN Best Latent t-SNE")
+    plt.xlabel("Dimension 1")
+    plt.ylabel("Dimension 2")
+    handles = []
+    for lab in all_labels:
+        name = mapping_int2str.get(int(lab), str(lab))
+        handles.append(plt.Line2D([0], [0], marker="o", color="w", label=name, markerfacecolor=colors[lab], markersize=6))
+    plt.legend(handles=handles, fontsize=7, loc="best", ncol=2)
+    plt.grid(alpha=0.2)
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=250)
+    plt.close()
+
+
+def _encode_latent_dict(model, feature_df: pd.DataFrame, batch_size=512):
+    model.eval()
+    latents = {}
+    ids = feature_df.index.astype(str).tolist()
+    x = torch.from_numpy(feature_df.values).float().to(device)
+    with torch.no_grad():
+        for start in range(0, len(ids), batch_size):
+            end = min(len(ids), start + batch_size)
+            _, z, _, _ = model(x[start:end])
+            z_np = z.detach().cpu().numpy()
+            for i, sid in enumerate(ids[start:end]):
+                latents[sid] = z_np[i].tolist()
+    return latents
+
+
+def train_discrim(s_batch, t_batch, shared_encoder, sencoder, tencoder, discrim, optimizer, scheduler):
+    loss_log = defaultdict(float)
+    shared_encoder.zero_grad()
+    sencoder.zero_grad()
+    tencoder.zero_grad()
+    discrim.zero_grad()
+    sencoder.eval()
+    tencoder.eval()
+    shared_encoder.eval()
+    discrim.train()
+    optimizer.zero_grad()
+    _, pzs, _, _ = sencoder(s_batch)
+    _, pzt, _, _ = tencoder(t_batch)
+    _, zs, _, _ = shared_encoder(s_batch)
+    _, zt, _, _ = shared_encoder(t_batch)
+    s = torch.cat((zs, pzs), dim=1)
+    t = torch.cat((zt, pzt), dim=1)
+    d_loss = torch.mean(t) - torch.mean(s)
+    g_p = compute_gradient_penalty(critic=discrim, real_samples=s, fake_samples=t, device=device)
+    loss_log.update({"discrim_loss": d_loss, "g_p": g_p})
+    d_loss = d_loss + 10 * g_p
+    d_loss.backward()
+    optimizer.step()
+    scheduler.step()
+    discrim.eval()
+    return loss_log
+
+
+def train_d_ae(s_batch, t_batch, s_labels, t_labels, shared_encoder, sencoder, tencoder, discrim, classifier, optimizer, scheduler, lambda_cls, source_weights=None, target_weights=None, use_class_weight=False):
+    loss_log = defaultdict(float)
+    shared_encoder.zero_grad()
+    sencoder.zero_grad()
+    tencoder.zero_grad()
+    discrim.zero_grad()
+    classifier.zero_grad()
+    sencoder.train()
+    tencoder.train()
+    shared_encoder.train()
+    discrim.eval()
+    classifier.train()
+    optimizer.zero_grad()
+    pccle_re_x, pccle_z, pccle_mu, pccle_sigma = sencoder(s_batch)
+    pccle_vae_loss = vaeloss(pccle_mu, pccle_sigma, pccle_re_x, s_batch)
+    ptcga_re_x, ptcga_z, ptcga_mu, ptcga_sigma = tencoder(t_batch)
+    ptcga_vae_loss = vaeloss(ptcga_mu, ptcga_sigma, ptcga_re_x, t_batch)
+    ccle_re_x, ccle_z, ccle_mu, ccle_sigma = shared_encoder(s_batch)
+    ccle_vae_loss = vaeloss(ccle_mu, ccle_sigma, ccle_re_x, s_batch)
+    tcga_re_x, tcga_z, tcga_mu, tcga_sigma = shared_encoder(t_batch)
+    tcga_vae_loss = vaeloss(tcga_mu, tcga_sigma, tcga_re_x, t_batch)
+    if use_class_weight and source_weights is not None and target_weights is not None:
+        s_cls_criterion = nn.CrossEntropyLoss(weight=source_weights)
+        t_cls_criterion = nn.CrossEntropyLoss(weight=target_weights)
+        cls_loss = s_cls_criterion(classifier(ccle_z), s_labels) + t_cls_criterion(classifier(tcga_z), t_labels)
+    else:
+        cls_criterion = nn.CrossEntropyLoss()
+        cls_loss = cls_criterion(classifier(ccle_z), s_labels) + cls_criterion(classifier(tcga_z), t_labels)
+    pvae_loss = pccle_vae_loss + ptcga_vae_loss
+    vae_loss = ccle_vae_loss + tcga_vae_loss
+    o_loss = ortho_loss(ccle_z, pccle_z) + ortho_loss(tcga_z, ptcga_z)
+    g_loss = -torch.mean(discrim(torch.cat((tcga_z, ptcga_z), dim=1)))
+    loss = o_loss + g_loss + vae_loss + pvae_loss + lambda_cls * cls_loss
+    loss_log.update({"ortho_loss": o_loss, "pvae_loss": pvae_loss, "gen_loss": g_loss, "vae_loss": vae_loss, "cls_loss": cls_loss})
+    loss.backward()
+    optimizer.step()
+    scheduler.step()
+    return loss_log
+
+
+def _plot_pretrain_curves(train_csv, eval_csv, save_dir):
+    try:
+        train_df = pd.read_csv(train_csv)
+        eval_df = pd.read_csv(eval_csv)
+        if "epoch" in train_df.columns and CURVE_SKIP_INITIAL_EPOCHS > 0:
+            train_df = train_df[train_df["epoch"] > CURVE_SKIP_INITIAL_EPOCHS]
+        if "epoch" in eval_df.columns and CURVE_SKIP_INITIAL_EPOCHS > 0:
+            eval_df = eval_df[eval_df["epoch"] > CURVE_SKIP_INITIAL_EPOCHS]
+        if train_df.empty or eval_df.empty:
+            return
+        plt.figure(figsize=(10, 6))
+        for col in ["ortholoss", "pVAE_loss", "VAE_loss", "cls_loss"]:
+            if col in train_df.columns and col in eval_df.columns:
+                plt.plot(train_df["epoch"], train_df[col], label=f"train_{col}")
+                plt.plot(eval_df["epoch"], eval_df[col], "--", label=f"eval_{col}")
+        plt.legend(fontsize=8)
+        plt.grid(alpha=0.2)
+        plt.title("Pretrain Learning Curve")
+        plt.tight_layout()
+        plt.savefig(os.path.join(save_dir, "pretrain_learning_curve.png"), dpi=250)
+        plt.close()
+    except Exception:
+        return
+
+
+def _plot_gan_curves(d_csv, g_csv, save_dir):
+    try:
+        d_df = pd.read_csv(d_csv)
+        g_df = pd.read_csv(g_csv)
+        if "epoch" in d_df.columns and CURVE_SKIP_INITIAL_EPOCHS > 0:
+            d_df = d_df[d_df["epoch"] > CURVE_SKIP_INITIAL_EPOCHS]
+        if "epoch" in g_df.columns and CURVE_SKIP_INITIAL_EPOCHS > 0:
+            g_df = g_df[g_df["epoch"] > CURVE_SKIP_INITIAL_EPOCHS]
+        if d_df.empty and g_df.empty:
+            return
+        plt.figure(figsize=(10, 5))
+        if "discrim_loss" in d_df.columns:
+            plt.plot(d_df["epoch"], d_df["discrim_loss"], label="discrim_loss")
+        if "gen_loss" in g_df.columns:
+            plt.plot(g_df["epoch"], g_df["gen_loss"], label="gen_loss")
+        if "cls_loss" in g_df.columns:
+            plt.plot(g_df["epoch"], g_df["cls_loss"], label="cls_loss")
+        plt.legend(fontsize=8)
+        plt.grid(alpha=0.2)
+        plt.title("GAN Learning Curve")
+        plt.tight_layout()
+        plt.savefig(os.path.join(save_dir, "gan_learning_curve.png"), dpi=250)
+        plt.close()
+    except Exception:
+        return
+
+
+def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle_df_for_latent, tcga_df_for_latent):
+    print(f"start experiment {exp_name}")
+    use_class_weight = param.get("use_class_weight", False)
+    trainloss_csv = os.path.join(exp_dir, "pretrain_loss.csv")
+    evalloss_csv = os.path.join(exp_dir, "pretrain_eval_loss.csv")
+    dloss_csv = os.path.join(exp_dir, "d_loss.csv")
+    genloss_csv = os.path.join(exp_dir, "g_loss.csv")
+    sourcetrainloader, sourcetest, source_test_labels = sourcedata[0], sourcedata[1], sourcedata[2]
+    targettrainloader, targettest, target_test_labels = targetdata[0], targetdata[1], targetdata[2]
+    if use_class_weight:
+        source_weights, target_weights, mapping_int2str = sourcedata[3], targetdata[3], sourcedata[4]
+    else:
+        source_weights = None
+        target_weights = None
+        mapping_int2str = sourcedata[3]
+    config_payload = {
+        "exp_id": exp_name,
+        "device": str(device),
+        "params": _json_safe(param),
+        "use_class_weight": use_class_weight,
+    }
+    with open(os.path.join(exp_dir, "params.json"), "w") as f:
+        json.dump(config_payload, f, indent=2, ensure_ascii=False)
+    num_classes = len(mapping_int2str)
+    input_size = sourcetest.shape[1]
+    latent_size = param.get("latent_size", 32)
+    encoder_hidden_dims = param["encoder_dims"]
+    decoder_hidden_dims = encoder_hidden_dims[::-1]
+    dropout_rate = param["dropout_rate"]
+    lambda_cls = param["lambda_cls"]
+    shared_vae = MODEL_BACKBONE(input_size=input_size, output_size=input_size, latent_size=latent_size, encoder_hidden_dims=encoder_hidden_dims, decoder_hidden_dims=decoder_hidden_dims, dop=dropout_rate, act_fn=nn.ReLU).to(device)
+    source_private_vae = MODEL_BACKBONE(input_size=input_size, output_size=input_size, latent_size=latent_size, encoder_hidden_dims=encoder_hidden_dims, decoder_hidden_dims=decoder_hidden_dims, dop=dropout_rate, act_fn=nn.ReLU).to(device)
+    target_private_vae = MODEL_BACKBONE(input_size=input_size, output_size=input_size, latent_size=latent_size, encoder_hidden_dims=encoder_hidden_dims, decoder_hidden_dims=decoder_hidden_dims, dop=dropout_rate, act_fn=nn.ReLU).to(device)
+    cancer_classifier = PrimaryClassifier(input_dim=latent_size, num_classes=num_classes, hidden_dims=[64, 32], dop=0.2, act_fn=nn.ReLU).to(device)
+    shared_vae.apply(init_weights)
+    source_private_vae.apply(init_weights)
+    target_private_vae.apply(init_weights)
+    cancer_classifier.apply(init_weights)
+    source_dict = copy.deepcopy(source_private_vae.state_dict())
+    shared_dict = copy.deepcopy(shared_vae.state_dict())
+    target_dict = copy.deepcopy(target_private_vae.state_dict())
+    classifier_dict = copy.deepcopy(cancer_classifier.state_dict())
+    pretrain_epochs = param["pretrain_num_epochs"]
+    pre_lr = param["pretrain_learning_rate"]
+    pre_tol = 0
+    pre_tol_max = param.get("pretrain_patience", 50)
+    min_eval_loss = float("inf")
+    models = [shared_vae, source_private_vae, target_private_vae, cancer_classifier]
+    optimizer = torch.optim.Adam(chain(*(m.parameters() for m in models)), lr=pre_lr)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max(1, pretrain_epochs))
+    if use_class_weight and source_weights is not None and target_weights is not None:
+        s_cls_criterion = nn.CrossEntropyLoss(weight=source_weights)
+        t_cls_criterion = nn.CrossEntropyLoss(weight=target_weights)
+    else:
+        cls_criterion = nn.CrossEntropyLoss()
+    for epoch in range(pretrain_epochs):
+        train_ol, train_pv, train_v, train_c = 0.0, 0.0, 0.0, 0.0
+        steps = 0
+        target_cycle = cycle(targettrainloader)
+        for ccledata, ccle_labels in sourcetrainloader:
+            tcgadata, tcga_labels = next(target_cycle)
+            optimizer.zero_grad()
+            pccle_re_x, pccle_z, pccle_mu, pccle_sigma = source_private_vae(ccledata)
+            ptcga_re_x, ptcga_z, ptcga_mu, ptcga_sigma = target_private_vae(tcgadata)
+            ccle_re_x, ccle_z, ccle_mu, ccle_sigma = shared_vae(ccledata)
+            tcga_re_x, tcga_z, tcga_mu, tcga_sigma = shared_vae(tcgadata)
+            p_vae_loss = vaeloss(pccle_mu, pccle_sigma, pccle_re_x, ccledata) + vaeloss(ptcga_mu, ptcga_sigma, ptcga_re_x, tcgadata)
+            vae_loss = vaeloss(ccle_mu, ccle_sigma, ccle_re_x, ccledata) + vaeloss(tcga_mu, tcga_sigma, tcga_re_x, tcgadata)
+            o_loss = ortho_loss(ccle_z, pccle_z) + ortho_loss(tcga_z, ptcga_z)
+            if use_class_weight and source_weights is not None and target_weights is not None:
+                cls_loss = s_cls_criterion(cancer_classifier(ccle_z), ccle_labels) + t_cls_criterion(cancer_classifier(tcga_z), tcga_labels)
+            else:
+                cls_loss = cls_criterion(cancer_classifier(ccle_z), ccle_labels) + cls_criterion(cancer_classifier(tcga_z), tcga_labels)
+            loss = o_loss + vae_loss + p_vae_loss + lambda_cls * cls_loss
+            loss.backward()
+            optimizer.step()
+            scheduler.step()
+            train_ol += _to_scalar(o_loss)
+            train_pv += _to_scalar(p_vae_loss)
+            train_v += _to_scalar(vae_loss)
+            train_c += _to_scalar(cls_loss)
+            steps += 1
+        append_csv_log(trainloss_csv, {
+            "epoch": epoch + 1,
+            "ortholoss": train_ol / max(1, steps),
+            "pVAE_loss": train_pv / max(1, steps),
+            "VAE_loss": train_v / max(1, steps),
+            "cls_loss": train_c / max(1, steps),
+        })
+        with torch.no_grad():
+            pccle_re_x, pccle_z, pccle_mu, pccle_sigma = source_private_vae(sourcetest)
+            ptcga_re_x, ptcga_z, ptcga_mu, ptcga_sigma = target_private_vae(targettest)
+            ccle_re_x, ccle_z, ccle_mu, ccle_sigma = shared_vae(sourcetest)
+            tcga_re_x, tcga_z, tcga_mu, tcga_sigma = shared_vae(targettest)
+            eval_p = vaeloss(pccle_mu, pccle_sigma, pccle_re_x, sourcetest) + vaeloss(ptcga_mu, ptcga_sigma, ptcga_re_x, targettest)
+            eval_v = vaeloss(ccle_mu, ccle_sigma, ccle_re_x, sourcetest) + vaeloss(tcga_mu, tcga_sigma, tcga_re_x, targettest)
+            eval_o = ortho_loss(ccle_z, pccle_z) + ortho_loss(tcga_z, ptcga_z)
+            if use_class_weight and source_weights is not None and target_weights is not None:
+                eval_cls = s_cls_criterion(cancer_classifier(ccle_z), source_test_labels) + t_cls_criterion(cancer_classifier(tcga_z), target_test_labels)
+            else:
+                eval_cls = cls_criterion(cancer_classifier(ccle_z), source_test_labels) + cls_criterion(cancer_classifier(tcga_z), target_test_labels)
+            eval_total = eval_o + eval_p + eval_v + lambda_cls * eval_cls
+            append_csv_log(evalloss_csv, {
+                "epoch": epoch + 1,
+                "ortholoss": _to_scalar(eval_o),
+                "pVAE_loss": _to_scalar(eval_p),
+                "VAE_loss": _to_scalar(eval_v),
+                "cls_loss": _to_scalar(eval_cls),
+            })
+            if _to_scalar(eval_total) < min_eval_loss:
+                min_eval_loss = _to_scalar(eval_total)
+                pre_tol = 0
+                source_dict = copy.deepcopy(source_private_vae.state_dict())
+                target_dict = copy.deepcopy(target_private_vae.state_dict())
+                shared_dict = copy.deepcopy(shared_vae.state_dict())
+                classifier_dict = copy.deepcopy(cancer_classifier.state_dict())
+            else:
+                pre_tol += 1
+                if pre_tol >= pre_tol_max:
+                    print(f"pretrain early stop @ epoch {epoch + 1}")
+                    break
+    _plot_pretrain_curves(trainloss_csv, evalloss_csv, exp_dir)
+    shared_vae.load_state_dict(shared_dict)
+    source_private_vae.load_state_dict(source_dict)
+    target_private_vae.load_state_dict(target_dict)
+    cancer_classifier.load_state_dict(classifier_dict)
+    gan_epoch = param["train_num_epochs"]
+    gan_lr = param["gan_learning_rate"]
+    discrim = Discriminator(input_dim=latent_size * 2, dop=dropout_rate).to(device)
+    discrim.apply(init_weights)
+    discrim_optimizer = torch.optim.RMSprop(discrim.parameters(), lr=gan_lr)
+    discrim_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(discrim_optimizer, max(1, gan_epoch))
+    d_ae_optimizer = torch.optim.RMSprop(chain(shared_vae.parameters(), source_private_vae.parameters(), target_private_vae.parameters(), cancer_classifier.parameters()), lr=gan_lr)
+    d_ae_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(d_ae_optimizer, max(1, gan_epoch))
+    max_gan_tolerance = param.get("gan_patience", 20)
+    gan_early_stop_metric = str(param.get("gan_early_stop_metric", "loss")).lower()
+    if gan_early_stop_metric not in {"loss", "fid"}:
+        raise ValueError(
+            f"Unsupported gan_early_stop_metric={gan_early_stop_metric}. "
+            f"Use one of: loss, fid."
+        )
+    gan_early_stop_min_delta = float(param.get("gan_early_stop_min_delta", 0.0))
+    gan_early_stop_start_epoch = int(param.get("gan_early_stop_start_epoch", 1))
+    gan_tolerance = 0
+    gan_best_epoch = 0
+    gan_best_score = float("inf")
+    gan_best_loss = float("inf")
+    shared_vae_aftergan_dict = copy.deepcopy(shared_vae.state_dict())
+    classifier_aftergan_dict = copy.deepcopy(cancer_classifier.state_dict())
+    source_vae_aftergan_dict = copy.deepcopy(source_private_vae.state_dict())
+    target_vae_aftergan_dict = copy.deepcopy(target_private_vae.state_dict())
+    discrim_aftergan_dict = copy.deepcopy(discrim.state_dict())
+    for epoch in range(gan_epoch):
+        dloss_list = []
+        genloss_list = []
+        target_cycle = cycle(targettrainloader)
+        for step, (ccledata, ccle_labels) in enumerate(sourcetrainloader):
+            tcgadata, tcga_labels = next(target_cycle)
+            dloss_list.append(train_discrim(ccledata, tcgadata, shared_vae, source_private_vae, target_private_vae, discrim, discrim_optimizer, discrim_scheduler))
+            if (step + 1) % 5 == 0:
+                genloss_list.append(train_d_ae(ccledata, tcgadata, ccle_labels, tcga_labels, shared_vae, source_private_vae, target_private_vae, discrim, cancer_classifier, d_ae_optimizer, d_ae_scheduler, lambda_cls, source_weights, target_weights, use_class_weight))
+        if not dloss_list:
+            continue
+        dloss_mean = defaultdict(float)
+        for log in dloss_list:
+            for k, v in log.items():
+                dloss_mean[k] += _to_scalar(v)
+        for k in dloss_mean:
+            dloss_mean[k] /= len(dloss_list)
+        genloss_mean = defaultdict(float)
+        for log in genloss_list:
+            for k, v in log.items():
+                genloss_mean[k] += _to_scalar(v)
+        for k in genloss_mean:
+            genloss_mean[k] /= max(1, len(genloss_list))
+        dloss_mean["epoch"] = epoch + 1
+        genloss_mean["epoch"] = epoch + 1
+        append_csv_log(dloss_csv, dloss_mean)
+        temp_loss = sum(v for k, v in dloss_mean.items() if k != "epoch") + sum(v for k, v in genloss_mean.items() if k != "epoch")
+        if gan_early_stop_metric == "fid":
+            with torch.no_grad():
+                _, source_epoch_z, _, _ = shared_vae(sourcetest)
+                _, target_epoch_z, _, _ = shared_vae(targettest)
+            source_epoch_latent = source_epoch_z.detach().cpu().numpy()
+            target_epoch_latent = target_epoch_z.detach().cpu().numpy()
+            current_score = _compute_fid(source_epoch_latent, target_epoch_latent)
+        else:
+            current_score = temp_loss
+        genloss_mean["early_stop_metric"] = gan_early_stop_metric
+        genloss_mean["early_stop_score"] = current_score
+        genloss_mean["temp_loss"] = temp_loss
+        append_csv_log(genloss_csv, genloss_mean)
+        monitor_active = (epoch + 1) >= gan_early_stop_start_epoch
+        if current_score < (gan_best_score - gan_early_stop_min_delta):
+            gan_best_score = current_score
+            gan_best_loss = temp_loss
+            gan_tolerance = 0
+            gan_best_epoch = epoch + 1
+            shared_vae_aftergan_dict = copy.deepcopy(shared_vae.state_dict())
+            classifier_aftergan_dict = copy.deepcopy(cancer_classifier.state_dict())
+            source_vae_aftergan_dict = copy.deepcopy(source_private_vae.state_dict())
+            target_vae_aftergan_dict = copy.deepcopy(target_private_vae.state_dict())
+            discrim_aftergan_dict = copy.deepcopy(discrim.state_dict())
+        elif monitor_active:
+            gan_tolerance += 1
+            if gan_tolerance >= max_gan_tolerance:
+                print(f"gan early stop @ epoch {epoch + 1}")
+                break
+    _plot_gan_curves(dloss_csv, genloss_csv, exp_dir)
+    shared_vae.load_state_dict(shared_vae_aftergan_dict)
+    source_private_vae.load_state_dict(source_vae_aftergan_dict)
+    target_private_vae.load_state_dict(target_vae_aftergan_dict)
+    discrim.load_state_dict(discrim_aftergan_dict)
+    cancer_classifier.load_state_dict(classifier_aftergan_dict)
+    torch.save(shared_vae_aftergan_dict, os.path.join(exp_dir, "after_traingan_shared_vae.pth"))
+    torch.save(source_vae_aftergan_dict, os.path.join(exp_dir, "after_traingan_source_vae.pth"))
+    torch.save(target_vae_aftergan_dict, os.path.join(exp_dir, "after_traingan_target_vae.pth"))
+    torch.save(classifier_aftergan_dict, os.path.join(exp_dir, "after_traingan_classifier.pth"))
+    torch.save(discrim_aftergan_dict, os.path.join(exp_dir, "after_traingan_discriminator.pth"))
+    ccle_latent_dict = _encode_latent_dict(shared_vae, ccle_df_for_latent)
+    tcga_latent_raw_dict = _encode_latent_dict(shared_vae, tcga_df_for_latent)
+    tcga_latent_dict = tcga_latent_raw_dict
+    tcga_latent_dict = deduplicate_tcga_latent_dict(tcga_latent_dict)
+    with open(os.path.join(exp_dir, "ccle_latent_dict.pkl"), "wb") as f:
+        pickle.dump(ccle_latent_dict, f)
+    with open(os.path.join(exp_dir, "tcga_latent_dict.pkl"), "wb") as f:
+        pickle.dump(tcga_latent_dict, f)
+    source_latent = np.asarray(list(ccle_latent_dict.values()), dtype=np.float32)
+    target_latent = np.asarray(list(tcga_latent_dict.values()), dtype=np.float32)
+    with torch.no_grad():
+        _, source_test_z, _, _ = shared_vae(sourcetest)
+        _, target_test_z, _, _ = shared_vae(targettest)
+    source_true = source_test_labels.detach().cpu().numpy()
+    target_true = target_test_labels.detach().cpu().numpy()
+    source_test_latent = source_test_z.detach().cpu().numpy()
+    target_test_latent = target_test_z.detach().cpu().numpy()
+    cluster_metrics = _kmeans_combined_metrics(
+        source_test_latent,
+        target_test_latent,
+        source_true,
+        target_true,
+        len(mapping_int2str),
+    )
+    metrics = {
+        "exp_id": exp_name,
+        "best_gan_epoch": gan_best_epoch,
+        "best_gan_loss": gan_best_loss,
+        "gan_early_stop_metric": gan_early_stop_metric,
+        "gan_early_stop_best_score": gan_best_score,
+        "gan_early_stop_min_delta": gan_early_stop_min_delta,
+        "gan_early_stop_start_epoch": gan_early_stop_start_epoch,
+        "gan_patience": max_gan_tolerance,
+        "fid": _compute_fid(source_latent),
+        "mmd": _calculate_mmd(source_latent, target_latent),
+        "wasserstein": _calculate_wasserstein(source_latent, target_latent),
+        "tcga_raw_sample_count_for_latent": int(len(tcga_latent_raw_dict)),
+        "tcga_patient_count_for_latent": int(len(tcga_latent_dict)),
+    }
+    metrics.update(cluster_metrics)
+    with open(os.path.join(exp_dir, "gan_metrics.json"), "w") as f:
+        json.dump(_json_safe(metrics), f, indent=2)
+    pd.DataFrame([metrics]).to_csv(os.path.join(exp_dir, "gan_metrics.csv"), index=False)
+    _plot_gan_tsne(
+        source_test_z.detach().cpu().numpy(),
+        target_test_z.detach().cpu().numpy(),
+        source_true,
+        target_true,
+        mapping_int2str,
+        os.path.join(exp_dir, "tsne_gan_best.png"),
+    )
+    with open(os.path.join(exp_dir, "run_summary.json"), "w") as f:
+        json.dump(_json_safe({
+            "exp_id": exp_name,
+            "params": param,
+            "metrics": metrics,
+            "artifacts": {
+                "weights": [
+                    "after_traingan_shared_vae.pth",
+                    "after_traingan_source_vae.pth",
+                    "after_traingan_target_vae.pth",
+                    "after_traingan_classifier.pth",
+                    "after_traingan_discriminator.pth"
+                ],
+                "latents": ["ccle_latent_dict.pkl", "tcga_latent_dict.pkl"],
+                "plots": ["tsne_gan_best.png", "gan_learning_curve.png", "pretrain_learning_curve.png"],
+            },
+        }), f, indent=2)
+    return metrics
+
+
+def load_params_grid(config_path="config/params_grid.json"):
+    with open(config_path, "r") as f:
+        config = json.load(f)
+    if "pretrain_param_combinations" in config:
+        return config["pretrain_param_combinations"], "combinations"
+    return config.get("pretrain_params", {}), "grid"
+
+
+def _load_full_feature_frames(ccle_path, tcga_path):
+    ccle_df = pd.read_csv(ccle_path, index_col=0)
+    tcga_df = pd.read_csv(tcga_path, index_col=0)
+    ccle_df.index = ccle_df.index.astype(str)
+    tcga_df.index = tcga_df.index.astype(str)
+    # Keep full-frame export aligned with training feature space.
+    common_cols = [c for c in ccle_df.columns if c in set(tcga_df.columns)]
+    if len(common_cols) == 0:
+        raise ValueError(
+            f"No overlapping feature columns between source ({ccle_path}) "
+            f"and target ({tcga_path}) for latent export."
+        )
+    ccle_df = ccle_df.loc[:, common_cols]
+    tcga_df = tcga_df.loc[:, common_cols]
+    return ccle_df, tcga_df
+
+
+def _append_model_select(outfolder, row: Dict):
+    model_select_path = os.path.join(outfolder, PRETRAIN_MODEL_SELECT_FILENAME)
+    df_new = pd.DataFrame([row])
+    if os.path.exists(model_select_path):
+        df_old = pd.read_csv(model_select_path)
+        df = pd.concat([df_old, df_new], ignore_index=True)
+    else:
+        df = df_new
+    df.to_csv(model_select_path, index=False)
+
+
+def main():
+    parser = argparse.ArgumentParser("pretrain_VAEwC")
+    parser.add_argument("--outfolder", default="./result/pretrain", type=str, help="output folder")
+    parser.add_argument("--target_domain", default="tcga", choices=["tcga", "pdx"], type=str, help="target domain selection")
+    parser.add_argument("--target", default=None, type=str, help="target expression csv path (optional, auto by target_domain if not set)")
+    parser.add_argument("--target_response", default=None, type=str, help="target response csv path (optional, auto by target_domain if not set)")
+    parser.add_argument("--target_cancer_reference", default=None, type=str, help="target cancer reference csv path (optional, auto by target_domain if not set)")
+    parser.add_argument("--config", default="config/params_grid.json", type=str, help="path to params grid")
+    parser.add_argument(
+        "--overlap_tcga",
+        default=None,
+        type=str,
+        help="overlap patient list to exclude from TCGA training (only used when target_domain=tcga)",
+    )
+    args = parser.parse_args()
+    domain_cfg = TARGET_DOMAIN_CONFIG[args.target_domain]
+    resolved_target = args.target or domain_cfg["target_expression"]
+    resolved_target_response = args.target_response or domain_cfg["target_response"]
+    resolved_target_cancer_ref = args.target_cancer_reference or domain_cfg["target_cancer_reference"]
+    source_path = DEFAULT_SOURCE_CSV
+    if args.target_domain == "tcga":
+        overlap_path = args.overlap_tcga
+    else:
+        overlap_path = None
+    params_payload, payload_type = load_params_grid(args.config)
+    if payload_type == "combinations":
+        param_list = params_payload
+    else:
+        keys, values = zip(*params_payload.items())
+        param_list = [dict(zip(keys, v)) for v in itertools.product(*values)]
+    safemakedirs(args.outfolder)
+    all_rows = []
+    training_target_path, removed_count = _prepare_training_target_csv(resolved_target, overlap_path, args.outfolder)
+    tmp_training_path = os.path.join(args.outfolder, "_tmp_target_for_training.csv")
+    try:
+        if overlap_path:
+            if removed_count > 0:
+                print(f"[TCGA overlap filter] removed {removed_count} rows for training target")
+            else:
+                print("[TCGA overlap filter] overlap file provided but no rows removed; use original target data")
+        else:
+            print("[TCGA overlap filter] disabled (no --overlap_tcga provided), use original target data")
+        frame_cache = {}
+        for param_dict in param_list:
+            cache_key = f"{source_path}|{resolved_target}"
+            if cache_key not in frame_cache:
+                frame_cache[cache_key] = _load_full_feature_frames(source_path, resolved_target)
+            ccle_df_full, tcga_df_full = frame_cache[cache_key]
+            sourcedata, targetdata = _load_labeled_data_patient_aware(
+                ccle_path=source_path,
+                xena_path=training_target_path,
+                batch_size=param_dict.get("batch_size", 128),
+                use_class_weight=param_dict.get("use_class_weight", False),
+                target_domain=args.target_domain,
+                target_cancer_reference_path=resolved_target_cancer_ref,
+            )
+            exp_name, exp_dir = _next_experiment_dir(args.outfolder)
+            metrics = run_single_experiment(
+                sourcedata=sourcedata,
+                targetdata=targetdata,
+                param=param_dict,
+                exp_name=exp_name,
+                exp_dir=exp_dir,
+                ccle_df_for_latent=ccle_df_full,
+                tcga_df_for_latent=tcga_df_full,
+            )
+            row = {
+                "ID": exp_name,
+                "NO": "",
+                "model_type": MODEL_TYPE_NAME,
+                "pretrain_epochs": param_dict.get("pretrain_num_epochs"),
+                "train_epochs": param_dict.get("train_num_epochs"),
+                "pretrain_lr": param_dict.get("pretrain_learning_rate"),
+                "train_lr": param_dict.get("gan_learning_rate"),
+                "dropout": param_dict.get("dropout_rate"),
+                "latent_size": param_dict.get("latent_size", 32),
+                "encoder_dims": str(param_dict.get("encoder_dims")),
+                "lambda_cls": param_dict.get("lambda_cls"),
+                "use_class_weight": param_dict.get("use_class_weight", False),
+                "FID_AfterGAN": metrics["fid"],
+                "MMD_AfterGAN": metrics["mmd"],
+                "Wasserstein_AfterGAN": metrics["wasserstein"],
+                "best_gan_epoch": metrics["best_gan_epoch"],
+                "best_gan_loss": metrics["best_gan_loss"],
+                "fid": metrics["fid"],
+                "mmd": metrics["mmd"],
+                "wasserstein": metrics["wasserstein"],
+                "kmeans_k": metrics.get("kmeans_k"),
+                "kmeans_ari": metrics.get("kmeans_ari"),
+                "kmeans_nmi": metrics.get("kmeans_nmi"),
+                "kmeans_silhouette": metrics.get("kmeans_silhouette"),
+                "kmeans_calinski_harabasz": metrics.get("kmeans_calinski_harabasz"),
+                "kmeans_davies_bouldin": metrics.get("kmeans_davies_bouldin"),
+                "result_folder": exp_name,
+            }
+            _append_model_select(args.outfolder, row)
+            all_rows.append(row)
+            pd.DataFrame(all_rows).to_csv(os.path.join(args.outfolder, "summary_results.csv"), index=False)
+        print(
+            f"All experiments done. {PRETRAIN_MODEL_SELECT_FILENAME} and "
+            f"summary_results.csv saved under {args.outfolder}"
+        )
+    finally:
+        if training_target_path == tmp_training_path and os.path.exists(tmp_training_path):
+            os.remove(tmp_training_path)
+            print("[cleanup] removed temporary training target csv")
+
+
+if __name__ == "__main__":
+    main()
