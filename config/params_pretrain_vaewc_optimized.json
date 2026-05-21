@@ -1,0 +1,61 @@
+{
+  "_metadata": {
+    "description": "Full grid (1024 combos) from 8 reference exps + design.md schedule/GAN decoupling. Budget <= 1024.",
+    "reference_experiments": [
+      "exp_011", "exp_012", "exp_014", "exp_016",
+      "exp_029", "exp_032", "exp_047", "exp_060"
+    ],
+    "reference_summary": {
+      "exp_011": "0.0005/0.0005, cls=10, cw=false, MMD=0.0077, ari=0.57",
+      "exp_012": "0.0005/0.0005, cls=10, cw=true,  MMD=0.0080, ari=0.72",
+      "exp_014": "0.0005/0.0005, cls=15, cw=true,  MMD=0.0081, ari=0.69",
+      "exp_016": "0.0005/0.0005, cls=20, cw=true,  MMD=0.0090, ari=0.70",
+      "exp_029": "0.0005/0.001,  cls=15, cw=false, MMD=0.0020, ari=0.51",
+      "exp_032": "0.0005/0.001,  cls=20, cw=true,  MMD=0.0020, ari=0.33",
+      "exp_047": "0.001/0.0005,  cls=20, cw=false, MMD=0.0142, ari=0.69",
+      "exp_060": "0.001/0.001,   cls=10, cw=true,  MMD=0.0022, ari=0.50"
+    },
+    "grid_axes": {
+      "legacy": "pretrain_lr(2) x gan_lr(2) x lambda_cls(4) x use_class_weight(2) = 32",
+      "cls_schedule": "cls_start_epoch(4) x cls_full_epoch(4) = 16",
+      "gan_decouple": "gan_cls_learning_rate(2) = 2",
+      "fixed": "gan_gen_update_interval=5, gan_cls_update_every_step=true, gan_gp_weight=10, gan_lambda_cls=lambda_cls"
+    },
+    "total_combinations": 1024,
+    "formula": "32 x 16 x 2 = 1024",
+    "scale_down_hints": {
+      "384_runs": "lambda_cls=[10,15,20], cls_start=[40,60], cls_full=[120,180], gan_cls_learning_rate=[0.0001]",
+      "192_runs": "lambda_cls=[10,15,20], cls_start=[40,60], cls_full=[120,180], gan_cls_learning_rate=[0.0001,0.0005]",
+      "96_runs": "lambda_cls=[10,15,20], cls_start=[60], cls_full=[120,180], gan_cls_learning_rate=[0.0001]"
+    },
+    "axis_meaning": {
+      "lambda_cls": "[10,15,20] cover all 8 refs; 25 explores stronger cls pressure",
+      "cls_start_epoch": "[30,40,50,60] = 10%~20% of 300 pretrain epochs before cls loss",
+      "cls_full_epoch": "[90,120,150,180] = 30%~60% warm-up end (full lambda_cls)",
+      "gan_cls_learning_rate": "[0.0001,0.0005] classifier-only LR vs gan_lr 0.0005/0.001"
+    },
+    "usage": "docker exec DAPL python3 /workspace/DAPL/pretrain_VAEwC.py --config config/params_pretrain_vaewc_optimized.json --outfolder result/pretrain_vaewc --target_domain tcga --overlap_tcga data/TCGA/PMID27354694_DR_OMICS_ad.csv"
+  },
+  "pretrain_params": {
+    "pretrain_num_epochs": [300],
+    "pretrain_learning_rate": [0.0005, 0.001],
+    "gan_learning_rate": [0.0005, 0.001],
+    "train_num_epochs": [600],
+    "dropout_rate": [0.1],
+    "encoder_dims": [[256, 128]],
+    "latent_size": [32],
+    "lambda_cls": [10, 15, 20, 25],
+    "use_class_weight": [false, true],
+    "cls_start_epoch": [30, 40, 50, 60],
+    "cls_full_epoch": [90, 120, 150, 180],
+    "gan_gen_update_interval": [5],
+    "gan_cls_update_every_step": [true],
+    "gan_cls_learning_rate": [0.0001, 0.0005],
+    "gan_gp_weight": [10.0],
+    "gan_early_stop_metric": ["loss"],
+    "gan_patience": [30],
+    "gan_early_stop_min_delta": [0.0],
+    "gan_early_stop_start_epoch": [10],
+    "pretrain_patience": [30]
+  }
+}

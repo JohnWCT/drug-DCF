@@ -84,8 +84,33 @@ def load_experiment_data(exp_dir):
         "encoder_dims": str(params.get("params", {}).get("encoder_dims")),
         "lambda_cls": params.get("params", {}).get("lambda_cls"),
         "use_class_weight": params.get("params", {}).get("use_class_weight"),
+        "cls_start_epoch": params.get("params", {}).get("cls_start_epoch"),
+        "cls_full_epoch": params.get("params", {}).get("cls_full_epoch"),
+        "gan_gen_update_interval": params.get("params", {}).get("gan_gen_update_interval"),
+        "gan_cls_update_every_step": params.get("params", {}).get("gan_cls_update_every_step"),
+        "gan_cls_learning_rate": params.get("params", {}).get("gan_cls_learning_rate"),
+        "gan_lambda_cls": params.get("params", {}).get("gan_lambda_cls"),
+        "gan_gp_weight": params.get("params", {}).get("gan_gp_weight"),
         "tsne_image_path": tsne_path,
     }
+    # Fill resolved defaults when older runs omit explicit schedule fields.
+    p = params.get("params", {}) if isinstance(params.get("params"), dict) else {}
+    gan_lr = p.get("gan_learning_rate")
+    lambda_cls = p.get("lambda_cls", 1.0)
+    if row["cls_start_epoch"] is None:
+        row["cls_start_epoch"] = 1
+    if row["cls_full_epoch"] is None:
+        row["cls_full_epoch"] = row["cls_start_epoch"]
+    if row["gan_gen_update_interval"] is None:
+        row["gan_gen_update_interval"] = 5
+    if row["gan_cls_update_every_step"] is None:
+        row["gan_cls_update_every_step"] = True
+    if row["gan_cls_learning_rate"] is None and gan_lr is not None:
+        row["gan_cls_learning_rate"] = gan_lr
+    if row["gan_lambda_cls"] is None and lambda_cls is not None:
+        row["gan_lambda_cls"] = lambda_cls
+    if row["gan_gp_weight"] is None:
+        row["gan_gp_weight"] = 10.0
     # Backward compatibility for old reports with split source/target KMeans fields.
     if row["kmeans_k"] is None:
         row["kmeans_k"] = merged_metrics.get("source_kmeans_k")
@@ -249,6 +274,9 @@ def build_finetune_model_select(df: pd.DataFrame, top_k: int) -> pd.DataFrame:
         "ID", "NO", "model_type",
         "pretrain_epochs", "train_epochs", "pretrain_lr", "train_lr", "dropout",
         "encoder_dims", "lambda_cls", "use_class_weight",
+        "cls_start_epoch", "cls_full_epoch",
+        "gan_gen_update_interval", "gan_cls_update_every_step",
+        "gan_cls_learning_rate", "gan_lambda_cls", "gan_gp_weight",
         "fid", "mmd", "wasserstein",
         "kmeans_k", "kmeans_ari", "kmeans_nmi", "kmeans_silhouette",
         "kmeans_calinski_harabasz", "kmeans_davies_bouldin",

@@ -67,6 +67,101 @@ PRETRAIN_MODEL_SELECT_FILENAME = "pretrain_model_select.csv"
 CURVE_SKIP_INITIAL_EPOCHS = 1
 
 
+def smooth_rampup(epoch: int, start_epoch: int, end_epoch: int, max_value: float) -> float:
+    """Smooth cubic ramp from 0 to max_value between start_epoch and end_epoch."""
+    if max_value <= 0:
+        return 0.0
+    if epoch < start_epoch:
+        return 0.0
+    if end_epoch <= start_epoch:
+        return float(max_value) if epoch >= start_epoch else 0.0
+    if epoch >= end_epoch:
+        return float(max_value)
+    phase = (epoch - start_epoch) / float(end_epoch - start_epoch)
+    return float(max_value) * (phase ** 3)
+
+
+def get_lambda_cls_eff(epoch: int, param: dict) -> float:
+    """Effective classifier weight for pretraining (staged warm-up)."""
+    lambda_cls = float(param.get("lambda_cls", 1.0))
+    if lambda_cls <= 0:
+        return 0.0
+    cls_start_epoch = int(param.get("cls_start_epoch", 1))
+    cls_full_epoch = int(param.get("cls_full_epoch", cls_start_epoch))
+    return smooth_rampup(epoch, cls_start_epoch, cls_full_epoch, lambda_cls)
+
+
+def resolve_gan_training_params(param: dict, gan_lr: float, lambda_cls: float) -> dict:
+    """Resolve GAN-stage schedule/config with backward-compatible defaults."""
+    return {
+        "gan_gen_update_interval": max(1, int(param.get("gan_gen_update_interval", 5))),
+        "gan_cls_update_every_step": bool(param.get("gan_cls_update_every_step", True)),
+        "gan_cls_learning_rate": float(param.get("gan_cls_learning_rate", gan_lr)),
+        "gan_lambda_cls": float(param.get("gan_lambda_cls", lambda_cls)),
+        "gan_gp_weight": float(param.get("gan_gp_weight", 10.0)),
+    }
+
+
+def resolve_schedule_hyperparams(param: dict) -> dict:
+    """Flatten schedule/GAN hyperparameters with resolved defaults for CSV export."""
+    gan_lr = float(param.get("gan_learning_rate", 0.0005))
+    lambda_cls = float(param.get("lambda_cls", 1.0))
+    cls_start_epoch = int(param.get("cls_start_epoch", 1))
+    cls_full_epoch = int(param.get("cls_full_epoch", cls_start_epoch))
+    gan_cfg = resolve_gan_training_params(param, gan_lr, lambda_cls)
+    return {
+        "cls_start_epoch": cls_start_epoch,
+        "cls_full_epoch": cls_full_epoch,
+        "gan_gen_update_interval": gan_cfg["gan_gen_update_interval"],
+        "gan_cls_update_every_step": gan_cfg["gan_cls_update_every_step"],
+        "gan_cls_learning_rate": gan_cfg["gan_cls_learning_rate"],
+        "gan_lambda_cls": gan_cfg["gan_lambda_cls"],
+        "gan_gp_weight": gan_cfg["gan_gp_weight"],
+    }
+
+
+def build_experiment_summary_row(param_dict: dict, exp_name: str, metrics: dict) -> dict:
+    """Build one flat CSV row with scores and all resolved training hyperparameters."""
+    sched = resolve_schedule_hyperparams(param_dict)
+    row = {
+        "ID": exp_name,
+        "NO": "",
+        "model_type": MODEL_TYPE_NAME,
+        "pretrain_epochs": param_dict.get("pretrain_num_epochs"),
+        "train_epochs": param_dict.get("train_num_epochs"),
+        "pretrain_lr": param_dict.get("pretrain_learning_rate"),
+        "train_lr": param_dict.get("gan_learning_rate"),
+        "dropout": param_dict.get("dropout_rate"),
+        "latent_size": param_dict.get("latent_size", 32),
+        "encoder_dims": str(param_dict.get("encoder_dims")),
+        "lambda_cls": param_dict.get("lambda_cls"),
+        "use_class_weight": param_dict.get("use_class_weight", False),
+        "cls_start_epoch": sched["cls_start_epoch"],
+        "cls_full_epoch": sched["cls_full_epoch"],
+        "gan_gen_update_interval": sched["gan_gen_update_interval"],
+        "gan_cls_update_every_step": sched["gan_cls_update_every_step"],
+        "gan_cls_learning_rate": sched["gan_cls_learning_rate"],
+        "gan_lambda_cls": sched["gan_lambda_cls"],
+        "gan_gp_weight": sched["gan_gp_weight"],
+        "FID_AfterGAN": metrics["fid"],
+        "MMD_AfterGAN": metrics["mmd"],
+        "Wasserstein_AfterGAN": metrics["wasserstein"],
+        "best_gan_epoch": metrics["best_gan_epoch"],
+        "best_gan_loss": metrics["best_gan_loss"],
+        "fid": metrics["fid"],
+        "mmd": metrics["mmd"],
+        "wasserstein": metrics["wasserstein"],
+        "kmeans_k": metrics.get("kmeans_k"),
+        "kmeans_ari": metrics.get("kmeans_ari"),
+        "kmeans_nmi": metrics.get("kmeans_nmi"),
+        "kmeans_silhouette": metrics.get("kmeans_silhouette"),
+        "kmeans_calinski_harabasz": metrics.get("kmeans_calinski_harabasz"),
+        "kmeans_davies_bouldin": metrics.get("kmeans_davies_bouldin"),
+        "result_folder": exp_name,
+    }
+    return row
+
+
 class PrimaryClassifier(nn.Module):
     def __init__(self, input_dim: int, num_classes: int, hidden_dims: List[int] = [64], dop: float = 0.1, act_fn=nn.ReLU):
         super().__init__()
@@ -540,35 +635,105 @@ def _encode_latent_dict(model, feature_df: pd.DataFrame, batch_size=512):
     return latents
 
 
-def train_discrim(s_batch, t_batch, shared_encoder, sencoder, tencoder, discrim, optimizer, scheduler):
+def train_discrim(
+    s_batch,
+    t_batch,
+    shared_encoder,
+    sencoder,
+    tencoder,
+    discrim,
+    optimizer,
+    scheduler,
+    gan_gp_weight: float = 10.0,
+):
+    """WGAN-GP discriminator step: encoders frozen, critic learns from latent scores."""
     loss_log = defaultdict(float)
-    shared_encoder.zero_grad()
-    sencoder.zero_grad()
-    tencoder.zero_grad()
     discrim.zero_grad()
     sencoder.eval()
     tencoder.eval()
     shared_encoder.eval()
     discrim.train()
     optimizer.zero_grad()
-    _, pzs, _, _ = sencoder(s_batch)
-    _, pzt, _, _ = tencoder(t_batch)
-    _, zs, _, _ = shared_encoder(s_batch)
-    _, zt, _, _ = shared_encoder(t_batch)
-    s = torch.cat((zs, pzs), dim=1)
-    t = torch.cat((zt, pzt), dim=1)
-    d_loss = torch.mean(t) - torch.mean(s)
+    with torch.no_grad():
+        _, pzs, _, _ = sencoder(s_batch)
+        _, pzt, _, _ = tencoder(t_batch)
+        _, zs, _, _ = shared_encoder(s_batch)
+        _, zt, _, _ = shared_encoder(t_batch)
+        s = torch.cat((zs, pzs), dim=1)
+        t = torch.cat((zt, pzt), dim=1)
+    d_s = discrim(s)
+    d_t = discrim(t)
+    d_loss = torch.mean(d_t) - torch.mean(d_s)
     g_p = compute_gradient_penalty(critic=discrim, real_samples=s, fake_samples=t, device=device)
-    loss_log.update({"discrim_loss": d_loss, "g_p": g_p})
-    d_loss = d_loss + 10 * g_p
-    d_loss.backward()
+    total_loss = d_loss + gan_gp_weight * g_p
+    loss_log.update({
+        "discrim_loss": d_loss,
+        "g_p": g_p,
+        "discrim_total_loss": total_loss,
+        "d_source_score": torch.mean(d_s),
+        "d_target_score": torch.mean(d_t),
+    })
+    total_loss.backward()
     optimizer.step()
     scheduler.step()
     discrim.eval()
     return loss_log
 
 
-def train_d_ae(s_batch, t_batch, s_labels, t_labels, shared_encoder, sencoder, tencoder, discrim, classifier, optimizer, scheduler, lambda_cls, source_weights=None, target_weights=None, use_class_weight=False):
+def train_classifier_step(
+    s_batch,
+    t_batch,
+    s_labels,
+    t_labels,
+    shared_encoder,
+    classifier,
+    optimizer,
+    scheduler,
+    source_weights=None,
+    target_weights=None,
+    use_class_weight: bool = False,
+):
+    """Classifier-only GAN step: shared encoder frozen, classifier adapts to current latents."""
+    loss_log = defaultdict(float)
+    classifier.zero_grad()
+    shared_encoder.eval()
+    classifier.train()
+    optimizer.zero_grad()
+    with torch.no_grad():
+        _, ccle_z, _, _ = shared_encoder(s_batch)
+        _, tcga_z, _, _ = shared_encoder(t_batch)
+    if use_class_weight and source_weights is not None and target_weights is not None:
+        s_cls_criterion = nn.CrossEntropyLoss(weight=source_weights)
+        t_cls_criterion = nn.CrossEntropyLoss(weight=target_weights)
+        cls_loss = s_cls_criterion(classifier(ccle_z), s_labels) + t_cls_criterion(classifier(tcga_z), t_labels)
+    else:
+        cls_criterion = nn.CrossEntropyLoss()
+        cls_loss = cls_criterion(classifier(ccle_z), s_labels) + cls_criterion(classifier(tcga_z), t_labels)
+    loss_log["cls_only_loss"] = cls_loss
+    cls_loss.backward()
+    optimizer.step()
+    scheduler.step()
+    classifier.eval()
+    return loss_log
+
+
+def train_d_ae(
+    s_batch,
+    t_batch,
+    s_labels,
+    t_labels,
+    shared_encoder,
+    sencoder,
+    tencoder,
+    discrim,
+    classifier,
+    optimizer,
+    scheduler,
+    gan_lambda_cls: float,
+    source_weights=None,
+    target_weights=None,
+    use_class_weight: bool = False,
+):
     loss_log = defaultdict(float)
     shared_encoder.zero_grad()
     sencoder.zero_grad()
@@ -600,8 +765,15 @@ def train_d_ae(s_batch, t_batch, s_labels, t_labels, shared_encoder, sencoder, t
     vae_loss = ccle_vae_loss + tcga_vae_loss
     o_loss = ortho_loss(ccle_z, pccle_z) + ortho_loss(tcga_z, ptcga_z)
     g_loss = -torch.mean(discrim(torch.cat((tcga_z, ptcga_z), dim=1)))
-    loss = o_loss + g_loss + vae_loss + pvae_loss + lambda_cls * cls_loss
-    loss_log.update({"ortho_loss": o_loss, "pvae_loss": pvae_loss, "gen_loss": g_loss, "vae_loss": vae_loss, "cls_loss": cls_loss})
+    loss = o_loss + g_loss + vae_loss + pvae_loss + gan_lambda_cls * cls_loss
+    loss_log.update({
+        "ortho_loss": o_loss,
+        "pvae_loss": pvae_loss,
+        "gen_loss": g_loss,
+        "vae_loss": vae_loss,
+        "cls_loss": cls_loss,
+        "lambda_cls_eff": gan_lambda_cls,
+    })
     loss.backward()
     optimizer.step()
     scheduler.step()
@@ -619,10 +791,13 @@ def _plot_pretrain_curves(train_csv, eval_csv, save_dir):
         if train_df.empty or eval_df.empty:
             return
         plt.figure(figsize=(10, 6))
-        for col in ["ortholoss", "pVAE_loss", "VAE_loss", "cls_loss"]:
+        plot_cols = ["ortholoss", "pVAE_loss", "VAE_loss", "cls_loss", "lambda_cls_eff"]
+        for col in plot_cols:
             if col in train_df.columns and col in eval_df.columns:
                 plt.plot(train_df["epoch"], train_df[col], label=f"train_{col}")
                 plt.plot(eval_df["epoch"], eval_df[col], "--", label=f"eval_{col}")
+            elif col in train_df.columns:
+                plt.plot(train_df["epoch"], train_df[col], label=f"train_{col}")
         plt.legend(fontsize=8)
         plt.grid(alpha=0.2)
         plt.title("Pretrain Learning Curve")
@@ -644,12 +819,12 @@ def _plot_gan_curves(d_csv, g_csv, save_dir):
         if d_df.empty and g_df.empty:
             return
         plt.figure(figsize=(10, 5))
-        if "discrim_loss" in d_df.columns:
-            plt.plot(d_df["epoch"], d_df["discrim_loss"], label="discrim_loss")
-        if "gen_loss" in g_df.columns:
-            plt.plot(g_df["epoch"], g_df["gen_loss"], label="gen_loss")
-        if "cls_loss" in g_df.columns:
-            plt.plot(g_df["epoch"], g_df["cls_loss"], label="cls_loss")
+        for col in ["discrim_loss", "discrim_total_loss", "g_p", "d_source_score", "d_target_score"]:
+            if col in d_df.columns:
+                plt.plot(d_df["epoch"], d_df[col], label=col)
+        for col in ["gen_loss", "cls_loss", "cls_only_loss", "lambda_cls_eff"]:
+            if col in g_df.columns:
+                plt.plot(g_df["epoch"], g_df[col], label=col)
         plt.legend(fontsize=8)
         plt.grid(alpha=0.2)
         plt.title("GAN Learning Curve")
@@ -716,7 +891,8 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
     else:
         cls_criterion = nn.CrossEntropyLoss()
     for epoch in range(pretrain_epochs):
-        train_ol, train_pv, train_v, train_c = 0.0, 0.0, 0.0, 0.0
+        lambda_cls_eff = get_lambda_cls_eff(epoch + 1, param)
+        train_ol, train_pv, train_v, train_c, train_lce = 0.0, 0.0, 0.0, 0.0, 0.0
         steps = 0
         target_cycle = cycle(targettrainloader)
         for ccledata, ccle_labels in sourcetrainloader:
@@ -733,7 +909,7 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
                 cls_loss = s_cls_criterion(cancer_classifier(ccle_z), ccle_labels) + t_cls_criterion(cancer_classifier(tcga_z), tcga_labels)
             else:
                 cls_loss = cls_criterion(cancer_classifier(ccle_z), ccle_labels) + cls_criterion(cancer_classifier(tcga_z), tcga_labels)
-            loss = o_loss + vae_loss + p_vae_loss + lambda_cls * cls_loss
+            loss = o_loss + vae_loss + p_vae_loss + lambda_cls_eff * cls_loss
             loss.backward()
             optimizer.step()
             scheduler.step()
@@ -741,6 +917,7 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
             train_pv += _to_scalar(p_vae_loss)
             train_v += _to_scalar(vae_loss)
             train_c += _to_scalar(cls_loss)
+            train_lce += lambda_cls_eff
             steps += 1
         append_csv_log(trainloss_csv, {
             "epoch": epoch + 1,
@@ -748,6 +925,7 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
             "pVAE_loss": train_pv / max(1, steps),
             "VAE_loss": train_v / max(1, steps),
             "cls_loss": train_c / max(1, steps),
+            "lambda_cls_eff": train_lce / max(1, steps),
         })
         with torch.no_grad():
             pccle_re_x, pccle_z, pccle_mu, pccle_sigma = source_private_vae(sourcetest)
@@ -761,13 +939,14 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
                 eval_cls = s_cls_criterion(cancer_classifier(ccle_z), source_test_labels) + t_cls_criterion(cancer_classifier(tcga_z), target_test_labels)
             else:
                 eval_cls = cls_criterion(cancer_classifier(ccle_z), source_test_labels) + cls_criterion(cancer_classifier(tcga_z), target_test_labels)
-            eval_total = eval_o + eval_p + eval_v + lambda_cls * eval_cls
+            eval_total = eval_o + eval_p + eval_v + lambda_cls_eff * eval_cls
             append_csv_log(evalloss_csv, {
                 "epoch": epoch + 1,
                 "ortholoss": _to_scalar(eval_o),
                 "pVAE_loss": _to_scalar(eval_p),
                 "VAE_loss": _to_scalar(eval_v),
                 "cls_loss": _to_scalar(eval_cls),
+                "lambda_cls_eff": lambda_cls_eff,
             })
             if _to_scalar(eval_total) < min_eval_loss:
                 min_eval_loss = _to_scalar(eval_total)
@@ -790,9 +969,26 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
     gan_lr = param["gan_learning_rate"]
     discrim = Discriminator(input_dim=latent_size * 2, dop=dropout_rate).to(device)
     discrim.apply(init_weights)
+    gan_cfg = resolve_gan_training_params(param, gan_lr, lambda_cls)
+    gan_gen_update_interval = gan_cfg["gan_gen_update_interval"]
+    gan_cls_update_every_step = gan_cfg["gan_cls_update_every_step"]
+    gan_cls_lr = gan_cfg["gan_cls_learning_rate"]
+    gan_lambda_cls = gan_cfg["gan_lambda_cls"]
+    gan_gp_weight = gan_cfg["gan_gp_weight"]
+
     discrim_optimizer = torch.optim.RMSprop(discrim.parameters(), lr=gan_lr)
     discrim_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(discrim_optimizer, max(1, gan_epoch))
-    d_ae_optimizer = torch.optim.RMSprop(chain(shared_vae.parameters(), source_private_vae.parameters(), target_private_vae.parameters(), cancer_classifier.parameters()), lr=gan_lr)
+    classifier_optimizer = torch.optim.RMSprop(cancer_classifier.parameters(), lr=gan_cls_lr)
+    classifier_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(classifier_optimizer, max(1, gan_epoch))
+    d_ae_optimizer = torch.optim.RMSprop(
+        chain(
+            shared_vae.parameters(),
+            source_private_vae.parameters(),
+            target_private_vae.parameters(),
+            cancer_classifier.parameters(),
+        ),
+        lr=gan_lr,
+    )
     d_ae_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(d_ae_optimizer, max(1, gan_epoch))
     max_gan_tolerance = param.get("gan_patience", 20)
     gan_early_stop_metric = str(param.get("gan_early_stop_metric", "loss")).lower()
@@ -815,12 +1011,58 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
     for epoch in range(gan_epoch):
         dloss_list = []
         genloss_list = []
+        cls_only_list = []
         target_cycle = cycle(targettrainloader)
         for step, (ccledata, ccle_labels) in enumerate(sourcetrainloader):
             tcgadata, tcga_labels = next(target_cycle)
-            dloss_list.append(train_discrim(ccledata, tcgadata, shared_vae, source_private_vae, target_private_vae, discrim, discrim_optimizer, discrim_scheduler))
-            if (step + 1) % 5 == 0:
-                genloss_list.append(train_d_ae(ccledata, tcgadata, ccle_labels, tcga_labels, shared_vae, source_private_vae, target_private_vae, discrim, cancer_classifier, d_ae_optimizer, d_ae_scheduler, lambda_cls, source_weights, target_weights, use_class_weight))
+            dloss_list.append(
+                train_discrim(
+                    ccledata,
+                    tcgadata,
+                    shared_vae,
+                    source_private_vae,
+                    target_private_vae,
+                    discrim,
+                    discrim_optimizer,
+                    discrim_scheduler,
+                    gan_gp_weight=gan_gp_weight,
+                )
+            )
+            if gan_cls_update_every_step:
+                cls_log = train_classifier_step(
+                    ccledata,
+                    tcgadata,
+                    ccle_labels,
+                    tcga_labels,
+                    shared_vae,
+                    cancer_classifier,
+                    classifier_optimizer,
+                    classifier_scheduler,
+                    source_weights=source_weights,
+                    target_weights=target_weights,
+                    use_class_weight=use_class_weight,
+                )
+                cls_only_list.append(_to_scalar(cls_log.get("cls_only_loss", 0.0)))
+            if (step + 1) % gan_gen_update_interval == 0:
+                genloss_list.append(
+                    train_d_ae(
+                        ccledata,
+                        tcgadata,
+                        ccle_labels,
+                        tcga_labels,
+                        shared_vae,
+                        source_private_vae,
+                        target_private_vae,
+                        discrim,
+                        cancer_classifier,
+                        d_ae_optimizer,
+                        d_ae_scheduler,
+                        gan_lambda_cls=gan_lambda_cls,
+                        source_weights=source_weights,
+                        target_weights=target_weights,
+                        use_class_weight=use_class_weight,
+                    )
+                )
         if not dloss_list:
             continue
         dloss_mean = defaultdict(float)
@@ -835,6 +1077,10 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
                 genloss_mean[k] += _to_scalar(v)
         for k in genloss_mean:
             genloss_mean[k] /= max(1, len(genloss_list))
+        if cls_only_list:
+            genloss_mean["cls_only_loss"] = float(np.mean(cls_only_list))
+        genloss_mean["lambda_cls_eff"] = gan_lambda_cls
+        genloss_mean["gan_gen_update_interval"] = gan_gen_update_interval
         dloss_mean["epoch"] = epoch + 1
         genloss_mean["epoch"] = epoch + 1
         append_csv_log(dloss_csv, dloss_mean)
@@ -1052,35 +1298,7 @@ def main():
                 ccle_df_for_latent=ccle_df_full,
                 tcga_df_for_latent=tcga_df_full,
             )
-            row = {
-                "ID": exp_name,
-                "NO": "",
-                "model_type": MODEL_TYPE_NAME,
-                "pretrain_epochs": param_dict.get("pretrain_num_epochs"),
-                "train_epochs": param_dict.get("train_num_epochs"),
-                "pretrain_lr": param_dict.get("pretrain_learning_rate"),
-                "train_lr": param_dict.get("gan_learning_rate"),
-                "dropout": param_dict.get("dropout_rate"),
-                "latent_size": param_dict.get("latent_size", 32),
-                "encoder_dims": str(param_dict.get("encoder_dims")),
-                "lambda_cls": param_dict.get("lambda_cls"),
-                "use_class_weight": param_dict.get("use_class_weight", False),
-                "FID_AfterGAN": metrics["fid"],
-                "MMD_AfterGAN": metrics["mmd"],
-                "Wasserstein_AfterGAN": metrics["wasserstein"],
-                "best_gan_epoch": metrics["best_gan_epoch"],
-                "best_gan_loss": metrics["best_gan_loss"],
-                "fid": metrics["fid"],
-                "mmd": metrics["mmd"],
-                "wasserstein": metrics["wasserstein"],
-                "kmeans_k": metrics.get("kmeans_k"),
-                "kmeans_ari": metrics.get("kmeans_ari"),
-                "kmeans_nmi": metrics.get("kmeans_nmi"),
-                "kmeans_silhouette": metrics.get("kmeans_silhouette"),
-                "kmeans_calinski_harabasz": metrics.get("kmeans_calinski_harabasz"),
-                "kmeans_davies_bouldin": metrics.get("kmeans_davies_bouldin"),
-                "result_folder": exp_name,
-            }
+            row = build_experiment_summary_row(param_dict, exp_name, metrics)
             _append_model_select(args.outfolder, row)
             all_rows.append(row)
             pd.DataFrame(all_rows).to_csv(os.path.join(args.outfolder, "summary_results.csv"), index=False)
