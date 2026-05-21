@@ -7,7 +7,7 @@ This file follows the same workflow as `pretrain_VAEwC.py`:
 - overlap filtering for TCGA
 - GAN phase weight export
 - latent dict export
-- GAN metrics/t-SNE output
+- GAN metrics/t-SNE output (dual-panel: domain + cancer type)
 
 The backbone is CVAE (VAE -> CVAE), and the cancer-type classifier head
 (`PrimaryClassifier`) is kept for supervised alignment.
@@ -32,6 +32,7 @@ import torch.nn.functional as F
 
 from tools.dataprocess import safemakedirs, append_csv_log
 from tools.model_opt import MLP, Discriminator, vaeloss, init_weights, ortho_loss, compute_gradient_penalty
+from tools.pretrain_tsne import plot_latent_tsne_dual
 
 import pretrain_VAEwC as core
 
@@ -483,13 +484,14 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
     with open(os.path.join(exp_dir, "gan_metrics.json"), "w") as f:
         json.dump(core._json_safe(metrics), f, indent=2)
     pd.DataFrame([metrics]).to_csv(os.path.join(exp_dir, "gan_metrics.csv"), index=False)
-    core._plot_gan_tsne(
+    plot_latent_tsne_dual(
         source_test_z.detach().cpu().numpy(),
         target_test_z.detach().cpu().numpy(),
         source_true,
         target_true,
         mapping_int2str,
         os.path.join(exp_dir, "tsne_gan_best.png"),
+        suptitle="GAN Best CVAE Latent t-SNE (Test Split)",
     )
     with open(os.path.join(exp_dir, "run_summary.json"), "w") as f:
         json.dump(core._json_safe({

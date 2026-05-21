@@ -24,7 +24,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.spatial.distance import cdist
-from sklearn.manifold import TSNE
 from sklearn.cluster import KMeans
 from sklearn.metrics import (
     adjusted_rand_score,
@@ -38,6 +37,7 @@ import torch
 import torch.nn as nn
 
 from tools.dataprocess import safemakedirs, append_csv_log
+from tools.pretrain_tsne import plot_latent_tsne_dual
 from tools.model_opt import VAE, Discriminator, MLP, vaeloss, init_weights, ortho_loss, compute_gradient_penalty
 from tools.pretrain_common import (
     TARGET_DOMAIN_CONFIG,
@@ -513,43 +513,16 @@ def _kmeans_combined_metrics(
 
 
 def _plot_gan_tsne(source_z, target_z, source_labels, target_labels, mapping_int2str, save_path):
-    if len(source_z) == 0 or len(target_z) == 0:
-        return
-    all_feats = np.vstack([source_z, target_z])
-    all_feats = np.nan_to_num(all_feats, nan=0.0, posinf=0.0, neginf=0.0)
-    tsne = TSNE(
-        n_components=2,
-        random_state=42,
-        perplexity=min(30, max(2, len(all_feats) - 1)),
-        init="random",
-        learning_rate="auto",
+    """Dual-panel t-SNE: A=domain, B=cancer type (see tools.pretrain_tsne)."""
+    plot_latent_tsne_dual(
+        source_z,
+        target_z,
+        source_labels,
+        target_labels,
+        mapping_int2str,
+        save_path,
+        suptitle="GAN Best Latent t-SNE (Test Split)",
     )
-    out = tsne.fit_transform(all_feats)
-    split = len(source_z)
-    s2 = out[:split]
-    t2 = out[split:]
-    plt.figure(figsize=(9, 7))
-    all_labels = np.unique(np.concatenate([source_labels, target_labels]))
-    cmap = plt.cm.get_cmap("tab20", max(20, len(all_labels)))
-    colors = {lab: cmap(i % cmap.N) for i, lab in enumerate(all_labels)}
-    for lab in np.unique(source_labels):
-        idx = np.where(source_labels == lab)[0]
-        plt.scatter(s2[idx, 0], s2[idx, 1], c=[colors[lab]], s=14, alpha=0.85, marker="o", edgecolors="k", linewidths=0.3)
-    for lab in np.unique(target_labels):
-        idx = np.where(target_labels == lab)[0]
-        plt.scatter(t2[idx, 0], t2[idx, 1], c=[colors[lab]], s=12, alpha=0.5, marker="^", edgecolors="k", linewidths=0.3)
-    plt.title("GAN Best Latent t-SNE")
-    plt.xlabel("Dimension 1")
-    plt.ylabel("Dimension 2")
-    handles = []
-    for lab in all_labels:
-        name = mapping_int2str.get(int(lab), str(lab))
-        handles.append(plt.Line2D([0], [0], marker="o", color="w", label=name, markerfacecolor=colors[lab], markersize=6))
-    plt.legend(handles=handles, fontsize=7, loc="best", ncol=2)
-    plt.grid(alpha=0.2)
-    plt.tight_layout()
-    plt.savefig(save_path, dpi=250)
-    plt.close()
 
 
 def _encode_latent_dict(model, feature_df: pd.DataFrame, batch_size=512):

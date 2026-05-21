@@ -1,0 +1,25 @@
+{
+  "_metadata": {
+    "description": "Finetune config locked to param_058 from pretrain_vaewc_loss_v1/exp_011 (single combination).",
+    "reference": "result/pretrain_vaewc_loss_v1/exp_011/param_058/params_used.json",
+    "original_grid": "result/pretrain_vaewc_loss_v1/exp_011/finetune_config_used.json",
+    "param_index": 58,
+    "total_combinations_in_original_grid": 64,
+    "usage": "python step1_finetune_latent_pipeline_All_split.py --config config/params_repro_param058_finetune.json --model_select_path <path_to_model_select.csv> --outfolder <your_output_folder>"
+  },
+  "finetune_params": {
+    "ftlr": [0.001],
+    "scheduler_flag": [false],
+    "loss_type": ["bce"],
+    "focal_loss_gamma": [2.0]
+  },
+  "classifier_params": {
+    "hidden_dims": [[256, 128]],
+    "dropout_rate": [0.0],
+    "use_batch_norm": [true],
+    "activation": ["relu"]
+  },
+  "model_params": {
+    "gin_type": ["drpreter"]
+  }
+}

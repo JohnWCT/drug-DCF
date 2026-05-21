@@ -40,6 +40,12 @@ from drugmodels.ginconv import GINConvNet
 from tools.dataprocess import smile_to_graph, safemakedirs
 from tools.drug_finetune_utils import DrugResponseDataset
 from tools.inference_utils import inference_on_tcga_drugs, calculate_comprehensive_metrics, plot_confusion_matrix
+from tools.prediction_export import (
+    aggregate_fold_prediction_dfs,
+    collect_ccle_predictions,
+    predictions_from_tcga_inference_result,
+    save_prediction_tables,
+)
 
 if not torch.cuda.is_available():
     raise RuntimeError("CUDA GPU is required. No GPU detected.")
@@ -950,6 +956,9 @@ def perform_5fold_cross_validation(response_df,
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
     
     fold_results = []
+    all_ccle_pred_dfs = []
+    all_tcga_pred_dfs = []
+    all_tcga_extra_pred_dfs = []
     
     for fold, (train_idx, val_idx) in enumerate(skf.split(all_samples, all_labels)):
         # Starting fold
@@ -1098,11 +1107,23 @@ def perform_5fold_cross_validation(response_df,
             # Save test set confusion matrix for this fold
             test_confusion_matrix_path = os.path.join(fold_model_folder, 'test_confusion_matrix.png')
             plot_confusion_matrix(test_metrics['confusion_matrix'], test_confusion_matrix_path, f"Test Set Confusion Matrix - Fold {fold+1}")
+
+            fold_ccle_pred_df = collect_ccle_predictions(
+                model_components=model_components_fold,
+                dataset=test_dataset,
+                model_params=model_params,
+                domain="CCLE",
+                fold_id=fold + 1,
+                batch_size=batch_size,
+                collate_fn=collate_fn,
+            )
+            all_ccle_pred_dfs.append(fold_ccle_pred_df)
         else:
             test_loss = np.nan
             test_metrics = {'AUC': np.nan, 'AUPRC': np.nan, 'sensitivity': np.nan, 'specificity': np.nan,
                           'precision': np.nan, 'recall': np.nan, 'f1_score': np.nan, 'optimal_threshold': np.nan,
                           'confusion_matrix': None}
+            fold_ccle_pred_df = pd.DataFrame()
         
         # TCGA Inference for this fold (weights already loaded, pass None to avoid reloading)
         # TCGA Inference for this fold
@@ -1165,6 +1186,20 @@ def perform_5fold_cross_validation(response_df,
         for drug, mets in tcga_raw_results_extra['Drug_Metrics'].items():
             tcga_results[f'TCGA2_{drug}_TCGA_AUC'] = mets.get('AUC', np.nan)
             tcga_results[f'TCGA2_{drug}_TCGA_AUPRC'] = mets.get('AUPRC', np.nan)
+
+        fold_tcga_pred_df = predictions_from_tcga_inference_result(tcga_raw_results, tcga_source="TCGA1")
+        fold_tcga_pred_df["fold"] = fold + 1
+        fold_tcga_extra_pred_df = predictions_from_tcga_inference_result(tcga_raw_results_extra, tcga_source="TCGA2")
+        if not fold_tcga_extra_pred_df.empty:
+            fold_tcga_extra_pred_df["fold"] = fold + 1
+        all_tcga_pred_dfs.append(fold_tcga_pred_df)
+        all_tcga_extra_pred_dfs.append(fold_tcga_extra_pred_df)
+        save_prediction_tables(
+            fold_model_folder,
+            ccle_test_df=fold_ccle_pred_df,
+            tcga_eval_df=fold_tcga_pred_df,
+            tcga_eval_extra_df=fold_tcga_extra_pred_df,
+        )
         
         # Save confusion matrix for validation set
         confusion_matrix_path = os.path.join(fold_model_folder, 'val_confusion_matrix.png')
@@ -1192,6 +1227,14 @@ def perform_5fold_cross_validation(response_df,
         
         # Fold completed
     
+    # Aggregate per-sample predictions across folds (C_prototypical style)
+    save_prediction_tables(
+        model_folder,
+        ccle_test_df=aggregate_fold_prediction_dfs(all_ccle_pred_dfs),
+        tcga_eval_df=aggregate_fold_prediction_dfs(all_tcga_pred_dfs),
+        tcga_eval_extra_df=aggregate_fold_prediction_dfs(all_tcga_extra_pred_dfs),
+    )
+
     # Calculate mean and std across folds
     mean_metrics = calculate_fold_statistics(fold_results)
     

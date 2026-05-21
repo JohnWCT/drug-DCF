@@ -78,6 +78,8 @@ class TCGA_target_data:
         # Initialize attributes
         self.target_data = torch.empty(0, 32).float().to(device)
         self.target_labels = torch.empty(0).float().to(device)
+        self.patient_ids = []
+        self.drug_name = drug_name
         
         if tcga_latent_dict is None:
              # Just return empty if no latents (will be handled by caller)
@@ -111,9 +113,9 @@ class TCGA_target_data:
                         patient_to_latent_key[patient_id] = latent_key
             
             # Find common patients
-            common_patients = []
             latent_list = []
             labels_list = []
+            patient_ids = []
             
             for _, row in drug_df.iterrows():
                 patient_id = row['Patient_id']
@@ -124,6 +126,7 @@ class TCGA_target_data:
                     if latent_key in tcga_latent_dict:
                         latent_list.append(tcga_latent_dict[latent_key])
                         labels_list.append(label)
+                        patient_ids.append(str(patient_id))
             
             if len(latent_list) == 0:
                 # No common samples
@@ -132,6 +135,7 @@ class TCGA_target_data:
             # Convert to tensors
             self.target_data = torch.tensor(np.array(latent_list), dtype=torch.float32).to(device)
             self.target_labels = torch.tensor(np.array(labels_list), dtype=torch.float32).to(device)
+            self.patient_ids = patient_ids
             
         except Exception as e:
             print(f"Error loading TCGA data for drug {drug_name}: {e}")
@@ -181,10 +185,13 @@ def inference_on_tcga_drugs(model_components, tcga_data_path, best_model_path, f
         drug_model.eval()
     classifier.eval()
     
+    from tools.prediction_export import build_tcga_prediction_rows
+
     results = {
         'Global_Metrics': {},
         'Average_Metrics': {},
-        'Drug_Metrics': {}
+        'Drug_Metrics': {},
+        'Sample_Predictions': [],
     }
     
     # Accumulators for Global Score
@@ -315,6 +322,18 @@ def inference_on_tcga_drugs(model_components, tcga_data_path, best_model_path, f
                 # 1. Store for Global Metrics
                 global_preds.extend(cur_preds)
                 global_targets.extend(cur_targets)
+
+                patient_ids = getattr(data_generator, "patient_ids", [])
+                if len(patient_ids) == len(cur_preds):
+                    results['Sample_Predictions'].extend(
+                        build_tcga_prediction_rows(
+                            patient_ids=patient_ids,
+                            drug_name=drug_name,
+                            ground_truth=cur_targets,
+                            confidence=cur_preds,
+                            tcga_source=tcga_tag,
+                        )
+                    )
                 
                 # 2. Calculate Individual Metrics
                 try:

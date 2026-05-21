@@ -1,0 +1,32 @@
+{
+  "_metadata": {
+    "description": "Finetune grid: scheduler on, loss bce/focal, classifier [256,128] with dropout 0.05/0.1, leaky_relu, gin dapl.",
+    "total_combinations": 4,
+    "breakdown": {
+      "finetune_params": "scheduler_flag(1=true) × loss_type(2=bce,focal) = 2",
+      "classifier_params": "hidden_dims(1) × dropout_rate(2=0.05,0.1) × activation(1=leaky_relu) × use_batch_norm(1=true) = 2",
+      "model_params": "gin_type(1=dapl) = 1"
+    },
+    "fixed_defaults": {
+      "ftlr": 0.001,
+      "focal_loss_gamma": 2.0,
+      "use_batch_norm": true
+    },
+    "usage": "python step1_finetune_latent_pipeline_All_split.py --config config/params_finetune_dapl_bce_focal_dropout.json --model_select_path <path_to_model_select.csv> --outfolder <your_output_folder>"
+  },
+  "finetune_params": {
+    "ftlr": [0.001],
+    "scheduler_flag": [true],
+    "loss_type": ["bce", "focal"],
+    "focal_loss_gamma": [2.0]
+  },
+  "classifier_params": {
+    "hidden_dims": [[256, 128]],
+    "dropout_rate": [0.05, 0.1],
+    "use_batch_norm": [true],
+    "activation": ["leaky_relu"]
+  },
+  "model_params": {
+    "gin_type": ["dapl"]
+  }
+}

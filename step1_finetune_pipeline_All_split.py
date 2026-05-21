@@ -21,6 +21,11 @@ from tools.model_opt import VAE, Classify, init_weights # Assuming these are in 
 from drugmodels.ginconv import GINConvNet # Assuming this is in a 'drugmodels' directory
 from tools.dataprocess import cat_tensor_with_drug, smile_to_graph, safemakedirs # Using safemakedirs from tools.dataprocess
 from tools.inference_utils import inference_on_tcga_drugs as inference_on_tcga_drugs_latent
+from tools.prediction_export import (
+    collect_ccle_predictions,
+    predictions_from_tcga_inference_result,
+    save_prediction_tables,
+)
 
 if not torch.cuda.is_available():
     raise RuntimeError("CUDA GPU is required. No GPU detected.")
@@ -338,10 +343,12 @@ def inference_on_tcga_drugs(
     )
     if not raw_results:
         return {}
-    return {
+    simplified = {
         drug: {'AUC': mets.get('AUC', np.nan), 'AUPRC': mets.get('AUPRC', np.nan)}
         for drug, mets in raw_results.get('Drug_Metrics', {}).items()
     }
+    simplified['_raw_inference'] = raw_results
+    return simplified
 
 def step_1_finetune_pipeline_zscore(
     pretrain_model_root_folder, 
@@ -735,19 +742,43 @@ def step_1_finetune_pipeline_zscore(
             # Evaluate on test set
             test_loss, test_auc, test_auprc = evaluate_model(model_components, test_loader, loss_fn)
             print(f"\nTest Results - Loss: {test_loss:.4f}, AUC: {test_auc:.4f}, AUPRC: {test_auprc:.4f}")
+
+            ccle_pred_df = collect_ccle_predictions(
+                model_components=model_components,
+                dataset=test_subset,
+                domain="CCLE",
+                batch_size=batch_size,
+                collate_fn=collate_fn,
+            )
             
             # TCGA inference
             best_model_path = os.path.join(model_folder, 'best_model.pth')
-            tcga_results = inference_on_tcga_drugs(
+            tcga_results_raw = inference_on_tcga_drugs(
                 model_components, tcga_inference_data_folder,
                 best_model_path, train_params, ft_params, drug_smiles_df, tcga_tag='TCGA1'
             )
-            tcga_results_extra = {}
+            tcga_results_extra_raw = {}
             if tcga_inference_data_folder_extra:
-                tcga_results_extra = inference_on_tcga_drugs(
+                tcga_results_extra_raw = inference_on_tcga_drugs(
                     model_components, tcga_inference_data_folder_extra,
                     best_model_path, train_params, ft_params, drug_smiles_df, tcga_tag='TCGA2'
                 )
+
+            tcga_pred_df = predictions_from_tcga_inference_result(
+                tcga_results_raw.get('_raw_inference', {}), tcga_source="TCGA1"
+            )
+            tcga_pred_extra_df = predictions_from_tcga_inference_result(
+                tcga_results_extra_raw.get('_raw_inference', {}), tcga_source="TCGA2"
+            )
+            save_prediction_tables(
+                model_folder,
+                ccle_test_df=ccle_pred_df,
+                tcga_eval_df=tcga_pred_df,
+                tcga_eval_extra_df=tcga_pred_extra_df,
+            )
+
+            tcga_results = {k: v for k, v in tcga_results_raw.items() if k != '_raw_inference'}
+            tcga_results_extra = {k: v for k, v in tcga_results_extra_raw.items() if k != '_raw_inference'}
             
             # Calculate overall TCGA metrics and add them to tcga_results
             tcga_results = calculate_overall_tcga_metrics(tcga_results)

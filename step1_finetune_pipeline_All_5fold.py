@@ -22,6 +22,13 @@ import seaborn as sns
 from tools.model_opt import VAE, Classify, init_weights
 from drugmodels.ginconv import GINConvNet
 from tools.dataprocess import smile_to_graph, safemakedirs
+from tools.prediction_export import (
+    aggregate_fold_prediction_dfs,
+    build_tcga_prediction_rows,
+    collect_ccle_predictions,
+    predictions_from_tcga_inference_result,
+    save_prediction_tables,
+)
 
 if not torch.cuda.is_available():
     raise RuntimeError("CUDA GPU is required. No GPU detected.")
@@ -520,6 +527,7 @@ def inference_on_tcga_drugs(model_components, tcga_data_folder, best_model_path,
     tcga_resp_df = tcga_resp_df.dropna(subset=[resp_patient_col, resp_drug_col, resp_label_col])
     
     results = {}
+    sample_predictions = []
     
     for drug_name, drug_smile in zip(drug_list, drug_smiles):
         try:
@@ -529,6 +537,7 @@ def inference_on_tcga_drugs(model_components, tcga_data_folder, best_model_path,
                 print(f"Warning: No TCGA rows for drug {drug_name} in CSV mode.")
                 target_data = torch.empty(0, GENE_INPUT_DIM).float().to(device)
                 target_labels = torch.empty(0).float().squeeze().to(device)
+                tcga_patient_ids = []
             else:
                 sub = sub.drop_duplicates(subset=[resp_patient_col], keep='first')
                 common_ids = [pid for pid in sub[resp_patient_col].tolist() if pid in tcga_expr_df.index]
@@ -536,12 +545,14 @@ def inference_on_tcga_drugs(model_components, tcga_data_folder, best_model_path,
                     print(f"Warning: No overlapping TCGA expression for drug {drug_name} in CSV mode.")
                     target_data = torch.empty(0, GENE_INPUT_DIM).float().to(device)
                     target_labels = torch.empty(0).float().squeeze().to(device)
+                    tcga_patient_ids = []
                 else:
                     sub_idx = sub.set_index(resp_patient_col)
                     feat_np = np.nan_to_num(tcga_expr_df.loc[common_ids].values, nan=0.0).astype(np.float32)
                     label_np = np.nan_to_num(sub_idx.loc[common_ids, resp_label_col].values, nan=0.0).astype(np.float32)
                     target_data = torch.from_numpy(feat_np).float().to(device)
                     target_labels = torch.from_numpy(label_np).float().squeeze().to(device)
+                    tcga_patient_ids = list(common_ids)
             
             # Skip if no data is available
             if target_data.shape[0] == 0:
@@ -550,6 +561,7 @@ def inference_on_tcga_drugs(model_components, tcga_data_folder, best_model_path,
                     'AUC': np.nan, 'AUPRC': np.nan, 'sensitivity': np.nan, 'specificity': np.nan,
                     'precision': np.nan, 'recall': np.nan, 'f1_score': np.nan, 'optimal_threshold': np.nan
                 }
+                tcga_patient_ids = []
                 continue
             
             c_size, atom_features_list, edge_index = smile_to_graph(drug_smile)
@@ -579,6 +591,17 @@ def inference_on_tcga_drugs(model_components, tcga_data_folder, best_model_path,
                 # Convert to numpy for metric calculation
                 all_preds = pred_probs.cpu().numpy()
                 all_targets = target_labels.cpu().numpy()
+
+                if len(tcga_patient_ids) == len(all_preds):
+                    sample_predictions.extend(
+                        build_tcga_prediction_rows(
+                            patient_ids=tcga_patient_ids,
+                            drug_name=drug_name,
+                            ground_truth=all_targets,
+                            confidence=all_preds,
+                            tcga_source=tcga_tag,
+                        )
+                    )
                 
                 # Handle potential NaN values
                 if np.isnan(all_preds).any() or np.isnan(all_targets).any():
@@ -649,6 +672,7 @@ def inference_on_tcga_drugs(model_components, tcga_data_folder, best_model_path,
             'optimal_threshold': optimal_threshold
         }
     
+    results['Sample_Predictions'] = sample_predictions
     return results
 
 def step_1_finetune_pipeline_zscore(
@@ -970,6 +994,9 @@ def perform_5fold_cross_validation(response_df,
     skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
     
     fold_results = []
+    all_ccle_pred_dfs = []
+    all_tcga_pred_dfs = []
+    all_tcga_extra_pred_dfs = []
     
     for fold, (train_idx, val_idx) in enumerate(skf.split(all_samples, all_labels)):
         # Starting fold
@@ -1181,14 +1208,25 @@ def perform_5fold_cross_validation(response_df,
             # Save test set confusion matrix for this fold
             test_confusion_matrix_path = os.path.join(fold_model_folder, 'test_confusion_matrix.png')
             plot_confusion_matrix(test_metrics['confusion_matrix'], test_confusion_matrix_path, f"Test Set Confusion Matrix - Fold {fold+1}")
+
+            fold_ccle_pred_df = collect_ccle_predictions(
+                model_components=model_components,
+                dataset=test_subset,
+                domain="CCLE",
+                fold_id=fold + 1,
+                batch_size=batch_size,
+                collate_fn=collate_fn,
+            )
+            all_ccle_pred_dfs.append(fold_ccle_pred_df)
         else:
             test_loss = np.nan
             test_metrics = {'AUC': np.nan, 'AUPRC': np.nan, 'sensitivity': np.nan, 'specificity': np.nan,
                           'precision': np.nan, 'recall': np.nan, 'f1_score': np.nan, 'optimal_threshold': np.nan,
                           'confusion_matrix': None}
+            fold_ccle_pred_df = pd.DataFrame()
         
         # TCGA Inference for this fold
-        tcga_results = inference_on_tcga_drugs(
+        tcga_results_raw = inference_on_tcga_drugs(
             model_components=model_components,
             tcga_data_folder=tcga_inference_data_folder,
             best_model_path=None,  # Pass None to avoid reloading weights
@@ -1197,11 +1235,9 @@ def perform_5fold_cross_validation(response_df,
             tcga_tag='TCGA1'
         )
         
-        # Calculate overall TCGA metrics for this fold
-        tcga_results = calculate_overall_tcga_metrics(tcga_results)
-        tcga_results_extra = {}
+        tcga_results_extra_raw = {}
         if tcga_inference_data_folder_extra:
-            tcga_results_extra = inference_on_tcga_drugs(
+            tcga_results_extra_raw = inference_on_tcga_drugs(
                 model_components=model_components,
                 tcga_data_folder=tcga_inference_data_folder_extra,
                 best_model_path=None,
@@ -1209,7 +1245,28 @@ def perform_5fold_cross_validation(response_df,
                 fold_model_folder=fold_model_folder,
                 tcga_tag='TCGA2'
             )
-            tcga_results_extra = calculate_overall_tcga_metrics(tcga_results_extra)
+
+        fold_tcga_pred_df = predictions_from_tcga_inference_result(tcga_results_raw, tcga_source="TCGA1")
+        if not fold_tcga_pred_df.empty:
+            fold_tcga_pred_df["fold"] = fold + 1
+        fold_tcga_extra_pred_df = predictions_from_tcga_inference_result(tcga_results_extra_raw, tcga_source="TCGA2")
+        if not fold_tcga_extra_pred_df.empty:
+            fold_tcga_extra_pred_df["fold"] = fold + 1
+        all_tcga_pred_dfs.append(fold_tcga_pred_df)
+        all_tcga_extra_pred_dfs.append(fold_tcga_extra_pred_df)
+        save_prediction_tables(
+            fold_model_folder,
+            ccle_test_df=fold_ccle_pred_df,
+            tcga_eval_df=fold_tcga_pred_df,
+            tcga_eval_extra_df=fold_tcga_extra_pred_df,
+        )
+
+        tcga_for_metrics = {k: v for k, v in tcga_results_raw.items() if k != 'Sample_Predictions'}
+        tcga_results = calculate_overall_tcga_metrics(tcga_for_metrics)
+        tcga_results_extra = {}
+        if tcga_results_extra_raw:
+            extra_for_metrics = {k: v for k, v in tcga_results_extra_raw.items() if k != 'Sample_Predictions'}
+            tcga_results_extra = calculate_overall_tcga_metrics(extra_for_metrics)
         
         # Save confusion matrix for validation set
         confusion_matrix_path = os.path.join(fold_model_folder, 'val_confusion_matrix.png')
@@ -1241,6 +1298,13 @@ def perform_5fold_cross_validation(response_df,
     # Calculate mean and std across folds
     mean_metrics = calculate_fold_statistics(fold_results)
     
+    save_prediction_tables(
+        model_folder,
+        ccle_test_df=aggregate_fold_prediction_dfs(all_ccle_pred_dfs),
+        tcga_eval_df=aggregate_fold_prediction_dfs(all_tcga_pred_dfs),
+        tcga_eval_extra_df=aggregate_fold_prediction_dfs(all_tcga_extra_pred_dfs),
+    )
+
     return fold_results, mean_metrics
 
 def calculate_fold_statistics(fold_results):
@@ -1374,9 +1438,9 @@ def calculate_overall_tcga_metrics(tcga_results):
     
     try:
         for drug_name, metrics in tcga_results.items():
-            # Skip existing summary metrics
+            # Skip existing summary metrics / per-sample tables
             if drug_name in ['Overall_AUC', 'Overall_AUPRC', 'Overall_Sensitivity', 'Overall_Specificity', 
-                           'Overall_Precision', 'Overall_Recall', 'Overall_F1_Score']:
+                           'Overall_Precision', 'Overall_Recall', 'Overall_F1_Score', 'Sample_Predictions']:
                 continue
                 
             # Only add valid metrics (non-NaN)

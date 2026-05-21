@@ -39,6 +39,11 @@ from drugmodels.ginconv import GINConvNet # Assuming this is in a 'drugmodels' d
 from tools.dataprocess import smile_to_graph, safemakedirs # Using safemakedirs from tools.dataprocess
 from tools.drug_finetune_utils import DrugResponseDataset
 from tools.inference_utils import inference_on_tcga_drugs, calculate_comprehensive_metrics, plot_confusion_matrix
+from tools.prediction_export import (
+    collect_ccle_predictions,
+    predictions_from_tcga_inference_result,
+    save_prediction_tables,
+)
 
 if not torch.cuda.is_available():
     raise RuntimeError("CUDA GPU is required. No GPU detected.")
@@ -678,6 +683,15 @@ def build_and_run_one_combination(
         param_combination_id=f"{model_id}_p{param_combination_id}",
     )
 
+    ccle_pred_df = collect_ccle_predictions(
+        model_components=model_components,
+        dataset=test_subset,
+        model_params=model_params,
+        domain="CCLE",
+        batch_size=_safe_test_bs,
+        collate_fn=_collate,
+    )
+
     # ── 8. TCGA 推論 ─────────────────────────────────────────────────
     best_model_path = os.path.join(model_exp_folder, 'best_model.pth')
     print("\n  Running inference on TCGA drugs...")
@@ -707,6 +721,15 @@ def build_and_run_one_combination(
             drug_smiles_df=drug_smiles_df,
             tcga_tag='TCGA2',
         )
+
+    tcga_pred_df = predictions_from_tcga_inference_result(tcga_results, tcga_source="TCGA1")
+    tcga_pred_extra_df = predictions_from_tcga_inference_result(tcga_results_extra, tcga_source="TCGA2")
+    save_prediction_tables(
+        model_exp_folder,
+        ccle_test_df=ccle_pred_df,
+        tcga_eval_df=tcga_pred_df,
+        tcga_eval_extra_df=tcga_pred_extra_df,
+    )
 
     # ── 9. 結果封裝 ──────────────────────────────────────────────────
     return {

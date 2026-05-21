@@ -5,7 +5,8 @@ Usage example:
 python visualize_vaewc_results.py \
   --result_dir result/pretrain_vaewc \
   --output_dir result/pretrain_vaewc/00_report \
-  --per_page 80
+  --per_page 80 \
+  --select_top_k 2
 """
 
 import os

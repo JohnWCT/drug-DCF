@@ -4,6 +4,9 @@ AEwC pretraining + GAN alignment pipeline.
 This script reuses the same training/evaluation pipeline as `pretrain_VAEwC.py`
 but switches the backbone from VAE to AE.
 
+t-SNE output (`tsne_gan_best.png`) uses the shared dual-panel plot
+(A: source/target domain, B: cancer type) from `tools.pretrain_tsne`.
+
 Usage example:
 python pretrain_AEwC.py \
   --config config/params_grid_quick3_vaewc.json \
