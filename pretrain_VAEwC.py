@@ -61,6 +61,7 @@ print("use device:", device)
 MODEL_BACKBONE = VAE
 MODEL_TYPE_NAME = "VAE"
 DEFAULT_SOURCE_CSV = "data/pretrain_ccle.csv"
+DEFAULT_CCLE_INFO_CSV = os.path.join("data", "ccle_sample_info_df.csv")
 PRETRAIN_MODEL_SELECT_FILENAME = "pretrain_model_select.csv"
 # Learning curve display control:
 # skip first N epochs on x-axis when plotting.
@@ -178,54 +179,13 @@ def _load_labeled_data_patient_aware(
     use_class_weight=False,
     target_domain="tcga",
     target_cancer_reference_path=None,
+    ccle_info_path=None,
 ):
-    def _norm_name(v: str) -> str:
-        return str(v).strip().lower().replace("&", "and")
-
-    study_to_source_map = {
-        "LAML": "na",
-        "ACC": "na",
-        "BLCA": "Bladder Cancer",
-        "LGG": "Brain Cancer",
-        "BRCA": "Breast Cancer",
-        "CESC": "Cervical Cancer",
-        "CHOL": "Bile Duct Cancer",
-        "LCML": "na",
-        "COAD": "Colon/Colorectal Cancer",
-        "CNTL": "na",
-        "ESCA": "Esophageal Cancer",
-        "FPPP": "na",
-        "GBM": "Brain Cancer",
-        "HNSC": "Head and Neck Cancer",
-        "KICH": "Kidney Cancer",
-        "KIRC": "Kidney Cancer",
-        "KIRP": "Kidney Cancer",
-        "LIHC": "Liver Cancer",
-        "LUAD": "Lung Cancer",
-        "LUSC": "Lung Cancer",
-        "DLBC": "na",
-        "MESO": "na",
-        "MISC": "na",
-        "OV": "Ovarian Cancer",
-        "PAAD": "Pancreatic Cancer",
-        "PCPG": "na",
-        "PRAD": "Prostate Cancer",
-        "READ": "Colon/Colorectal Cancer",
-        "SARC": "Sarcoma",
-        "SKCM": "Skin Cancer",
-        "STAD": "Gastric Cancer",
-        "TGCT": "na",
-        "THYM": "na",
-        "THCA": "Thyroid Cancer",
-        "UCS": "Endometrial/Uterine Cancer",
-        "UCEC": "Endometrial/Uterine Cancer",
-        "UVM": "Eye Cancer",
-    }
+    """Load labeled data; expects pre-cleaned expression CSVs (see tools/clean_pretrain_inputs_by_cancer_type.py)."""
     ccle_df = pd.read_csv(ccle_path, index_col=0)
     xena_df = pd.read_csv(xena_path, index_col=0)
     ccle_df.index = ccle_df.index.astype(str)
     xena_df.index = xena_df.index.astype(str)
-    # Ensure both domains use identical feature space/order.
     common_cols = [c for c in ccle_df.columns if c in set(xena_df.columns)]
     if len(common_cols) == 0:
         raise ValueError(
@@ -234,142 +194,44 @@ def _load_labeled_data_patient_aware(
         )
     ccle_df = ccle_df.loc[:, common_cols]
     xena_df = xena_df.loc[:, common_cols]
-    ccle_info = pd.read_csv(os.path.join("data", "ccle_sample_info_df.csv"), index_col=0, header=0)
+
+    ccle_info_path = ccle_info_path or DEFAULT_CCLE_INFO_CSV
+    ccle_info = pd.read_csv(ccle_info_path, index_col=0, header=0)
+    ccle_info.index = ccle_info.index.astype(str)
+    if "cancer_type" not in ccle_info.columns:
+        raise ValueError(
+            f"Missing cancer_type in {ccle_info_path}. "
+            f"Run: python tools/add_xena_cancer_type_column.py --ccle-only"
+        )
+    ccle_info["primary_disease"] = ccle_info["cancer_type"].astype(str).str.strip()
+
     target_domain = str(target_domain).lower()
     if target_domain == "tcga":
         if not target_cancer_reference_path:
             target_cancer_reference_path = TARGET_DOMAIN_CONFIG["tcga"]["target_cancer_reference"]
         xena_info = pd.read_csv(target_cancer_reference_path, index_col=0, header=0)
         xena_info.index = xena_info.index.astype(str)
-        # Support both abbreviation-based and full-name TCGA reference files.
-        # Priority:
-        # 1) Study_Abbreviation column (classic format)
-        # 2) _primary_disease / Study Name style text (new format)
-        # 3) fallback first column
-        study_name_to_abbr = {
-            "Acute Myeloid Leukemia": "LAML",
-            "Adrenocortical carcinoma": "ACC",
-            "Bladder Urothelial Carcinoma": "BLCA",
-            "Brain Lower Grade Glioma": "LGG",
-            "Breast invasive carcinoma": "BRCA",
-            "Cervical squamous cell carcinoma and endocervical adenocarcinoma": "CESC",
-            "Cholangiocarcinoma": "CHOL",
-            "Chronic Myelogenous Leukemia": "LCML",
-            "Colon adenocarcinoma": "COAD",
-            "Controls": "CNTL",
-            "Esophageal carcinoma": "ESCA",
-            "FFPE Pilot Phase II": "FPPP",
-            "Glioblastoma multiforme": "GBM",
-            "Head and Neck squamous cell carcinoma": "HNSC",
-            "Kidney Chromophobe": "KICH",
-            "Kidney renal clear cell carcinoma": "KIRC",
-            "Kidney renal papillary cell carcinoma": "KIRP",
-            "Liver hepatocellular carcinoma": "LIHC",
-            "Lung adenocarcinoma": "LUAD",
-            "Lung squamous cell carcinoma": "LUSC",
-            "Lymphoid Neoplasm Diffuse Large B-cell Lymphoma": "DLBC",
-            "Mesothelioma": "MESO",
-            "Miscellaneous": "MISC",
-            "Ovarian serous cystadenocarcinoma": "OV",
-            "Pancreatic adenocarcinoma": "PAAD",
-            "Pheochromocytoma and Paraganglioma": "PCPG",
-            "Prostate adenocarcinoma": "PRAD",
-            "Rectum adenocarcinoma": "READ",
-            "Sarcoma": "SARC",
-            "Skin Cutaneous Melanoma": "SKCM",
-            "Stomach adenocarcinoma": "STAD",
-            "Testicular Germ Cell Tumors": "TGCT",
-            "Thymoma": "THYM",
-            "Thyroid carcinoma": "THCA",
-            "Uterine Carcinosarcoma": "UCS",
-            "Uterine Corpus Endometrial Carcinoma": "UCEC",
-            "Uveal Melanoma": "UVM",
-        }
-        name_to_source_map = {
-            _norm_name(name): study_to_source_map[abbr]
-            for name, abbr in study_name_to_abbr.items()
-            if abbr in study_to_source_map
-        }
-        # Name-based fallback map for xena_sample_info full-name format.
-        # This is the direct counterpart of the legacy target_to_source_map.
-        target_to_source_map = {
-            'acute myeloid leukemia': 'na',
-            'adrenocortical cancer': 'na',
-            'bladder urothelial carcinoma': 'Bladder Cancer',
-            'brain lower grade glioma': 'Brain Cancer',
-            'breast invasive carcinoma': 'Breast Cancer',
-            'cervical & endocervical cancer': 'Cervical Cancer',
-            'cholangiocarcinoma': 'Bile Duct Cancer',
-            'colon adenocarcinoma': 'Colon/Colorectal Cancer',
-            'diffuse large b-cell lymphoma': 'na',
-            'esophageal carcinoma': 'Esophageal Cancer',
-            'glioblastoma multiforme': 'Brain Cancer',
-            'head & neck squamous cell carcinoma': 'Head and Neck Cancer',
-            'kidney chromophobe': 'Kidney Cancer',
-            'kidney clear cell carcinoma': 'Kidney Cancer',
-            'kidney papillary cell carcinoma': 'Kidney Cancer',
-            'liver hepatocellular carcinoma': 'Liver Cancer',
-            'lung adenocarcinoma': 'Lung Cancer',
-            'lung squamous cell carcinoma': 'Lung Cancer',
-            'mesothelioma': 'na',
-            'ovarian serous cystadenocarcinoma': 'Ovarian Cancer',
-            'pancreatic adenocarcinoma': 'Pancreatic Cancer',
-            'pheochromocytoma & paraganglioma': 'na',
-            'prostate adenocarcinoma': 'Prostate Cancer',
-            'rectum adenocarcinoma': 'Colon/Colorectal Cancer',
-            'sarcoma': 'Sarcoma',
-            'skin cutaneous melanoma': 'Skin Cancer',
-            'stomach adenocarcinoma': 'Gastric Cancer',
-            'testicular germ cell tumor': 'na',
-            'thymoma': 'na',
-            'thyroid carcinoma': 'Thyroid Cancer',
-            'uterine carcinosarcoma': 'Endometrial/Uterine Cancer',
-            'uterine corpus endometrioid carcinoma': 'Endometrial/Uterine Cancer',
-            'uveal melanoma': 'Eye Cancer',
-        }
-        name_to_source_map.update({
-            _norm_name(k): v for k, v in target_to_source_map.items()
-        })
-        # Common aliases/synonyms seen in different exports.
-        name_to_source_map.update({
-            "pheochromocytoma and paraganglioma": "na",
-            "head and neck squamous cell carcinoma": "Head and Neck Cancer",
-            "cervical and endocervical cancer": "Cervical Cancer",
-            "adrenocortical carcinoma": "na",
-            "diffuse large b-cell lymphoma": "na",
-            "kidney renal clear cell carcinoma": "Kidney Cancer",
-            "kidney renal papillary cell carcinoma": "Kidney Cancer",
-            "testicular germ cell tumors": "na",
-            "uterine corpus endometrial carcinoma": "Endometrial/Uterine Cancer",
-        })
-
-        if "Study_Abbreviation" in xena_info.columns:
-            label_series = xena_info["Study_Abbreviation"].astype(str).map(study_to_source_map)
-        else:
-            disease_col = "_primary_disease" if "_primary_disease" in xena_info.columns else None
-            if disease_col is None:
-                candidate_cols = [c for c in xena_info.columns if "study" in c.lower() or "disease" in c.lower()]
-                disease_col = candidate_cols[0] if candidate_cols else xena_info.columns[0]
-            label_series = xena_info[disease_col].astype(str).map(lambda x: name_to_source_map.get(_norm_name(x)))
-
-        xena_info["_primary_disease"] = label_series
+        if "cancer_type" not in xena_info.columns:
+            raise ValueError(
+                f"Missing cancer_type in {target_cancer_reference_path}. "
+                f"Run: python tools/add_xena_cancer_type_column.py --tcga-only"
+            )
+        xena_info["_primary_disease"] = xena_info["cancer_type"].astype(str).str.strip()
         xena_info["patient_id"] = xena_info.index.map(tcga_three_segment_key)
-        xena_patient_info = xena_info.dropna(subset=["_primary_disease"]).sort_index().groupby("patient_id").first()
+        xena_patient_info = (
+            xena_info.dropna(subset=["_primary_disease"])
+            .sort_index()
+            .groupby("patient_id")
+            .first()
+        )
     elif target_domain == "pdx":
         if not target_cancer_reference_path:
             target_cancer_reference_path = TARGET_DOMAIN_CONFIG["pdx"]["target_cancer_reference"]
         xena_info = pd.read_csv(target_cancer_reference_path)
-        if "Model" in xena_info.columns and "cancerType" in xena_info.columns:
-            # Use direct disease names only (no short-code mapping).
-            pdx_to_source_map = {
-                "Breast Cancer": "Breast Cancer",
-                "Skin Cancer": "Skin Cancer",
-                "Colon/Colorectal Cancer": "Colon/Colorectal Cancer",
-                "Lung Cancer": "Lung Cancer",
-                "Pancreatic Cancer": "Pancreatic Cancer",
-            }
+        if "Model" in xena_info.columns and ("cancer_type" in xena_info.columns or "cancerType" in xena_info.columns):
+            cancer_col = "cancer_type" if "cancer_type" in xena_info.columns else "cancerType"
             xena_info["Model"] = xena_info["Model"].astype(str)
-            xena_info["_primary_disease"] = xena_info["cancerType"].astype(str).str.strip().map(pdx_to_source_map)
+            xena_info["_primary_disease"] = xena_info[cancer_col].astype(str).str.strip()
             xena_patient_info = (
                 xena_info.dropna(subset=["_primary_disease"])
                 .sort_values("Model")
@@ -411,7 +273,7 @@ def _load_labeled_data_patient_aware(
     valid_tcga_ids = xena_df.index.intersection(xena_patient_info.index)
     xena_df = xena_df.loc[valid_tcga_ids]
     xena_labels = xena_patient_info.loc[valid_tcga_ids, "_primary_disease"]
-    common_labels = sorted(list((set(ccle_info.primary_disease.unique()) & set(xena_labels.unique())) - {"na"}))
+    common_labels = sorted(set(ccle_info.primary_disease.unique()) & set(xena_labels.unique()))
     ccle_mask = ccle_info.primary_disease.isin(common_labels)
     xena_mask = xena_labels.isin(common_labels)
     ccle_df = ccle_df.loc[ccle_mask]
@@ -1246,6 +1108,12 @@ def main():
         type=str,
         help="overlap patient list to exclude from TCGA training (only used when target_domain=tcga)",
     )
+    parser.add_argument(
+        "--ccle-info",
+        default=DEFAULT_CCLE_INFO_CSV,
+        type=str,
+        help="CCLE sample info CSV with cancer_type column",
+    )
     args = parser.parse_args()
     domain_cfg = TARGET_DOMAIN_CONFIG[args.target_domain]
     resolved_target = args.target or domain_cfg["target_expression"]
@@ -1287,6 +1155,7 @@ def main():
                 use_class_weight=param_dict.get("use_class_weight", False),
                 target_domain=args.target_domain,
                 target_cancer_reference_path=resolved_target_cancer_ref,
+                ccle_info_path=args.ccle_info,
             )
             exp_name, exp_dir = _next_experiment_dir(args.outfolder)
             metrics = run_single_experiment(

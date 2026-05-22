@@ -1,0 +1,15 @@
+{
+  "_metadata": {
+    "description": "cancer_type values kept in CSV but excluded from pretrain_VAEwC (before train/test split). Includes TCGA rows filled from former 'na' using CCLE primary_disease naming.",
+    "tcga_na_filled_reference": "tools/tcga_cancer_type_maps.py CCLE_STYLE_FILLED_FROM_NA",
+    "usage_pre_clean": "docker exec -w /workspace/DAPL DAPL python3 tools/clean_pretrain_inputs_by_cancer_type.py --config config/pretrain_cancer_type_exclude.json",
+    "usage_pretrain": "python pretrain_VAEwC.py ... (inputs should already be cleaned)"
+  },
+  "exclude_from_training": [
+    "na",
+    "Leukemia",
+    "Lymphoma",
+    "Adrenal Cancer",
+    "Teratoma"
+  ]
+}

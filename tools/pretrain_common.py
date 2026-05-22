@@ -1,5 +1,6 @@
+import json
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Set
 
 import numpy as np
 import pandas as pd
@@ -131,3 +132,39 @@ def compute_class_weights(labels, device):
     weights = 1.0 / (class_counts + 1e-6)
     weights = weights * (len(class_counts) / weights.sum())
     return torch.from_numpy(weights).float().to(device)
+
+
+DEFAULT_CANCER_TYPE_EXCLUDE_CONFIG = os.path.join("config", "pretrain_cancer_type_exclude.json")
+
+
+def normalize_cancer_type_token(value: Any) -> str:
+    if value is None:
+        return ""
+    try:
+        if pd.isna(value):
+            return ""
+    except (TypeError, ValueError):
+        pass
+    return str(value).strip().lower().replace("&", "and")
+
+
+def load_cancer_type_exclude_set(config_path: str = DEFAULT_CANCER_TYPE_EXCLUDE_CONFIG) -> Set[str]:
+    """Load normalized cancer_type tokens to exclude from pretrain (e.g. 'na')."""
+    with open(config_path, "r", encoding="utf-8") as f:
+        payload = json.load(f)
+    items = payload.get("exclude_from_training", ["na"])
+    if not items:
+        raise ValueError(f"exclude_from_training is empty in {config_path}")
+    return {normalize_cancer_type_token(x) for x in items}
+
+
+def is_trainable_cancer_type(value: Any, exclude_set: Set[str]) -> bool:
+    """True if value is non-empty and not listed in exclude_from_training config."""
+    token = normalize_cancer_type_token(value)
+    if not token:
+        return False
+    return token not in exclude_set
+
+
+def filter_trainable_cancer_types(series: pd.Series, exclude_set: Set[str]) -> pd.Series:
+    return series.map(lambda v: is_trainable_cancer_type(v, exclude_set))
