@@ -17,6 +17,21 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # --------------------------------------------------
+# RTK — Rust Token Killer (CLI output compression for LLM)
+# https://github.com/rtk-ai/rtk
+# Optional build arg: --build-arg RTK_VERSION=v0.42.3
+# --------------------------------------------------
+ARG RTK_VERSION=
+ENV PATH="/root/.local/bin:${PATH}"
+COPY scripts/install_rtk.sh /tmp/install_rtk.sh
+RUN chmod +x /tmp/install_rtk.sh && \
+    RTK_VERSION="${RTK_VERSION}" bash /tmp/install_rtk.sh && \
+    rm -f /tmp/install_rtk.sh && \
+    ln -sf /root/.local/bin/rtk /usr/local/bin/rtk
+
+RUN rtk --version && which rtk
+
+# --------------------------------------------------
 # Check built-in Python / pip
 # --------------------------------------------------
 RUN python --version && \
