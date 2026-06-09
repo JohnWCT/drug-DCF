@@ -6,7 +6,8 @@ python visualize_vaewc_results.py \
   --result_dir result/pretrain_vaewc \
   --output_dir result/pretrain_vaewc/00_report \
   --per_page 80 \
-  --select_top_k 2
+  --select_top_k 2 \
+  --filter_config config/visualize_vaewc_filter.json
 """
 
 import os
@@ -229,6 +230,38 @@ def _rank_normalized(series: pd.Series, ascending: bool) -> pd.Series:
     return out
 
 
+def load_filter_config(path):
+    cfg = _read_json(path, default={})
+    if not cfg:
+        return {"enabled": False, "thresholds": {}, "lower_is_better": [], "higher_is_better": []}
+    return cfg
+
+
+def apply_quality_filter(df: pd.DataFrame, filter_cfg: dict) -> pd.DataFrame:
+    """Keep rows that meet or beat every configured threshold."""
+    if not filter_cfg.get("enabled", True):
+        return df.copy()
+
+    thresholds = filter_cfg.get("thresholds", {})
+    if not thresholds:
+        return df.copy()
+
+    lower_better = set(filter_cfg.get("lower_is_better", []))
+    higher_better = set(filter_cfg.get("higher_is_better", []))
+    mask = pd.Series(True, index=df.index)
+
+    for col, threshold in thresholds.items():
+        if col not in df.columns:
+            continue
+        values = pd.to_numeric(df[col], errors="coerce")
+        if col in lower_better:
+            mask &= values <= float(threshold)
+        elif col in higher_better:
+            mask &= values >= float(threshold)
+
+    return df[mask].copy()
+
+
 def add_combined_scores(df: pd.DataFrame, deconf_weight: float, kmeans_weight: float) -> pd.DataFrame:
     out = df.copy()
     deconf_metrics = [("fid", True), ("mmd", True), ("wasserstein", True)]
@@ -295,6 +328,17 @@ def main():
     parser.add_argument("--select_top_k", default=20, type=int, help="Top-K runs exported to model_select.csv for finetune")
     parser.add_argument("--deconf_weight", default=0.7, type=float, help="Weight of deconfounding score in total score")
     parser.add_argument("--kmeans_weight", default=0.3, type=float, help="Weight of kmeans score in total score")
+    parser.add_argument(
+        "--filter_config",
+        default="config/visualize_vaewc_filter.json",
+        type=str,
+        help="JSON config with quality thresholds; only passing runs are exported",
+    )
+    parser.add_argument(
+        "--no_filter",
+        action="store_true",
+        help="Disable quality filter even if filter_config is provided",
+    )
     args = parser.parse_args()
     out = args.output_dir or args.result_dir
     os.makedirs(out, exist_ok=True)
@@ -304,6 +348,19 @@ def main():
         print("No exp_* folders found.")
         return
     df = pd.DataFrame(rows)
+    total_loaded = len(df)
+
+    filter_cfg = load_filter_config(args.filter_config)
+    if args.no_filter:
+        filter_cfg["enabled"] = False
+    df = apply_quality_filter(df, filter_cfg)
+    total_kept = len(df)
+    if filter_cfg.get("enabled", True):
+        print(f"Quality filter: kept {total_kept}/{total_loaded} experiments")
+        if total_kept == 0:
+            print("No experiments passed the quality filter. Adjust config/visualize_vaewc_filter.json or use --no_filter.")
+            return
+
     df = add_combined_scores(df, deconf_weight=args.deconf_weight, kmeans_weight=args.kmeans_weight)
     df = df.sort_values("score_total", ascending=False, na_position="last")
     csv_path = os.path.join(out, "aggregated_vaewc_results.csv")

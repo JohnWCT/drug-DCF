@@ -1,0 +1,53 @@
+{
+  "_metadata": {
+    "description": "Quality thresholds for visualize_vaewc_results.py. Only experiments meeting ALL thresholds are exported.",
+    "relaxation_rule": "Slightly relaxed from baseline: lower-is-better metrics round UP, higher-is-better round DOWN, to nearest 0.05 (2 decimal places, multiples of 5 in hundredths). calinski_harabasz uses multiples of 5. mmd uses 0.00005 step when value < 0.01.",
+    "baseline_reference": {
+      "fid_source_target": 16.935491393006345,
+      "mmd_source_target": 0.018947289074792373,
+      "wasserstein_source_target": 0.47646576166152954,
+      "ari": 0.2224583577,
+      "nmi": 0.4694353175,
+      "silhouette": 0.1991495651,
+      "calinski_harabasz": 372.2179389,
+      "davies_bouldin": 1.464892496
+    },
+    "column_mapping": {
+      "fid_source_target": "fid",
+      "mmd_source_target": "mmd",
+      "wasserstein_source_target": "wasserstein",
+      "ari": "kmeans_ari",
+      "nmi": "kmeans_nmi",
+      "silhouette": "kmeans_silhouette",
+      "calinski_harabasz": "kmeans_calinski_harabasz",
+      "davies_bouldin": "kmeans_davies_bouldin"
+    },
+    "direction_notes": {
+      "lower_is_better": "fid, mmd, wasserstein, kmeans_davies_bouldin — value must be <= threshold",
+      "higher_is_better": "kmeans_ari, kmeans_nmi, kmeans_silhouette, kmeans_calinski_harabasz — value must be >= threshold"
+    }
+  },
+  "enabled": true,
+  "lower_is_better": [
+    "fid",
+    "mmd",
+    "wasserstein",
+    "kmeans_davies_bouldin"
+  ],
+  "higher_is_better": [
+    "kmeans_ari",
+    "kmeans_nmi",
+    "kmeans_silhouette",
+    "kmeans_calinski_harabasz"
+  ],
+  "thresholds": {
+    "fid": 16.95,
+    "mmd": 0.05,
+    "wasserstein": 0.50,
+    "kmeans_ari": 0.20,
+    "kmeans_nmi": 0.45,
+    "kmeans_silhouette": 0.15,
+    "kmeans_calinski_harabasz": 370,
+    "kmeans_davies_bouldin": 1.50
+  }
+}
