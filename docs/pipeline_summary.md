@@ -14,6 +14,7 @@
 |------|----------|
 | §1–2 | 想了解模型與管線流程 |
 | §3–4 | 想了解品質門檻與三輪實驗結論 |
+| **§4.4** | **三組差異總覽；重點：exp_746 vs Round 3 Control** |
 | **§10** | **討論下一輪優化方向（建議從此讀起）** |
 | §5–6 | 需要實際執行指令或找輸出檔 |
 
@@ -202,6 +203,260 @@ Selection 門檻：`min_passing=10`、`require_controls=2`（至少 2 個 `lambd
 | 10 | exp_019 | 0.4507 | −0.096 | 0.5789 (−0.038) | 0 | control |
 
 **exp_018 pretrain 特徵**（相對 exp_746）：`fid=20.3`（較差）、`wasserstein=0.38`（較好）、`kmeans_ari=0.754`（較好）、`proto_min_samples=2`、`proto_start_epoch=50`。
+
+### 4.4 最佳結果三方對照（exp_746 vs Round 3 Control vs Round 3 InfoNCE）
+
+> **建議閱讀順序：** ① 三組差異總覽 → ② **exp_746 vs Control（本章重點）** → ③ InfoNCE 簡述 → ④ 附錄數據表  
+> 資料來源：`result/pretrain_vaewc/exp_746/`、`pretrain_vaewc_loss/`、`optimization_runs/vaewc_proto_infonce_round3_exp746/`
+
+**代表模型：**
+
+| 角色 | Model | 一句話 |
+|------|-------|--------|
+| **歷史基準** | **exp_746** | 嚴格 filter 全過的 control；下游 Avg TCGA = 0.5462 |
+| **Round 3 Control** | **exp_018** | 同為 λ_proto=0，Round 3 下游最佳（Avg TCGA = 0.5695） |
+| **Round 3 InfoNCE** | **exp_100** | λ_proto=0.02；InfoNCE 組下游最佳但仍低於 exp_746 |
+
+---
+
+#### 4.4.0 三組主要差異（先讀這段）
+
+三組的**本質差異**不在 finetune，而在 **pretrain 階段是否啟用 Prototype InfoNCE**，以及由此產生的 **latent 幾何取捨**：
+
+| 維度 | exp_746（基準） | Round 3 Control（exp_018） | Round 3 InfoNCE（exp_100） |
+|------|-----------------|---------------------------|---------------------------|
+| **λ_proto** | 0 | 0 | **0.02** |
+| **訓練配方** | 歷史單次 pretrain | Round 3 大規模 sweep 中的 control 分支 | 同上，但 GAN 階段加 InfoNCE loss |
+| **Pretrain 強項** | **fid / mmd 最佳**（deconfounding） | **wasserstein 最低 + K-means 較好**（腫瘤結構） | 有 proto 訓練訊號，但 K-means 變差 |
+| **嚴格 filter** | ✅ 8/8 | ❌（fid 超標） | ❌ |
+| **下游 TCGA** | 歷史基準 | **Avg TCGA 最高（+4.3%）** | 未超越 exp_746 |
+| **一句話** | deconfounding 與 filter 的「均衡基準」 | 用較差 fid **換** 更好腫瘤結構 → TCGA 提升 | InfoNCE **未帶來**下游增益 |
+
+```text
+  exp_746 ──────────►  deconfounding 優先  ──►  嚴格 filter ✅，TCGA 基準
+       │
+       │  Round 3 重跑（λ_proto=0，超參微調 + 不同隨機軌跡）
+       ▼
+  exp_018 ──────────►  K-means + 低 wass 優先  ──►  filter 較差，TCGA ↑
+       │
+       │  同一 sweep 加上 λ_proto>0
+       ▼
+  exp_100 ──────────►  InfoNCE 約束 latent  ──►  K-means ↓，TCGA 無提升
+```
+
+**與你主要疑問的關係：** exp_746 與 Round 3 Control（exp_018）**都沒有啟用 InfoNCE**；差異來自 Round 3 重訓後 latent 落在不同的品質取捨點，而非「有無 InfoNCE」。InfoNCE 是第三組的獨立對照，用來驗證「加 contrastive loss 是否有幫助」——目前答案是否定的。
+
+---
+
+#### 4.4.1 【重點】exp_746 vs Round 3 Control（exp_018）差在哪？
+
+##### 相同點：訓練配方幾乎一致
+
+兩者皆為 **純 control（λ_proto=0）**，核心超參對齊 exp_746 基準：
+
+| 超參 | exp_746 | exp_018 |
+|------|---------|---------|
+| λ_cls | 20 | 20 |
+| use_class_weight | true | true |
+| cls_start / cls_full | 40 / 90 | 40 / 90 |
+| batch_size | 128 | 128 |
+| encoder_dims / latent | [256,128] / 32 | 同左 |
+| gan_patience / early_stop | 30 / loss | 同左 |
+| gan_gen_update_interval | 5 | 5 |
+| **lambda_proto（實際生效）** | **0** | **0** |
+
+exp_018 的 config 雖含 `proto_min_samples=2`、`proto_start_epoch=50` 等 sweep 欄位，但因 **λ_proto=0**，InfoNCE 相關 loss **不會生效**。  
+因此兩組差異**不是**「有無加 InfoNCE」，而是 **同一套配方下，不同訓練 run 收斂到不同的 latent 品質平衡點**。
+
+##### 不同點 1：Pretrain 品質的取捨（核心差異）
+
+| 指標 | 方向 | exp_746 | exp_018 | 誰較好 | 解讀 |
+|------|------|---------|---------|--------|------|
+| **fid** | ↓ | **16.9** | 20.3 | 746 | 018 域分佈重疊較差（deconfounding 較弱） |
+| **mmd** | ↓ | **0.019** | 0.036 | 746 | 同上 |
+| **wasserstein** | ↓ | 0.48 | **0.38** | **018** | 018 跨域距離更低 |
+| **kmeans_ari** | ↑ | 0.679 | **0.754** | **018** | 018 癌別分群更準（+11%） |
+| **kmeans_nmi** | ↑ | **0.824** | 0.817 | 746 | 差距很小 |
+| **kmeans_silhouette** | ↑ | 0.386 | **0.387** | 平手 | 幾乎相同 |
+| **kmeans_calinski** | ↑ | 467 | **555** | **018** | 018 類間分離更清楚 |
+| **kmeans_davies_bouldin** | ↓ | 1.02 | **0.94** | **018** | 018 分群更緊湊 |
+| **嚴格 filter** | — | **✅ 8/8** | ❌ | 746 | 018 因 fid>16.95 未通過 |
+
+**一句話：** exp_746 是「deconfounding 達標」的均衡解；exp_018 是「犧牲 fid、換取更低 wass + 更好 K-means」的解。這也解釋為何 018 能過**寬鬆** filter 卻过不了**嚴格** filter。
+
+##### 不同點 2：下游表現（finetune 後）
+
+| 指標 | exp_746 | exp_018 | Δ018−746 | 誰較好 |
+|------|---------|---------|----------|--------|
+| **Average_TCGA_AUC**（主指標） | 0.5462 | **0.5695** | **+0.023 (+4.3%)** | **018** |
+| **Global_TCGA_AUC** | 0.6168 | **0.6358** | +0.019 | **018** |
+| **Average_TCGA_AUPRC** | 0.6398 | **0.6502** | +0.010 | **018** |
+| Global_TCGA_AUPRC | **0.6978** | 0.6902 | −0.008 | 746 |
+| TCGA2_Average_TCGA_AUC | **0.5349** | 0.5198 | −0.015 | 746 |
+| Test_AUC（CCLE hold-out） | **0.7974** | 0.7072 | −0.090 | 746 |
+| Test_AUPRC（CCLE） | **0.6883** | 0.4370 | −0.251 | 746 |
+
+**一句話：** exp_018 在 **TCGA 藥物預測（主指標）全面勝出**，但 **CCLE hold-out 明顯退步**，且 TCGA2 / Global AUPRC 略輸 746。這是典型的 **源域↔目標域取捨**：latent 更貼近 TCGA 藥效任務，但源域（CCLE）泛化變差。
+
+##### 不同點 3：代表藥物層級（為何 TCGA 會升）
+
+| 藥物 | exp_746 AUC | exp_018 AUC | 變化 | 說明 |
+|------|-------------|-------------|------|------|
+| **Doxorubicin** | 0.337 | **0.680** | **+0.34** | 018 最大單藥增益 |
+| **Sorafenib** | 0.452 | **0.594** | +0.14 | |
+| **Gemcitabine** | 0.496 | **0.570** | +0.07 | |
+| **Temozolomide** | 0.485 | **0.563** | +0.08 | |
+| Etoposide | **0.664** | 0.588 | −0.08 | 018 反而下降 |
+| Cisplatin | 0.624 | 0.564 | −0.06 | |
+
+018 的提升**不是每種藥都漲**，而是少數藥物（尤其 Doxorubicin）大幅拉抬平均；Etoposide 等藥物 746 仍較好。
+
+##### 直接回答：746 vs Control，我該怎麼理解？
+
+| 你的疑問 | 答案 |
+|----------|------|
+| 配方有大幅改動嗎？ | **沒有**。兩者都是 λ_proto=0、λ_cls=20 的 control；差在 Round 3 重訓後收斂點不同。 |
+| 為何 pretrain filter 較差，下游反而更好？ | 嚴格 filter 重視 **fid**；下游與 **K-means + wasserstein** 較相關（§4.3）。018 走了「腫瘤結構優先」路線。 |
+| 018 是全面碾壓 746 嗎？ | **否**。TCGA AUC 贏、CCLE Test 輸、Global AUPRC / TCGA2 略輸；是取捨而非全面升級。 |
+| Round 3 優化有效嗎？ | **有效**——在 TCGA 主指標上 +4.3%；代價是放棄嚴格 filter 數字與部分 CCLE 表現。 |
+| 下一輪該錨定誰？ | 以 **exp_018 的收斂區域**（低 wass + 高 K-means）為目標，同時監控 fid 與 CCLE Test。 |
+
+---
+
+#### 4.4.2 Round 3 InfoNCE（exp_100）— 簡要對照
+
+InfoNCE 組與上述兩組的差異**只有 pretrain 多了一項 λ_proto=0.02 的 contrastive loss**；finetune protocol 相同。
+
+| 對比 | exp_746 | exp_018 | exp_100 |
+|------|---------|---------|---------|
+| Average_TCGA_AUC | 0.546 | **0.570** | 0.515 |
+| kmeans_ari | 0.679 | **0.754** | 0.621 |
+| wasserstein | 0.48 | **0.38** | 0.56 |
+
+**結論：** InfoNCE 既未改善 K-means，也未提升下游；**不建議作為 Round 4 主線**（可放附錄）。Round 3 的真正收穫來自 **control 分支的 re-sweep（exp_018）**，而非 InfoNCE。
+
+---
+
+#### 4.4.3 附錄：完整數據表（Pretrain + 下游）
+
+| 指標 | exp_746（基準） | exp_018（R3 Control） | exp_100（R3 InfoNCE） | Δ018 vs 746 | Δ100 vs 746 |
+|------|-----------------|----------------------|----------------------|-------------|-------------|
+| **λ_proto** | 0 | 0 | **0.02** | — | +InfoNCE |
+| **嚴格 filter** | ✅ 8/8 | ❌（fid 超標） | ❌（fid 超標） | — | — |
+| **寬鬆 filter** | ✅ | ✅ | ✅ | — | — |
+| | | | | | |
+| **fid** ↓ | **16.9** | 20.3 | 19.5 | +3.4 ↑ | +2.6 ↑ |
+| **mmd** ↓ | **0.019** | 0.036 | 0.039 | +0.017 ↑ | +0.020 ↑ |
+| **wasserstein** ↓ | 0.48 | **0.38** | 0.56 | **−0.10 ↓** | +0.08 ↑ |
+| **kmeans_ari** ↑ | 0.679 | **0.754** | 0.621 | **+0.075 ↑** | −0.058 ↓ |
+| **kmeans_nmi** ↑ | 0.824 | 0.817 | 0.773 | −0.007 | −0.051 |
+| **kmeans_silhouette** ↑ | 0.386 | **0.387** | 0.288 | +0.001 | −0.098 ↓ |
+| **kmeans_calinski** ↑ | 467 | **555** | 386 | +88 | −81 |
+| **kmeans_davies_bouldin** ↓ | 1.02 | **0.94** | 1.39 | −0.08 | +0.37 ↑ |
+| **score_total** | — | **0.794** | 0.516 | — | — |
+| **score_kmeans** | — | **0.833** | 0.100 | — | — |
+| **score_deconfounding** | — | **0.778** | 0.694 | — | — |
+| | | | | | |
+| **Average_TCGA_AUC** ↑ | 0.5462 | **0.5695** | 0.5153 | **+0.023 (+4.3%)** | −0.031 (−5.7%) |
+| **Global_TCGA_AUC** ↑ | 0.6168 | **0.6358** | 0.6053 | **+0.019 (+3.0%)** | −0.012 (−1.9%) |
+| **Average_TCGA_AUPRC** ↑ | 0.6398 | **0.6502** | 0.6377 | **+0.010 (+1.6%)** | −0.002 (−0.3%) |
+| **Global_TCGA_AUPRC** ↑ | 0.6978 | 0.6902 | 0.6671 | −0.008 | −0.031 |
+| **TCGA2_Average_TCGA_AUC** ↑ | 0.5349 | 0.5198 | 0.5317 | −0.015 | −0.003 |
+| **Test_AUC**（CCLE）↑ | 0.7974 | 0.7072 | 0.7798 | −0.090 | −0.018 |
+| **Test_AUPRC**（CCLE）↑ | 0.6883 | 0.4370 | 0.5381 | −0.251 | −0.150 |
+
+**Finetune 聚合方式：** 各模型 4 組 combo 平均（與 `aggregate_scores.csv` 一致）。
+
+---
+
+#### 4.4.4 Pretrain 品質細項（附錄）
+
+**Deconfounding（CCLE vs TCGA latent 分佈）：**
+
+| 指標 | exp_746 | exp_018 | exp_100 | 解讀 |
+|------|---------|---------|---------|------|
+| fid | **16.9** ✅ | 20.3 ❌ | 19.5 ❌ | 基準 deconfounding 仍最佳；R3 模型 K-means 較好但 fid 偏高 |
+| wasserstein | 0.48 ✅ | **0.38** ✅ | 0.56 ❌ | exp_018 wass 最低，可能與其高下游有關 |
+| mmd | **0.019** | 0.036 | 0.039 | 基準 mmd 最低 |
+| best_gan_epoch | 247 | 216 | 47 | InfoNCE 較早停止 GAN（epoch 47） |
+
+**K-means 腫瘤保留（18 類癌症分群 vs 真實標籤）：**
+
+| 指標 | exp_746 | exp_018 | exp_100 | 解讀 |
+|------|---------|---------|---------|------|
+| kmeans_ari | 0.679 | **0.754** | 0.621 | exp_018 ARI 比基準高 11%；InfoNCE 反而下降 |
+| kmeans_nmi | **0.824** | 0.817 | 0.773 | 基準 NMI 仍略高 |
+| silhouette | 0.386 | **0.387** | 0.288 | InfoNCE 分群緊密度明顯較差 |
+| calinski_harabasz | 467 | **555** | 386 | exp_018 類間分離度最佳 |
+| davies_bouldin | **1.02** | **0.94** | 1.39 | 越低越好；InfoNCE 分群品質最差 |
+
+**Selection 子分數（僅 Round 3 候選有；exp_746 無此欄）：**
+
+| 子分數 | exp_018 | exp_100 | 說明 |
+|--------|---------|---------|------|
+| score_kmeans | **0.833** | 0.100 | exp_018 K-means 子分極高；InfoNCE 極低 |
+| score_deconfounding | **0.778** | 0.694 | exp_018 在 deconfounding 也優於 InfoNCE |
+| score_total | **0.794**（Top-10 第 2） | 0.516（第 7） | 總分與下游排名大致一致（exp_018 高、exp_100 中） |
+
+**關鍵超參差異（三者共同：λ_cls=20, use_class_weight=true, batch=128）：**
+
+| 超參 | exp_746 | exp_018 | exp_100 |
+|------|---------|---------|---------|
+| lambda_proto | 0 | 0 | **0.02** |
+| proto_temperature | — | 0.7 | **1.0** |
+| proto_start_epoch | — | 50 | 50 |
+| proto_full_epoch | — | 80 | **120** |
+| proto_min_samples | — | **2** | 2 |
+| cls_start / cls_full | 40 / 90 | 40 / 90 | 40 / 90 |
+
+**InfoNCE 訓練訊號（exp_100，GAN 最後一步）：** proto_loss≈2.19、proto_acc≈0.85、proto_valid_class_count=18；對比 exp_018 全為 0（純 control）。
+
+---
+
+#### 4.4.5 下游 TCGA：整體與代表藥物（附錄）
+
+**整體 TCGA 指標：**
+
+| 指標 | exp_746 | exp_018 | exp_100 | 最佳 |
+|------|---------|---------|---------|------|
+| Average_TCGA_AUC | 0.546 | **0.570** | 0.515 | **exp_018** |
+| Global_TCGA_AUC | 0.617 | **0.636** | 0.605 | **exp_018** |
+| Average_TCGA_AUPRC | 0.640 | **0.650** | 0.638 | **exp_018** |
+| Global_TCGA_AUPRC | **0.698** | 0.690 | 0.667 | **exp_746** |
+| TCGA2_Average_TCGA_AUC | **0.535** | 0.520 | 0.532 | **exp_746** |
+
+**代表藥物 AUC / AUPRC（4 combo 平均）：**
+
+| 藥物 | exp_746 AUC | exp_018 AUC | exp_100 AUC | exp_746 AUPRC | exp_018 AUPRC | exp_100 AUPRC |
+|------|-------------|-------------|-------------|---------------|---------------|---------------|
+| Etoposide | **0.664** | 0.588 | 0.417 | **0.932** | 0.779 | 0.690 |
+| Cisplatin | 0.624 | 0.564 | 0.529 | 0.848 | **0.813** | **0.807** |
+| Doxorubicin | 0.337 | **0.680** | **0.588** | 0.543 | **0.755** | **0.729** |
+| Paclitaxel | 0.551 | **0.554** | **0.594** | 0.719 | 0.695 | **0.754** |
+| Sorafenib | 0.452 | **0.594** | 0.313 | 0.180 | **0.264** | 0.257 |
+| Gemcitabine | 0.496 | **0.570** | 0.533 | 0.467 | **0.572** | 0.536 |
+| Temozolomide | 0.485 | **0.563** | 0.545 | 0.118 | 0.135 | **0.168** |
+
+**CCLE hold-out（參考，非主指標）：**
+
+| 指標 | exp_746 | exp_018 | exp_100 |
+|------|---------|---------|---------|
+| Test_AUC | **0.797** | 0.707 | 0.780 |
+| Test_AUPRC | **0.688** | 0.437 | 0.538 |
+
+exp_018 的 TCGA 提升伴隨 CCLE Test AUC 明顯下降（0.797→0.707），顯示 **域轉移取捨**；InfoNCE（exp_100）CCLE 表現介於兩者之間，但 TCGA 未超越基準。
+
+---
+
+#### 4.4.6 輸出檔案快速連結
+
+| 內容 | 路徑 |
+|------|------|
+| exp_746 pretrain | `result/pretrain_vaewc/exp_746/gan_metrics.json` |
+| exp_746 下游 | `result/pretrain_vaewc_loss/pretrain_tcga_model_summary.csv` |
+| exp_018 / exp_100 pretrain | `.../round3_exp746/selection/pretrain_top10.csv` |
+| 下游聚合 | `.../round3_exp746/aggregate/aggregate_scores.csv` |
+| t-SNE 圖 | `.../pretrain/exp_018/tsne_gan_best.png`、`exp_100/tsne_gan_best.png` |
 
 ### 4.2 AE vs VAE Pretrain 對照（`result/benchmark_ae_vs_vae_exp746/`）
 
