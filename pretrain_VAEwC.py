@@ -15,7 +15,9 @@ import json
 import copy
 import pickle
 import argparse
+import fcntl
 import itertools
+import time
 from collections import defaultdict
 from itertools import chain, cycle
 from typing import Dict, List, Tuple
@@ -48,12 +50,15 @@ from tools.pretrain_common import (
     prepare_training_target_csv as _prepare_training_target_csv,
     compute_class_weights as _compute_class_weights,
 )
+from tools.proto_infonce import compute_batch_prototype_infonce, default_proto_metrics
+from tools.pretrain_proto_schedule import get_lambda_proto_eff, resolve_proto_training_params
 
 
 if not torch.cuda.is_available():
     raise RuntimeError("CUDA GPU is required. No GPU detected.")
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+torch.backends.cudnn.benchmark = True
 plt.switch_backend("Agg")
 print("use device:", device)
 
@@ -110,6 +115,7 @@ def resolve_schedule_hyperparams(param: dict) -> dict:
     cls_start_epoch = int(param.get("cls_start_epoch", 1))
     cls_full_epoch = int(param.get("cls_full_epoch", cls_start_epoch))
     gan_cfg = resolve_gan_training_params(param, gan_lr, lambda_cls)
+    proto_cfg = resolve_proto_training_params(param)
     return {
         "cls_start_epoch": cls_start_epoch,
         "cls_full_epoch": cls_full_epoch,
@@ -118,6 +124,7 @@ def resolve_schedule_hyperparams(param: dict) -> dict:
         "gan_cls_learning_rate": gan_cfg["gan_cls_learning_rate"],
         "gan_lambda_cls": gan_cfg["gan_lambda_cls"],
         "gan_gp_weight": gan_cfg["gan_gp_weight"],
+        **proto_cfg,
     }
 
 
@@ -159,6 +166,14 @@ def build_experiment_summary_row(param_dict: dict, exp_name: str, metrics: dict)
         "kmeans_calinski_harabasz": metrics.get("kmeans_calinski_harabasz"),
         "kmeans_davies_bouldin": metrics.get("kmeans_davies_bouldin"),
         "result_folder": exp_name,
+        "lambda_proto": sched.get("lambda_proto", 0.0),
+        "proto_temperature": sched.get("proto_temperature", 0.2),
+        "proto_start_epoch": sched.get("proto_start_epoch", 1),
+        "proto_full_epoch": sched.get("proto_full_epoch", 1),
+        "lambda_adv": sched.get("lambda_adv", 1.0),
+        "best_proto_loss": metrics.get("best_proto_loss"),
+        "best_proto_margin": metrics.get("best_proto_margin"),
+        "best_proto_acc": metrics.get("best_proto_acc"),
     }
     return row
 
@@ -170,6 +185,22 @@ class PrimaryClassifier(nn.Module):
 
     def forward(self, x):
         return self.net(x)
+
+
+def _cap_batch_size(batch_size: int, n_samples: int) -> int:
+    """Ensure drop_last=True DataLoaders retain at least one batch."""
+    n_samples = int(n_samples)
+    batch_size = int(batch_size)
+    if n_samples < 2:
+        return max(1, batch_size)
+    if batch_size >= n_samples:
+        capped = max(1, n_samples // 2)
+        print(
+            f"[batch_size] capped {batch_size} -> {capped} "
+            f"(dataset rows={n_samples}, drop_last=True requires batch < n)"
+        )
+        return capped
+    return batch_size
 
 
 def _load_labeled_data_patient_aware(
@@ -324,15 +355,23 @@ def _load_labeled_data_patient_aware(
 
 def _next_experiment_dir(parent_folder: str) -> Tuple[str, str]:
     safemakedirs(parent_folder)
-    existing = []
-    for name in os.listdir(parent_folder):
-        m = re.fullmatch(r"exp_(\d+)", name)
-        if m:
-            existing.append(int(m.group(1)))
-    next_id = (max(existing) + 1) if existing else 1
-    exp_name = f"exp_{next_id:03d}"
-    exp_dir = os.path.join(parent_folder, exp_name)
-    safemakedirs(exp_dir)
+    lock_path = os.path.join(parent_folder, ".exp_id.lock")
+    with open(lock_path, "a+") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        lock_file.seek(0)
+        existing = []
+        for name in os.listdir(parent_folder):
+            m = re.fullmatch(r"exp_(\d+)", name)
+            if m:
+                existing.append(int(m.group(1)))
+        next_id = (max(existing) + 1) if existing else 1
+        exp_name = f"exp_{next_id:03d}"
+        exp_dir = os.path.join(parent_folder, exp_name)
+        safemakedirs(exp_dir)
+        lock_file.seek(0)
+        lock_file.truncate()
+        lock_file.write(str(next_id))
+        lock_file.flush()
     return exp_name, exp_dir
 
 
@@ -592,6 +631,11 @@ def train_d_ae(
     optimizer,
     scheduler,
     gan_lambda_cls: float,
+    num_classes: int,
+    lambda_adv_eff: float = 1.0,
+    lambda_proto_eff: float = 0.0,
+    proto_temperature: float = 0.2,
+    proto_min_samples_per_class: int = 1,
     source_weights=None,
     target_weights=None,
     use_class_weight: bool = False,
@@ -627,7 +671,26 @@ def train_d_ae(
     vae_loss = ccle_vae_loss + tcga_vae_loss
     o_loss = ortho_loss(ccle_z, pccle_z) + ortho_loss(tcga_z, ptcga_z)
     g_loss = -torch.mean(discrim(torch.cat((tcga_z, ptcga_z), dim=1)))
-    loss = o_loss + g_loss + vae_loss + pvae_loss + gan_lambda_cls * cls_loss
+    proto_metrics = default_proto_metrics()
+    proto_loss = ccle_z.sum() * 0.0
+    if lambda_proto_eff > 0:
+        proto_loss, proto_metrics = compute_batch_prototype_infonce(
+            ccle_z,
+            s_labels,
+            tcga_z,
+            t_labels,
+            num_classes=num_classes,
+            temperature=proto_temperature,
+            min_samples_per_class=proto_min_samples_per_class,
+        )
+    loss = (
+        o_loss
+        + float(lambda_adv_eff) * g_loss
+        + vae_loss
+        + pvae_loss
+        + gan_lambda_cls * cls_loss
+        + float(lambda_proto_eff) * proto_loss
+    )
     loss_log.update({
         "ortho_loss": o_loss,
         "pvae_loss": pvae_loss,
@@ -635,6 +698,16 @@ def train_d_ae(
         "vae_loss": vae_loss,
         "cls_loss": cls_loss,
         "lambda_cls_eff": gan_lambda_cls,
+        "lambda_adv_eff": float(lambda_adv_eff),
+        "lambda_proto_eff": float(lambda_proto_eff),
+        "proto_loss": proto_metrics["proto_loss"],
+        "proto_acc": proto_metrics["proto_acc"],
+        "proto_valid": proto_metrics["proto_valid"],
+        "proto_valid_class_count": proto_metrics["proto_valid_class_count"],
+        "proto_valid_sample_count": proto_metrics["proto_valid_sample_count"],
+        "proto_mean_positive_similarity": proto_metrics["proto_mean_positive_similarity"],
+        "proto_mean_negative_similarity": proto_metrics["proto_mean_negative_similarity"],
+        "proto_margin": proto_metrics["proto_margin"],
     })
     loss.backward()
     optimizer.step()
@@ -837,6 +910,13 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
     gan_cls_lr = gan_cfg["gan_cls_learning_rate"]
     gan_lambda_cls = gan_cfg["gan_lambda_cls"]
     gan_gp_weight = gan_cfg["gan_gp_weight"]
+    proto_cfg = resolve_proto_training_params(param)
+    lambda_adv = proto_cfg["lambda_adv"]
+    proto_temperature = proto_cfg["proto_temperature"]
+    proto_min_samples_per_class = proto_cfg["proto_min_samples_per_class"]
+    best_proto_loss = float("inf")
+    best_proto_margin = float("-inf")
+    best_proto_acc = 0.0
 
     discrim_optimizer = torch.optim.RMSprop(discrim.parameters(), lr=gan_lr)
     discrim_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(discrim_optimizer, max(1, gan_epoch))
@@ -871,6 +951,8 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
     target_vae_aftergan_dict = copy.deepcopy(target_private_vae.state_dict())
     discrim_aftergan_dict = copy.deepcopy(discrim.state_dict())
     for epoch in range(gan_epoch):
+        gan_epoch_idx = epoch + 1
+        lambda_proto_eff = get_lambda_proto_eff(gan_epoch_idx, param)
         dloss_list = []
         genloss_list = []
         cls_only_list = []
@@ -920,6 +1002,11 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
                         d_ae_optimizer,
                         d_ae_scheduler,
                         gan_lambda_cls=gan_lambda_cls,
+                        num_classes=num_classes,
+                        lambda_adv_eff=lambda_adv,
+                        lambda_proto_eff=lambda_proto_eff,
+                        proto_temperature=proto_temperature,
+                        proto_min_samples_per_class=proto_min_samples_per_class,
                         source_weights=source_weights,
                         target_weights=target_weights,
                         use_class_weight=use_class_weight,
@@ -942,9 +1029,21 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
         if cls_only_list:
             genloss_mean["cls_only_loss"] = float(np.mean(cls_only_list))
         genloss_mean["lambda_cls_eff"] = gan_lambda_cls
+        genloss_mean["lambda_adv_eff"] = lambda_adv
+        genloss_mean["lambda_proto_eff"] = lambda_proto_eff
         genloss_mean["gan_gen_update_interval"] = gan_gen_update_interval
         dloss_mean["epoch"] = epoch + 1
         genloss_mean["epoch"] = epoch + 1
+        if genloss_mean.get("proto_valid"):
+            proto_loss_epoch = float(genloss_mean.get("proto_loss", float("inf")))
+            proto_margin_epoch = float(genloss_mean.get("proto_margin", float("-inf")))
+            proto_acc_epoch = float(genloss_mean.get("proto_acc", 0.0))
+            if proto_loss_epoch < best_proto_loss:
+                best_proto_loss = proto_loss_epoch
+            if proto_margin_epoch > best_proto_margin:
+                best_proto_margin = proto_margin_epoch
+            if proto_acc_epoch > best_proto_acc:
+                best_proto_acc = proto_acc_epoch
         append_csv_log(dloss_csv, dloss_mean)
         temp_loss = sum(v for k, v in dloss_mean.items() if k != "epoch") + sum(v for k, v in genloss_mean.items() if k != "epoch")
         if gan_early_stop_metric == "fid":
@@ -1015,6 +1114,9 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
         "exp_id": exp_name,
         "best_gan_epoch": gan_best_epoch,
         "best_gan_loss": gan_best_loss,
+        "best_proto_loss": None if best_proto_loss == float("inf") else best_proto_loss,
+        "best_proto_margin": None if best_proto_margin == float("-inf") else best_proto_margin,
+        "best_proto_acc": best_proto_acc if best_proto_acc > 0 else None,
         "gan_early_stop_metric": gan_early_stop_metric,
         "gan_early_stop_best_score": gan_best_score,
         "gan_early_stop_min_delta": gan_early_stop_min_delta,
@@ -1114,6 +1216,17 @@ def main():
         type=str,
         help="CCLE sample info CSV with cancer_type column",
     )
+    parser.add_argument(
+        "--smoke-test",
+        action="store_true",
+        help="Override epochs to tiny values for pipeline smoke testing",
+    )
+    parser.add_argument(
+        "--batch-size",
+        default=None,
+        type=int,
+        help="Override training batch size (default: from config or 128)",
+    )
     args = parser.parse_args()
     domain_cfg = TARGET_DOMAIN_CONFIG[args.target_domain]
     resolved_target = args.target or domain_cfg["target_expression"]
@@ -1132,8 +1245,11 @@ def main():
         param_list = [dict(zip(keys, v)) for v in itertools.product(*values)]
     safemakedirs(args.outfolder)
     all_rows = []
-    training_target_path, removed_count = _prepare_training_target_csv(resolved_target, overlap_path, args.outfolder)
-    tmp_training_path = os.path.join(args.outfolder, "_tmp_target_for_training.csv")
+    tmp_suffix = f"{os.getpid()}_{int(time.time() * 1000)}"
+    training_target_path, removed_count = _prepare_training_target_csv(
+        resolved_target, overlap_path, args.outfolder, tmp_suffix=tmp_suffix
+    )
+    tmp_training_path = os.path.join(args.outfolder, f"_tmp_target_for_training_{tmp_suffix}.csv")
     try:
         if overlap_path:
             if removed_count > 0:
@@ -1144,14 +1260,27 @@ def main():
             print("[TCGA overlap filter] disabled (no --overlap_tcga provided), use original target data")
         frame_cache = {}
         for param_dict in param_list:
+            param_dict = dict(param_dict)
+            if args.smoke_test:
+                param_dict["pretrain_num_epochs"] = 1
+                param_dict["train_num_epochs"] = 2
+                param_dict["gan_patience"] = 1
+                param_dict["pretrain_patience"] = 1
+            if args.batch_size is not None and args.batch_size > 0:
+                param_dict["batch_size"] = int(args.batch_size)
             cache_key = f"{source_path}|{resolved_target}"
             if cache_key not in frame_cache:
                 frame_cache[cache_key] = _load_full_feature_frames(source_path, resolved_target)
             ccle_df_full, tcga_df_full = frame_cache[cache_key]
+            effective_batch = _cap_batch_size(
+                param_dict.get("batch_size", 128),
+                min(len(ccle_df_full), len(tcga_df_full)),
+            )
+            param_dict["batch_size"] = effective_batch
             sourcedata, targetdata = _load_labeled_data_patient_aware(
                 ccle_path=source_path,
                 xena_path=training_target_path,
-                batch_size=param_dict.get("batch_size", 128),
+                batch_size=effective_batch,
                 use_class_weight=param_dict.get("use_class_weight", False),
                 target_domain=args.target_domain,
                 target_cancer_reference_path=resolved_target_cancer_ref,

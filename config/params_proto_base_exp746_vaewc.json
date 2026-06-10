@@ -1,0 +1,33 @@
+{
+  "_metadata": {
+    "description": "VAEwC baseline aligned with pretrain_vaewc/exp_746 (strong cls, class weights). InfoNCE added via sweep only.",
+    "reference": "result/pretrain_vaewc/exp_746/params.json",
+    "notes": {
+      "lambda_cls": "20 (high cancer-type supervision during GAN, per user)",
+      "use_class_weight": "true (exp_746 setting)",
+      "batch_size": "128 — CCLE has ~1128 rows; batch>=1128 empties drop_last loaders and skips GAN"
+    }
+  },
+  "pretrain_params": {
+    "pretrain_num_epochs": [300],
+    "pretrain_learning_rate": [0.001],
+    "gan_learning_rate": [0.0005],
+    "train_num_epochs": [600],
+    "dropout_rate": [0.1],
+    "encoder_dims": [[256, 128]],
+    "latent_size": [32],
+    "lambda_cls": [20],
+    "use_class_weight": [true],
+    "cls_start_epoch": [40],
+    "cls_full_epoch": [90],
+    "gan_cls_update_every_step": [true],
+    "gan_cls_learning_rate": [0.0005],
+    "gan_gp_weight": [10.0],
+    "gan_early_stop_metric": ["loss"],
+    "gan_patience": [30],
+    "gan_early_stop_min_delta": [0.0],
+    "gan_early_stop_start_epoch": [10],
+    "pretrain_patience": [30],
+    "batch_size": [128]
+  }
+}

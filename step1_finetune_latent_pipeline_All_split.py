@@ -138,6 +138,8 @@ def resolve_model_folder(model_row, model_select_path):
 
     parent_dir = os.path.dirname(base_model_dir)
     for folder_name in folder_candidates:
+        if os.path.isabs(folder_name) and os.path.isdir(folder_name):
+            return folder_name
         direct = os.path.join(base_model_dir, folder_name)
         if os.path.isdir(direct):
             return direct

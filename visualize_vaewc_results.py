@@ -92,6 +92,15 @@ def load_experiment_data(exp_dir):
         "gan_cls_learning_rate": params.get("params", {}).get("gan_cls_learning_rate"),
         "gan_lambda_cls": params.get("params", {}).get("gan_lambda_cls"),
         "gan_gp_weight": params.get("params", {}).get("gan_gp_weight"),
+        "lambda_proto": params.get("params", {}).get("lambda_proto", 0.0),
+        "proto_temperature": params.get("params", {}).get("proto_temperature"),
+        "proto_start_epoch": params.get("params", {}).get("proto_start_epoch"),
+        "proto_full_epoch": params.get("params", {}).get("proto_full_epoch"),
+        "proto_min_samples_per_class": params.get("params", {}).get(
+            "proto_min_samples_per_class",
+            params.get("params", {}).get("min_proto_samples_per_class", 1),
+        ),
+        "lambda_adv": params.get("params", {}).get("lambda_adv", 1.0),
         "tsne_image_path": tsne_path,
     }
     # Fill resolved defaults when older runs omit explicit schedule fields.

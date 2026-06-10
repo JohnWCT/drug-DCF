@@ -1,0 +1,20 @@
+{
+  "_metadata": {
+    "description": "Round-3: exp_746 baseline + gentle InfoNCE sweep. Strict visualize_vaewc_filter.json gate before finetune.",
+    "reference_baseline": "result/pretrain_vaewc/exp_746",
+    "axes": "lambda_proto × proto_temperature × proto_start_epoch × proto_full_epoch × proto_min_samples_per_class = 90 jobs",
+    "strategy": "Phase A implicit: exp_746-like cls schedule preserves kmeans; Phase B: weak InfoNCE after late GAN warmup"
+  },
+  "base_config": "config/params_proto_base_exp746_vaewc.json",
+  "output_config_dir": "config/generated/vaewc_proto_infonce_round3_exp746",
+  "run_id": "vaewc_proto_infonce_round3_exp746",
+  "sweep": {
+    "lambda_proto": [0, 0.005, 0.01, 0.02, 0.03],
+    "proto_temperature": [0.5, 0.7, 1.0],
+    "proto_start_epoch": [30, 50],
+    "proto_full_epoch": [80, 120],
+    "proto_min_samples_per_class": [1, 2],
+    "lambda_adv": [1.0],
+    "gan_gen_update_interval": [5]
+  }
+}

@@ -104,7 +104,12 @@ def load_overlap_patient_ids(overlap_csv: str):
     return {tcga_three_segment_key(v) for v in vals}
 
 
-def prepare_training_target_csv(target_path: str, overlap_csv: str, out_dir: str):
+def prepare_training_target_csv(
+    target_path: str,
+    overlap_csv: str,
+    out_dir: str,
+    tmp_suffix: str = "",
+):
     overlap_ids = load_overlap_patient_ids(overlap_csv)
     if not overlap_ids:
         return target_path, 0
@@ -121,7 +126,8 @@ def prepare_training_target_csv(target_path: str, overlap_csv: str, out_dir: str
             f"(original={len(df)}, removed={removed}). "
             f"Please provide a non-overlap TCGA training set or adjust overlap list."
         )
-    train_target_path = os.path.join(out_dir, "_tmp_target_for_training.csv")
+    suffix = f"_{tmp_suffix}" if tmp_suffix else ""
+    train_target_path = os.path.join(out_dir, f"_tmp_target_for_training{suffix}.csv")
     filtered_df.to_csv(train_target_path)
     return train_target_path, removed
 

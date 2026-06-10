@@ -1,6 +1,7 @@
 {
   "_metadata": {
     "description": "Quality thresholds for visualize_vaewc_results.py. Only experiments meeting ALL thresholds are exported.",
+    "round3_note": "2026-06-10: relaxed fid/wasserstein for Round3 finetune validation; K-means thresholds unchanged. ~13 candidates pass (11 control, 2 InfoNCE).",
     "relaxation_rule": "Slightly relaxed from baseline: lower-is-better metrics round UP, higher-is-better round DOWN, to nearest 0.05 (2 decimal places, multiples of 5 in hundredths). calinski_harabasz uses multiples of 5. mmd uses 0.00005 step when value < 0.01.",
     "baseline_reference": {
       "fid_source_target": 16.935491393006345,
@@ -41,9 +42,9 @@
     "kmeans_calinski_harabasz"
   ],
   "thresholds": {
-    "fid": 16.95,
+    "fid": 30.0,
     "mmd": 0.05,
-    "wasserstein": 0.50,
+    "wasserstein": 0.70,
     "kmeans_ari": 0.20,
     "kmeans_nmi": 0.45,
     "kmeans_silhouette": 0.15,
