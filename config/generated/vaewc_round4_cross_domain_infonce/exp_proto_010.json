@@ -1,0 +1,60 @@
+{
+  "_metadata": {
+    "run_id": "vaewc_round4_cross_domain_infonce",
+    "job_id": "exp_proto_010",
+    "sweep_name": "vaewc_round4_cross_domain_infonce",
+    "generated_at": "2026-06-10T10:06:38.243481+00:00",
+    "source_base_config": "config/params_proto_base_exp746_vaewc.json",
+    "lambda_proto": 0,
+    "proto_mode": "cross_domain",
+    "proto_direction": "symmetric",
+    "proto_detach": true,
+    "proto_temperature": 1.5,
+    "proto_start_epoch": 10,
+    "proto_full_epoch": 30,
+    "proto_min_samples_per_domain": 1,
+    "proto_min_samples_per_class": 1,
+    "lambda_adv": 1.0,
+    "gan_gen_update_interval": 5,
+    "lambda_cmmd": 0
+  },
+  "pretrain_param_combinations": [
+    {
+      "pretrain_num_epochs": 300,
+      "pretrain_learning_rate": 0.001,
+      "gan_learning_rate": 0.0005,
+      "train_num_epochs": 600,
+      "dropout_rate": 0.1,
+      "encoder_dims": [
+        256,
+        128
+      ],
+      "latent_size": 32,
+      "lambda_cls": 20,
+      "use_class_weight": true,
+      "cls_start_epoch": 40,
+      "cls_full_epoch": 90,
+      "gan_cls_update_every_step": true,
+      "gan_cls_learning_rate": 0.0005,
+      "gan_gp_weight": 10.0,
+      "gan_early_stop_metric": "loss",
+      "gan_patience": 30,
+      "gan_early_stop_min_delta": 0.0,
+      "gan_early_stop_start_epoch": 10,
+      "pretrain_patience": 30,
+      "batch_size": 128,
+      "lambda_proto": 0,
+      "proto_mode": "cross_domain",
+      "proto_direction": "symmetric",
+      "proto_detach": true,
+      "proto_temperature": 1.5,
+      "proto_start_epoch": 10,
+      "proto_full_epoch": 30,
+      "proto_min_samples_per_domain": 1,
+      "proto_min_samples_per_class": 1,
+      "lambda_adv": 1.0,
+      "gan_gen_update_interval": 5,
+      "lambda_cmmd": 0
+    }
+  ]
+}
