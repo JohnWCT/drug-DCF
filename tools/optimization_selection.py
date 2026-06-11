@@ -20,6 +20,7 @@ SELECTION_MODES = (
     "round4_1_structure_first",
     "round5_structure_first",
 )
+STRUCTURE_FIRST_MODES = frozenset({"round4_1_structure_first", "round5_structure_first"})
 RANKING_PRIMARY_BY_MODE = {
     "score_total": "score_total",
     "round4_kmeans_first": "score_kmeans",
@@ -107,6 +108,37 @@ def load_merged_pretrain_rows(result_dirs: list[str]) -> pd.DataFrame:
     if not frames:
         return pd.DataFrame()
     return pd.concat(frames, ignore_index=True)
+
+
+def load_and_enrich_merged_results(merged_dirs: list[str]) -> pd.DataFrame:
+    """Load pretrain rows and enrich each branch with its own result_dir metadata."""
+    if len(merged_dirs) > 1:
+        frames = []
+        for d in merged_dirs:
+            part = load_all_pretrain_rows(d, source_tag=os.path.basename(d))
+            if part.empty:
+                continue
+            part = enrich_selection_metadata(part, d)
+            frames.append(part)
+        return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+    result_dir = merged_dirs[0]
+    all_df = load_all_pretrain_rows(result_dir)
+    if all_df.empty:
+        return all_df
+    return enrich_selection_metadata(all_df, result_dir)
+
+
+def apply_structure_first_stage1_filter(all_df: pd.DataFrame, selection_mode: str) -> pd.DataFrame:
+    """Structure-first hard filter; expects all_df already enriched per source result_dir."""
+    if selection_mode == "round4_1_structure_first":
+        from tools.collapse_detection import apply_round41_stage1_filter
+
+        return apply_round41_stage1_filter(all_df)
+    if selection_mode == "round5_structure_first":
+        from tools.collapse_detection import apply_round5_stage1_filter
+
+        return apply_round5_stage1_filter(all_df)
+    raise ValueError(f"Not a structure-first selection mode: {selection_mode}")
 
 
 def build_filter_threshold_report(
@@ -515,16 +547,7 @@ def write_selection_outputs(
     os.makedirs(reports_dir, exist_ok=True)
 
     merged_dirs = merge_result_dir_paths(result_dir, result_dirs)
-    if len(merged_dirs) > 1:
-        frames = []
-        for d in merged_dirs:
-            part = load_all_pretrain_rows(d, source_tag=os.path.basename(d))
-            part = enrich_selection_metadata(part, d)
-            frames.append(part)
-        all_df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
-    else:
-        all_df = load_all_pretrain_rows(result_dir)
-        all_df = enrich_selection_metadata(all_df, _resolve_path(result_dir))
+    all_df = load_and_enrich_merged_results(merged_dirs)
     all_path = os.path.join(selection_dir, "pretrain_all_candidates.csv")
     all_df.to_csv(all_path, index=False)
 
@@ -536,15 +559,9 @@ def write_selection_outputs(
         filter_report_path = ""
 
     aggregated_path = os.path.join(selection_dir, "aggregated_vaewc_results.csv")
-    if selection_mode == "round4_1_structure_first":
-        from tools.collapse_detection import apply_round41_stage1_filter
-
-        aggregated_df = apply_round41_stage1_filter(all_df)
-        aggregated_df.to_csv(aggregated_path, index=False)
-    elif selection_mode == "round5_structure_first":
-        from tools.collapse_detection import apply_round5_stage1_filter
-
-        aggregated_df = apply_round5_stage1_filter(all_df)
+    if selection_mode in STRUCTURE_FIRST_MODES:
+        # all_df already enriched per branch; do not re-enrich with primary result_dir only.
+        aggregated_df = apply_structure_first_stage1_filter(all_df, selection_mode)
         aggregated_df.to_csv(aggregated_path, index=False)
     else:
         run_visualize(result_dir, selection_dir, filter_config, select_top_k=20, no_filter=no_filter)

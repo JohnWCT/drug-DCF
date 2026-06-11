@@ -65,3 +65,89 @@ def test_round5_selection_info_has_legacy_report_keys():
     _, info = select_top_k_with_baselines(df, df, top_k=1, selection_mode="round5_structure_first")
     for key in ("controls_available", "controls_selected", "ranked_selected", "shortage", "infonce_available"):
         assert key in info
+
+
+def test_load_and_enrich_skips_empty_branch(monkeypatch):
+    import tools.optimization_selection as sel
+
+    calls = []
+    monkeypatch.setattr(
+        sel,
+        "load_all_pretrain_rows",
+        lambda d, source_tag="": (
+            __import__("pandas").DataFrame()
+            if "empty" in d
+            else __import__("pandas").DataFrame([{"ID": "exp_ok", "kmeans_ari": 0.7, "wasserstein": 0.5}])
+        ),
+    )
+    monkeypatch.setattr(
+        sel,
+        "enrich_selection_metadata",
+        lambda df, rd: (calls.append(rd), df.assign(_enriched_from=rd))[1],
+    )
+    out = sel.load_and_enrich_merged_results(["/tmp/control", "/tmp/empty", "/tmp/class_gap"])
+    assert len(out) == 2
+    assert len(calls) == 2
+
+
+def test_round5_multi_result_selection_does_not_reenrich_with_primary_only(monkeypatch, tmp_path):
+    import os
+    import pandas as pd
+    import tools.optimization_selection as sel
+
+    control_dir = tmp_path / "control"
+    gap_dir = tmp_path / "class_gap"
+    control_dir.mkdir()
+    gap_dir.mkdir()
+    run_dir = tmp_path / "run"
+
+    enrich_calls = []
+
+    def fake_load(result_dir, source_tag=""):
+        tag = source_tag or os.path.basename(result_dir)
+        return pd.DataFrame(
+            [
+                {
+                    "ID": f"exp_{tag}",
+                    "kmeans_ari": 0.7,
+                    "wasserstein": 0.5,
+                    "fid": 20.0,
+                    "mmd": 0.01,
+                    "lambda_proto": 0.0,
+                    "pretrain_run_tag": tag,
+                }
+            ]
+        )
+
+    def tracking_enrich(df, result_dir):
+        enrich_calls.append(result_dir)
+        out = df.copy()
+        if "class_gap" in result_dir:
+            out["latent_size"] = 64
+            out["lambda_class_gap"] = 0.001
+        else:
+            out["latent_size"] = 32
+            out["lambda_class_gap"] = 0.0
+        from tools.collapse_detection import annotate_alignment_collapse
+
+        return annotate_alignment_collapse(out)
+
+    monkeypatch.setattr(sel, "load_all_pretrain_rows", fake_load)
+    monkeypatch.setattr(sel, "enrich_selection_metadata", tracking_enrich)
+
+    sel.write_selection_outputs(
+        str(run_dir),
+        str(control_dir),
+        result_dirs=[str(gap_dir)],
+        selection_mode="round5_structure_first",
+        no_filter=True,
+        min_passing=1,
+        require_controls=0,
+        top_k=5,
+    )
+
+    assert len(enrich_calls) == 2
+    filtered = pd.read_csv(run_dir / "selection" / "pretrain_filtered_candidates.csv")
+    gap_row = filtered[filtered["pretrain_run_tag"] == "class_gap"].iloc[0]
+    assert int(gap_row["latent_size"]) == 64
+    assert float(gap_row["lambda_class_gap"]) == 0.001
