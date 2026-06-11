@@ -935,7 +935,7 @@ Top-10 仍為 8 ranked + 2 `lambda_proto=0` control；若 InfoNCE 全數 structu
 
 `vaewc_round4_1_latent_ablation`：僅 `latent_size ∈ {32, 64}` × control / 單一 t2s InfoNCE 設定，不與大 grid 交叉。報告比較：`kmeans_ari`、`fid`、`wasserstein`、`classwise_domain_gap_mean`、下游 `Average_TCGA_AUC_mean`。
 
-**診斷工具：** `python tools/analyze_round4_pretrain.py --result-dir <pretrain_dir>` → `reports/round4_1_pretrain_diagnostics.{csv,md}`
+**診斷工具：** `python tools/analyze_round4_pretrain.py --result-dir <pretrain_dir> --out-dir <run_dir>/reports` → `round4_1_pretrain_diagnostics.{csv,md}`
 ### 12.9 Round 4.1 執行狀態與結論（2026-06-10）
 
 #### 完成度
