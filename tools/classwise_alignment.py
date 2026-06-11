@@ -1,8 +1,9 @@
-"""Class-wise MMD alignment for conditional source-target latent matching."""
+"""Class-wise alignment: MMD and same-class prototype gap (Round 5)."""
 
 from __future__ import annotations
 
 import torch
+import torch.nn.functional as F
 
 
 def _median_heuristic_gamma(x: torch.Tensor, y: torch.Tensor) -> float:
@@ -100,6 +101,97 @@ def compute_classwise_mmd(
             "cmmd_loss": float(loss.detach().item()),
             "cmmd_mean_class_loss": float(stacked.mean().detach().item()),
             "cmmd_valid": True,
+        }
+    )
+    return loss, metrics
+
+
+def _class_prototype(z: torch.Tensor, detach: bool) -> torch.Tensor:
+    proto = z.mean(dim=0)
+    return proto.detach() if detach else proto
+
+
+def compute_classwise_prototype_gap(
+    z_source,
+    y_source,
+    z_target,
+    y_target,
+    num_classes,
+    min_samples_per_domain=2,
+    metric="cosine",
+    detach_source=True,
+    detach_target=False,
+    l2_squared=True,
+):
+    """
+    Same-class prototype gap: P_source[c] aligned toward P_target[c].
+
+    Returns:
+        loss: scalar tensor (mean over valid classes; zero graph if none)
+        metrics: dict of plain floats / bools for CSV logging
+    """
+    metric = str(metric).lower()
+    if metric not in {"cosine", "l2"}:
+        raise ValueError(f"Unsupported class_gap metric={metric}")
+
+    y_source = y_source.long()
+    y_target = y_target.long()
+    class_losses = []
+    per_class_vals = []
+    valid_source_count = 0
+    valid_target_count = 0
+
+    for class_id in range(int(num_classes)):
+        s_mask = y_source == class_id
+        t_mask = y_target == class_id
+        s_count = int(s_mask.sum().item())
+        t_count = int(t_mask.sum().item())
+        if s_count >= int(min_samples_per_domain) and t_count >= int(min_samples_per_domain):
+            p_source = _class_prototype(z_source[s_mask], detach_source)
+            p_target = _class_prototype(z_target[t_mask], detach_target)
+            if metric == "cosine":
+                sim = F.cosine_similarity(p_target.unsqueeze(0), p_source.unsqueeze(0), dim=1)
+                loss_c = 1.0 - sim.squeeze()
+            else:
+                diff = p_target - p_source
+                loss_c = (diff * diff).mean() if l2_squared else diff.norm(p=2)
+            class_losses.append(loss_c)
+            per_class_vals.append(float(loss_c.detach().item()))
+            valid_source_count += s_count
+            valid_target_count += t_count
+
+    metrics = {
+        "class_gap_loss": 0.0,
+        "class_gap_valid": False,
+        "class_gap_metric": metric,
+        "class_gap_l2_squared": bool(l2_squared) if metric == "l2" else False,
+        "class_gap_valid_class_count": len(per_class_vals),
+        "class_gap_valid_sample_count_source": valid_source_count,
+        "class_gap_valid_sample_count_target": valid_target_count,
+        "class_gap_mean": 0.0,
+        "class_gap_median": 0.0,
+        "class_gap_max": 0.0,
+        "class_gap_min": 0.0,
+        "class_gap_detach_source": bool(detach_source),
+        "class_gap_detach_target": bool(detach_target),
+    }
+
+    if not class_losses:
+        return z_source.sum() * 0.0, metrics
+
+    stacked = torch.stack(class_losses)
+    loss = stacked.mean()
+    vals = sorted(per_class_vals)
+    mid = len(vals) // 2
+    median = vals[mid] if len(vals) % 2 == 1 else 0.5 * (vals[mid - 1] + vals[mid])
+    metrics.update(
+        {
+            "class_gap_loss": float(loss.detach().item()),
+            "class_gap_valid": True,
+            "class_gap_mean": float(sum(vals) / len(vals)),
+            "class_gap_median": float(median),
+            "class_gap_max": float(max(vals)),
+            "class_gap_min": float(min(vals)),
         }
     )
     return loss, metrics

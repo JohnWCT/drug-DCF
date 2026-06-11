@@ -1,0 +1,31 @@
+{
+  "_metadata": {
+    "description": "Round 5 Branch B: class-wise prototype gap alignment (cosine + L2).",
+    "reference_baseline": "result/pretrain_vaewc/exp_746",
+    "strategy": "lambda_proto=0, lambda_class_gap>0, paired latent capacity"
+  },
+  "base_config": "config/params_proto_base_exp746_vaewc.json",
+  "output_config_dir": "config/generated/vaewc_round5_class_gap_branch",
+  "run_id": "vaewc_round5_class_gap_branch",
+  "sweep": {
+    "paired_params": [
+      {"latent_size": 32, "encoder_dims": [256, 128]},
+      {"latent_size": 64, "encoder_dims": [512, 256, 128]},
+      {"latent_size": 128, "encoder_dims": [1024, 512, 256]}
+    ],
+    "lambda_proto": [0],
+    "lambda_class_gap": [0, 0.0001, 0.0003, 0.001, 0.003],
+    "class_gap_metric": ["cosine", "l2"],
+    "class_gap_start_epoch": [5],
+    "class_gap_full_epoch": [30],
+    "class_gap_min_samples_per_domain": [2],
+    "class_gap_detach_source": [true],
+    "class_gap_detach_target": [false],
+    "lambda_cls": [20],
+    "cls_start_epoch": [40],
+    "cls_full_epoch": [90],
+    "gan_gen_update_interval": [5],
+    "gan_patience": [50],
+    "gan_early_stop_start_epoch": [30]
+  }
+}

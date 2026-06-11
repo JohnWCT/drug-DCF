@@ -1015,3 +1015,78 @@ Sweep 規模：`lambda_proto(5) × proto_temperature(3) × proto_start(2) × pro
 2. **exp_045** pretrain 最佳但下游 Avg=0.502，未超越 control 基準。
 3. **整合 TCGA** 最高為 **exp_018**（Integrated Avg=0.5545）。
 4. Finetune 輸出含 `target_eval_gdsc_intersect13/`、`tcga_only3/`、`dapl/`、`target_eval_integrated/`。
+
+---
+
+## 13. Round 5 Control-centered + Class-gap optimization（2026-06-11 規劃）
+
+**狀態：** 程式與 sweep 設定已就緒；**pretrain / finetune 尚未執行**。
+
+完整操作手冊：`docs/round5_optimization_manual.md`
+
+### 13.1 為何不再以 InfoNCE 作主線
+
+Round 4 symmetric InfoNCE 破壞 K-means；R4.1 t2s InfoNCE 緩解 collapse 但下游最佳 **exp_035**（Avg TCGA=0.5339）未明顯超越 control。**Round 5 主線改為 control-centered latent 優化 + class-wise prototype gap**；t2s InfoNCE 僅保留 appendix 支線。
+
+### 13.2 三條分支（分開跑）
+
+| 分支 | Run ID | 目的 |
+|------|--------|------|
+| **A Control-centered** | `vaewc_round5_control_centered` | `lambda_proto=0`，測 latent 32/64/128 + GAN 策略（48 jobs） |
+| **B Class-gap** | `vaewc_round5_class_gap_branch` | 同 class prototype 靠近（cosine + L2） |
+| **C t2s appendix** | `vaewc_round5_t2s_infonce_appendix` | 極低 λ_proto t2s InfoNCE 確認 |
+
+### 13.3 新增程式能力
+
+- `tools/classwise_alignment.py` → `compute_classwise_prototype_gap()`
+- `pretrain_VAEwC.py` → `lambda_class_gap` schedule + GAN loss
+- `tools/optimization_config_generator.py` → `paired_params`（latent_size ↔ encoder_dims）
+- `tools/optimization_selection.py` → `round5_structure_first` + `--force-baseline-models`
+- `tools/analyze_round5_pretrain.py` → 跨分支診斷報告
+
+### 13.4 Selection 原則
+
+- Stage 1：`structure_pass` + 無 `alignment_collapse` + 無 `proto_invalid`
+- Stage 2：wasserstein ↑ → kmeans_ari ↓ → fid ↑ → mmd ↑
+- 強制納入：**exp_018**、**exp_746**、當輪最佳 control
+- 下游主指標：**Average_TCGA_AUC_mean**（gdsc_intersect13）
+
+### 13.5 執行指令（摘要）
+
+```bash
+# Branch A
+python tools/optimization_runner.py generate \
+  --sweep-spec config/pretrain_sweeps/vaewc_round5_control_centered.json \
+  --run-dir result/optimization_runs/vaewc_round5_control_centered
+
+python tools/optimization_runner.py pretrain \
+  --manifest result/optimization_runs/vaewc_round5_control_centered/manifests/pretrain_sweep_manifest.csv \
+  --run-dir result/optimization_runs/vaewc_round5_control_centered \
+  --device cuda --max-parallel 20
+
+# 診斷（三分支完成後）
+python tools/analyze_round5_pretrain.py \
+  --run-dirs \
+    result/optimization_runs/vaewc_round5_control_centered \
+    result/optimization_runs/vaewc_round5_class_gap_branch \
+    result/optimization_runs/vaewc_round5_t2s_infonce_appendix
+
+# Selection（合併多 run）
+python tools/optimization_runner.py select \
+  --run-dir result/optimization_runs/round5_combined \
+  --result-dir result/optimization_runs/vaewc_round5_control_centered/pretrain \
+  --result-dirs \
+    result/optimization_runs/vaewc_round5_class_gap_branch/pretrain,\
+    result/optimization_runs/vaewc_round5_t2s_infonce_appendix/pretrain \
+  --selection-mode round5_structure_first \
+  --exclude-proto-ineffective \
+  --force-baseline-models exp_018,exp_746 \
+  --top-k 15
+```
+
+### 13.6 成功標準
+
+1. `Average_TCGA_AUC_mean` 超越 R4.1 **exp_035**（0.5339）
+2. `kmeans_ari` ≥ 0.65（或 ≥ control mean 的 90%）
+3. 不選入 wasserstein 好但 structure collapse 的模型
+4. class-gap 分支至少一個 non-collapse 且下游接近 control

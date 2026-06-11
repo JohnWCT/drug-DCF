@@ -558,13 +558,30 @@ def build_parser() -> argparse.ArgumentParser:
     sel.add_argument(
         "--selection-mode",
         default="score_total",
-        choices=["score_total", "round4_kmeans_first", "round4_weighted", "round4_1_structure_first"],
-        help="Top-10 ranking (Round 4.1: round4_1_structure_first = structure hard filter + wasserstein rank)",
+        choices=[
+            "score_total",
+            "round4_kmeans_first",
+            "round4_weighted",
+            "round4_1_structure_first",
+            "round5_structure_first",
+        ],
+        help="Top-K ranking (Round 5: round5_structure_first = structure gate + wasserstein rank)",
     )
     sel.add_argument(
         "--exclude-proto-ineffective",
         action="store_true",
         help="Drop checkpoints where best_gan_epoch < proto_start_epoch while lambda_proto>0",
+    )
+    sel.add_argument(
+        "--force-baseline-models",
+        default=None,
+        help="Comma-separated model IDs to force into selection (e.g. exp_018,exp_746)",
+    )
+    sel.add_argument("--top-k", type=int, default=10, help="Top-K models for selection (Round 5: 10–15)")
+    sel.add_argument(
+        "--result-dirs",
+        default=None,
+        help="Comma-separated extra pretrain result dirs to merge before selection",
     )
     sel.add_argument("--run-tag", default=None, help="Optional run tag recorded in running report notes")
 
@@ -627,6 +644,12 @@ def main(argv: Optional[List[str]] = None) -> None:
 
     if args.command == "select":
         result_dir = args.result_dir or os.path.join(run_dir, "pretrain")
+        force_baselines = None
+        if args.force_baseline_models:
+            force_baselines = [x.strip() for x in args.force_baseline_models.split(",") if x.strip()]
+        extra_dirs = None
+        if args.result_dirs:
+            extra_dirs = [x.strip() for x in args.result_dirs.split(",") if x.strip()]
         try:
             write_selection_outputs(
                 run_dir,
@@ -637,6 +660,9 @@ def main(argv: Optional[List[str]] = None) -> None:
                 require_controls=args.require_controls,
                 selection_mode=args.selection_mode,
                 exclude_proto_ineffective=args.exclude_proto_ineffective,
+                top_k=args.top_k,
+                force_baseline_models=force_baselines,
+                result_dirs=extra_dirs,
             )
         except SelectionInsufficientError as err:
             print(f"[select] INSUFFICIENT: {err}", file=sys.stderr)

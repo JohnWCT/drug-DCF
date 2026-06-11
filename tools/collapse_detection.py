@@ -111,6 +111,53 @@ def apply_round41_stage1_filter(
     return annotated[mask].copy()
 
 
+def apply_round5_stage1_filter(
+    df: pd.DataFrame,
+    control_mean_kmeans_ari: float = DEFAULT_CONTROL_MEAN_KMEANS_ARI,
+    structure_absolute_min: float = DEFAULT_STRUCTURE_ABSOLUTE_MIN,
+    exclude_collapse: bool = True,
+    exclude_proto_invalid: bool = True,
+) -> pd.DataFrame:
+    """Round 5 hard filter: structure pass + no collapse + no proto_invalid (no deconfounding gate)."""
+    annotated = annotate_alignment_collapse(
+        df,
+        control_mean_kmeans_ari=control_mean_kmeans_ari,
+        structure_absolute_min=structure_absolute_min,
+    )
+    mask = annotated["structure_pass"].fillna(False)
+    if exclude_collapse:
+        mask = mask & (~annotated["alignment_collapse"].fillna(False))
+    if exclude_proto_invalid and "proto_invalid" in annotated.columns:
+        lp = pd.to_numeric(annotated.get("lambda_proto"), errors="coerce").fillna(0.0)
+        proto_ok = (lp <= 0) | (~annotated["proto_invalid"].fillna(False))
+        mask = mask & proto_ok
+    if "latent_size" in annotated.columns:
+        annotated["latent_large_structure_risk"] = pd.to_numeric(
+            annotated["latent_size"], errors="coerce"
+        ).fillna(0) >= 128
+    return annotated[mask].copy()
+
+
+def rank_round5_stage2(df: pd.DataFrame) -> pd.DataFrame:
+    """Rank survivors: wasserstein, kmeans_ari, fid, mmd, class_gap_loss."""
+    sort_cols = []
+    for col, asc in [
+        ("wasserstein", True),
+        ("kmeans_ari", False),
+        ("fid", True),
+        ("mmd", True),
+        ("class_gap_loss", True),
+        ("score_total", False),
+    ]:
+        if col in df.columns:
+            sort_cols.append((col, asc))
+    if not sort_cols:
+        return df.copy()
+    by = [c for c, _ in sort_cols]
+    asc = [a for _, a in sort_cols]
+    return df.sort_values(by=by, ascending=asc, na_position="last").reset_index(drop=True)
+
+
 def rank_round41_stage2(df: pd.DataFrame) -> pd.DataFrame:
     """Rank survivors: wasserstein ↑, kmeans_ari ↓, fid ↑, mmd ↑."""
     sort_cols = []

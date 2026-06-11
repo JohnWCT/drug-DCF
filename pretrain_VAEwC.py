@@ -51,11 +51,13 @@ from tools.pretrain_common import (
     compute_class_weights as _compute_class_weights,
 )
 from tools.proto_infonce import compute_prototype_infonce, default_proto_metrics
-from tools.classwise_alignment import compute_classwise_mmd
+from tools.classwise_alignment import compute_classwise_mmd, compute_classwise_prototype_gap
 from tools.pretrain_proto_schedule import (
     get_lambda_proto_eff,
     get_lambda_cmmd_eff,
+    get_lambda_class_gap_eff,
     resolve_proto_training_params,
+    resolve_class_gap_training_params,
     resolve_cmmd_training_params,
     compute_proto_checkpoint_guard,
     post_proto_checkpoint_min_epoch,
@@ -679,6 +681,12 @@ def train_d_ae(
     lambda_cmmd_eff: float = 0.0,
     cmmd_min_samples_per_domain: int = 2,
     cmmd_gamma="median",
+    lambda_class_gap_eff: float = 0.0,
+    class_gap_metric: str = "cosine",
+    class_gap_min_samples_per_domain: int = 2,
+    class_gap_detach_source: bool = True,
+    class_gap_detach_target: bool = False,
+    class_gap_l2_squared: bool = True,
     source_weights=None,
     target_weights=None,
     use_class_weight: bool = False,
@@ -747,6 +755,30 @@ def train_d_ae(
             min_samples_per_domain=cmmd_min_samples_per_domain,
             gamma=cmmd_gamma,
         )
+    class_gap_metrics = {
+        "class_gap_loss": 0.0,
+        "class_gap_valid": False,
+        "class_gap_metric": class_gap_metric,
+        "class_gap_valid_class_count": 0,
+        "class_gap_mean": 0.0,
+        "class_gap_median": 0.0,
+        "class_gap_max": 0.0,
+        "class_gap_min": 0.0,
+    }
+    class_gap_loss = ccle_z.sum() * 0.0
+    if lambda_class_gap_eff > 0:
+        class_gap_loss, class_gap_metrics = compute_classwise_prototype_gap(
+            ccle_z,
+            s_labels,
+            tcga_z,
+            t_labels,
+            num_classes=num_classes,
+            min_samples_per_domain=class_gap_min_samples_per_domain,
+            metric=class_gap_metric,
+            detach_source=class_gap_detach_source,
+            detach_target=class_gap_detach_target,
+            l2_squared=class_gap_l2_squared,
+        )
     combined_proto_cmmd = bool(lambda_proto_eff > 0 and lambda_cmmd_eff > 0)
     loss = (
         o_loss
@@ -756,6 +788,7 @@ def train_d_ae(
         + gan_lambda_cls * cls_loss
         + float(lambda_proto_eff) * proto_loss
         + float(lambda_cmmd_eff) * cmmd_loss
+        + float(lambda_class_gap_eff) * class_gap_loss
     )
     loss_log.update({
         "ortho_loss": o_loss,
@@ -767,6 +800,15 @@ def train_d_ae(
         "lambda_adv_eff": float(lambda_adv_eff),
         "lambda_proto_eff": float(lambda_proto_eff),
         "lambda_cmmd_eff": float(lambda_cmmd_eff),
+        "lambda_class_gap_eff": float(lambda_class_gap_eff),
+        "class_gap_loss": class_gap_metrics.get("class_gap_loss", 0.0),
+        "class_gap_metric": class_gap_metrics.get("class_gap_metric", class_gap_metric),
+        "class_gap_valid": float(class_gap_metrics.get("class_gap_valid", False)),
+        "class_gap_valid_class_count": class_gap_metrics.get("class_gap_valid_class_count", 0),
+        "class_gap_mean": class_gap_metrics.get("class_gap_mean", 0.0),
+        "class_gap_median": class_gap_metrics.get("class_gap_median", 0.0),
+        "class_gap_max": class_gap_metrics.get("class_gap_max", 0.0),
+        "class_gap_min": class_gap_metrics.get("class_gap_min", 0.0),
         "proto_loss": proto_metrics["proto_loss"],
         "proto_acc": proto_metrics["proto_acc"],
         "proto_valid_class_count": proto_metrics["proto_valid_class_count"],
@@ -992,6 +1034,7 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
     gan_lambda_cls = gan_cfg["gan_lambda_cls"]
     gan_gp_weight = gan_cfg["gan_gp_weight"]
     proto_cfg = resolve_proto_training_params(param)
+    class_gap_cfg = resolve_class_gap_training_params(param)
     cmmd_cfg = resolve_cmmd_training_params(param)
     lambda_adv = proto_cfg["lambda_adv"]
     proto_temperature = proto_cfg["proto_temperature"]
@@ -1005,6 +1048,10 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
     best_proto_loss = float("inf")
     best_proto_margin = float("-inf")
     best_proto_acc = 0.0
+    best_class_gap_loss = float("inf")
+    class_gap_loss_history = []
+    class_gap_valid_steps = 0
+    class_gap_total_steps = 0
 
     discrim_optimizer = torch.optim.RMSprop(discrim.parameters(), lr=gan_lr)
     discrim_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(discrim_optimizer, max(1, gan_epoch))
@@ -1052,6 +1099,7 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
         gan_epoch_idx = epoch + 1
         lambda_proto_eff = get_lambda_proto_eff(gan_epoch_idx, param)
         lambda_cmmd_eff = get_lambda_cmmd_eff(gan_epoch_idx, param)
+        lambda_class_gap_eff = get_lambda_class_gap_eff(gan_epoch_idx, param)
         dloss_list = []
         genloss_list = []
         cls_only_list = []
@@ -1113,6 +1161,12 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
                         lambda_cmmd_eff=lambda_cmmd_eff,
                         cmmd_min_samples_per_domain=cmmd_min_samples_per_domain,
                         cmmd_gamma=cmmd_gamma,
+                        lambda_class_gap_eff=lambda_class_gap_eff,
+                        class_gap_metric=class_gap_cfg["class_gap_metric"],
+                        class_gap_min_samples_per_domain=class_gap_cfg["class_gap_min_samples_per_domain"],
+                        class_gap_detach_source=class_gap_cfg["class_gap_detach_source"],
+                        class_gap_detach_target=class_gap_cfg["class_gap_detach_target"],
+                        class_gap_l2_squared=class_gap_cfg["class_gap_l2_squared"],
                         source_weights=source_weights,
                         target_weights=target_weights,
                         use_class_weight=use_class_weight,
@@ -1128,7 +1182,17 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
         genloss_mean["lambda_adv_eff"] = lambda_adv
         genloss_mean["lambda_proto_eff"] = lambda_proto_eff
         genloss_mean["lambda_cmmd_eff"] = lambda_cmmd_eff
+        genloss_mean["lambda_class_gap"] = class_gap_cfg["lambda_class_gap"]
+        genloss_mean["lambda_class_gap_eff"] = lambda_class_gap_eff
         genloss_mean["gan_gen_update_interval"] = gan_gen_update_interval
+        if lambda_class_gap_eff > 0:
+            class_gap_total_steps += 1
+            if genloss_mean.get("class_gap_valid"):
+                class_gap_valid_steps += 1
+                cg_loss = float(genloss_mean.get("class_gap_loss", float("inf")))
+                class_gap_loss_history.append(cg_loss)
+                if cg_loss < best_class_gap_loss:
+                    best_class_gap_loss = cg_loss
         genloss_mean["proto_mode"] = proto_mode
         genloss_mean["proto_direction"] = proto_direction
         genloss_mean["proto_detach"] = float(proto_detach)
@@ -1279,6 +1343,15 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
         "proto_pair_align": proto_cfg.get("proto_pair_align", False),
         "lambda_cmmd": cmmd_cfg["lambda_cmmd"],
         "combined_proto_cmmd": bool(float(param.get("lambda_proto", 0)) > 0 and cmmd_cfg["lambda_cmmd"] > 0),
+        "lambda_class_gap": class_gap_cfg["lambda_class_gap"],
+        "class_gap_metric": class_gap_cfg["class_gap_metric"],
+        "class_gap_start_epoch": class_gap_cfg["class_gap_start_epoch"],
+        "class_gap_full_epoch": class_gap_cfg["class_gap_full_epoch"],
+        "best_class_gap_loss": None if best_class_gap_loss == float("inf") else best_class_gap_loss,
+        "mean_class_gap_loss": float(np.mean(class_gap_loss_history)) if class_gap_loss_history else None,
+        "class_gap_valid_rate": (
+            float(class_gap_valid_steps) / float(class_gap_total_steps) if class_gap_total_steps else None
+        ),
         **proto_guard,
         **structure_metrics,
         "gan_early_stop_metric": gan_early_stop_metric,

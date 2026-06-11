@@ -1,0 +1,35 @@
+{
+  "_metadata": {
+    "description": "Round 5 Branch C: ultra-mild target-to-source InfoNCE appendix (non-primary).",
+    "reference_baseline": "R4.1 exp_035 (lambda_proto=0.0003 t2s)",
+    "strategy": "target_to_source, proto_detach=true, proto_pair_align=false"
+  },
+  "base_config": "config/params_proto_base_exp746_vaewc.json",
+  "output_config_dir": "config/generated/vaewc_round5_t2s_infonce_appendix",
+  "run_id": "vaewc_round5_t2s_infonce_appendix",
+  "sweep": {
+    "paired_params": [
+      {"latent_size": 32, "encoder_dims": [256, 128]},
+      {"latent_size": 64, "encoder_dims": [512, 256, 128]},
+      {"latent_size": 128, "encoder_dims": [1024, 512, 256]}
+    ],
+    "lambda_proto": [0, 0.00003, 0.0001, 0.0003],
+    "proto_mode": ["cross_domain"],
+    "proto_direction": ["target_to_source"],
+    "proto_detach": [true],
+    "proto_temperature": [3.0, 5.0],
+    "proto_start_epoch": [5],
+    "proto_full_epoch": [20],
+    "proto_min_samples_per_domain": [1],
+    "proto_min_samples_per_class": [1],
+    "proto_pair_align": [false],
+    "lambda_proto_pair": [0],
+    "lambda_class_gap": [0],
+    "lambda_cls": [20],
+    "cls_start_epoch": [40],
+    "cls_full_epoch": [90],
+    "gan_gen_update_interval": [5],
+    "gan_patience": [50],
+    "gan_early_stop_start_epoch": [30]
+  }
+}

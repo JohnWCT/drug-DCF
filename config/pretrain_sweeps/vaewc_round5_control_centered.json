@@ -1,0 +1,26 @@
+{
+  "_metadata": {
+    "description": "Round 5 Branch A: control-centered latent / GAN optimization (no proto / class-gap / cMMD).",
+    "reference_baseline": "result/pretrain_vaewc/exp_746",
+    "strategy": "lambda_proto=0, paired latent_size/encoder_dims, structure-first selection"
+  },
+  "base_config": "config/params_proto_base_exp746_vaewc.json",
+  "output_config_dir": "config/generated/vaewc_round5_control_centered",
+  "run_id": "vaewc_round5_control_centered",
+  "sweep": {
+    "paired_params": [
+      {"latent_size": 32, "encoder_dims": [256, 128]},
+      {"latent_size": 64, "encoder_dims": [512, 256, 128]},
+      {"latent_size": 128, "encoder_dims": [1024, 512, 256]}
+    ],
+    "lambda_proto": [0],
+    "lambda_class_gap": [0],
+    "lambda_cmmd": [0],
+    "lambda_cls": [15, 20],
+    "cls_start_epoch": [30, 40],
+    "cls_full_epoch": [80, 90],
+    "gan_gen_update_interval": [5, 10],
+    "gan_patience": [50],
+    "gan_early_stop_start_epoch": [30]
+  }
+}

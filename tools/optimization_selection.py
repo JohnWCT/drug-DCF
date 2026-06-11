@@ -18,18 +18,26 @@ SELECTION_MODES = (
     "round4_kmeans_first",
     "round4_weighted",
     "round4_1_structure_first",
+    "round5_structure_first",
 )
 RANKING_PRIMARY_BY_MODE = {
     "score_total": "score_total",
     "round4_kmeans_first": "score_kmeans",
     "round4_weighted": "score_round4",
     "round4_1_structure_first": "wasserstein",
+    "round5_structure_first": "wasserstein",
 }
 RANKING_SECONDARY_BY_MODE = {
     "score_total": ["score_total"],
     "round4_kmeans_first": ["wasserstein", "fid", "mmd", "score_total"],
     "round4_weighted": ["score_round4", "score_kmeans", "wasserstein"],
     "round4_1_structure_first": ["kmeans_ari", "fid", "mmd"],
+    "round5_structure_first": ["kmeans_ari", "fid", "mmd", "class_gap_loss"],
+}
+
+DEFAULT_FORCE_BASELINE_PATHS = {
+    "exp_746": "result/pretrain_vaewc/exp_746",
+    "exp_018": "result/optimization_runs/vaewc_proto_infonce_round3_exp746/pretrain/exp_018",
 }
 
 
@@ -62,14 +70,32 @@ def enrich_with_lambda_proto(df: pd.DataFrame, result_dir: str) -> pd.DataFrame:
     return out
 
 
-def load_all_pretrain_rows(result_dir: str) -> pd.DataFrame:
+def load_all_pretrain_rows(result_dir: str, source_tag: str = "") -> pd.DataFrame:
     from visualize_vaewc_results import load_experiment_data
 
     result_dir = _resolve_path(result_dir)
     exp_dirs = sorted(d for d in glob(os.path.join(result_dir, "exp_*")) if os.path.isdir(d))
     if not exp_dirs:
         return pd.DataFrame()
-    return pd.DataFrame([load_experiment_data(d) for d in exp_dirs])
+    rows = []
+    for d in exp_dirs:
+        row = load_experiment_data(d)
+        if source_tag:
+            row["pretrain_run_tag"] = source_tag
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def load_merged_pretrain_rows(result_dirs: list[str]) -> pd.DataFrame:
+    frames = []
+    for result_dir in result_dirs:
+        tag = os.path.basename(os.path.normpath(_resolve_path(result_dir)))
+        df = load_all_pretrain_rows(result_dir, source_tag=tag)
+        if not df.empty:
+            frames.append(df)
+    if not frames:
+        return pd.DataFrame()
+    return pd.concat(frames, ignore_index=True)
 
 
 def build_filter_threshold_report(
@@ -246,6 +272,10 @@ def apply_selection_ranking(df: pd.DataFrame, selection_mode: str = "score_total
         from tools.collapse_detection import rank_round41_stage2
 
         return rank_round41_stage2(out)
+    elif selection_mode == "round5_structure_first":
+        from tools.collapse_detection import rank_round5_stage2
+
+        return rank_round5_stage2(out)
     else:
         sort_cols = [("score_total", False)]
 
@@ -313,6 +343,90 @@ def select_top10_with_controls(
     return top10, info
 
 
+def _resolve_baseline_row(model_id: str, all_df: pd.DataFrame) -> tuple[dict, list[str]]:
+    warnings = []
+    pretrain_path = DEFAULT_FORCE_BASELINE_PATHS.get(model_id)
+    if pretrain_path is None:
+        warnings.append(f"Unknown baseline model `{model_id}` (no default path).")
+        return {"ID": model_id}, warnings
+    abs_path = _resolve_path(pretrain_path)
+    if not os.path.isdir(abs_path):
+        warnings.append(f"Baseline checkpoint missing for `{model_id}`: {pretrain_path}")
+    row = {"ID": model_id, "pretrain_result_dir": pretrain_path, "result_folder": pretrain_path}
+    if not all_df.empty and model_id in set(all_df["ID"].astype(str)):
+        row.update(all_df[all_df["ID"].astype(str) == model_id].iloc[0].to_dict())
+    row["ID"] = model_id
+    row["pretrain_result_dir"] = pretrain_path
+    row["result_folder"] = pretrain_path
+    row["is_control"] = True
+    row["force_baseline"] = True
+    return row, warnings
+
+
+def select_top_k_with_baselines(
+    aggregated_df: pd.DataFrame,
+    all_df: pd.DataFrame,
+    top_k: int = 15,
+    force_baseline_models: Optional[list] = None,
+    selection_mode: str = "round5_structure_first",
+    best_control_id: Optional[str] = None,
+) -> Tuple[pd.DataFrame, dict]:
+    """Select top-K from pool, then force-append baselines and best control."""
+    force_baseline_models = force_baseline_models or []
+    warnings = []
+    ranked = apply_selection_ranking(aggregated_df, selection_mode=selection_mode)
+    selected_ids = set()
+    selected_rows = []
+
+    for _, row in ranked.iterrows():
+        if len(selected_rows) >= top_k:
+            break
+        if row["ID"] in selected_ids:
+            continue
+        selected_rows.append(row.to_dict())
+        selected_ids.add(row["ID"])
+
+    controls = ranked[ranked["lambda_proto"].fillna(0.0) == 0.0]
+    best_control_row = None
+    if best_control_id and best_control_id in set(controls["ID"].astype(str)):
+        best_control_row = controls[controls["ID"].astype(str) == best_control_id].iloc[0].to_dict()
+    elif not controls.empty:
+        best_control_row = controls.iloc[0].to_dict()
+        best_control_id = str(best_control_row["ID"])
+
+    for model_id in force_baseline_models:
+        if model_id in selected_ids:
+            continue
+        row, w = _resolve_baseline_row(model_id, all_df)
+        warnings.extend(w)
+        selected_rows.append(row)
+        selected_ids.add(model_id)
+
+    if best_control_row and best_control_id not in selected_ids:
+        selected_rows.append(best_control_row)
+        selected_ids.add(best_control_id)
+
+    out = pd.DataFrame(selected_rows)
+    if out.empty:
+        info = {"total_selected": 0, "warnings": warnings, "selection_mode": selection_mode}
+        return out, info
+
+    out = apply_selection_ranking(out, selection_mode=selection_mode)
+    out["selection_rank"] = range(1, len(out) + 1)
+    out["is_control"] = out.get("lambda_proto", pd.Series(0, index=out.index)).fillna(0.0) == 0.0
+    info = {
+        "total_selected": int(len(out)),
+        "top_k_requested": top_k,
+        "force_baseline_models": list(force_baseline_models),
+        "best_control_id": best_control_id,
+        "warnings": warnings,
+        "selection_mode": selection_mode,
+        "ranking_primary_metric": RANKING_PRIMARY_BY_MODE.get(selection_mode, "score_total"),
+        "ranking_secondary_metrics": RANKING_SECONDARY_BY_MODE.get(selection_mode, []),
+    }
+    return out, info
+
+
 def run_visualize(
     result_dir: str,
     output_dir: str,
@@ -352,14 +466,28 @@ def write_selection_outputs(
     require_controls: int = 2,
     selection_mode: str = "score_total",
     exclude_proto_ineffective: bool = False,
+    top_k: int = 10,
+    force_baseline_models: Optional[list] = None,
+    result_dirs: Optional[list] = None,
 ) -> dict:
     selection_dir = _resolve_path(os.path.join(run_dir, "selection"))
     reports_dir = _resolve_path(os.path.join(run_dir, "reports"))
     os.makedirs(selection_dir, exist_ok=True)
     os.makedirs(reports_dir, exist_ok=True)
 
-    all_df = load_all_pretrain_rows(result_dir)
-    all_df = enrich_selection_metadata(all_df, _resolve_path(result_dir))
+    merged_dirs = [_resolve_path(result_dir)]
+    if result_dirs:
+        merged_dirs = [_resolve_path(p) for p in result_dirs]
+    if len(merged_dirs) > 1:
+        frames = []
+        for d in merged_dirs:
+            part = load_all_pretrain_rows(d, source_tag=os.path.basename(d))
+            part = enrich_selection_metadata(part, d)
+            frames.append(part)
+        all_df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+    else:
+        all_df = load_all_pretrain_rows(result_dir)
+        all_df = enrich_selection_metadata(all_df, _resolve_path(result_dir))
     all_path = os.path.join(selection_dir, "pretrain_all_candidates.csv")
     all_df.to_csv(all_path, index=False)
 
@@ -375,6 +503,11 @@ def write_selection_outputs(
         from tools.collapse_detection import apply_round41_stage1_filter
 
         aggregated_df = apply_round41_stage1_filter(all_df)
+        aggregated_df.to_csv(aggregated_path, index=False)
+    elif selection_mode == "round5_structure_first":
+        from tools.collapse_detection import apply_round5_stage1_filter
+
+        aggregated_df = apply_round5_stage1_filter(all_df)
         aggregated_df.to_csv(aggregated_path, index=False)
     else:
         run_visualize(result_dir, selection_dir, filter_config, select_top_k=20, no_filter=no_filter)
@@ -415,7 +548,16 @@ def write_selection_outputs(
                 f" Only {controls_in_pool} control(s) passed filter (need >= {require_controls})."
             )
 
-    top10_df, info = select_top10_with_controls(aggregated_df, selection_mode=selection_mode)
+    if selection_mode == "round5_structure_first":
+        top10_df, info = select_top_k_with_baselines(
+            aggregated_df,
+            all_df,
+            top_k=top_k,
+            force_baseline_models=force_baseline_models or [],
+            selection_mode=selection_mode,
+        )
+    else:
+        top10_df, info = select_top10_with_controls(aggregated_df, selection_mode=selection_mode)
     info["passing_total"] = len(aggregated_df)
     info["passing_controls"] = int((aggregated_df["lambda_proto"].fillna(0) == 0).sum())
     info["passing_infonce"] = int((aggregated_df["lambda_proto"].fillna(0) != 0).sum())
@@ -425,6 +567,12 @@ def write_selection_outputs(
     info["min_passing_required"] = min_passing
     info["exclude_proto_ineffective"] = exclude_proto_ineffective
     info["excluded_proto_ineffective_count"] = excluded_proto
+    info["top_k"] = top_k
+    info["force_baseline_models"] = force_baseline_models or []
+    if info.get("warnings"):
+        report_warnings = info["warnings"]
+    else:
+        report_warnings = []
 
     top10_path = os.path.join(selection_dir, "pretrain_top10.csv")
     top10_df.to_csv(top10_path, index=False)
@@ -452,6 +600,10 @@ def write_selection_outputs(
     ]
     if shortage_reason:
         report_lines.append(f"- **Shortage:** {shortage_reason}")
+    if report_warnings:
+        report_lines.append("- **Baseline warnings:**")
+        for w in report_warnings:
+            report_lines.append(f"  - {w}")
     if filter_report_path:
         report_lines.append(f"- Threshold report: `selection/filter_threshold_report.csv`")
     report_lines.extend(

@@ -60,6 +60,21 @@ def _flatten_base_params(base_config: dict) -> dict:
 
 
 def expand_sweep_combinations(sweep: dict) -> List[dict]:
+    sweep = copy.deepcopy(sweep)
+    paired = sweep.pop("paired_params", None)
+    if paired is not None:
+        if not isinstance(paired, list) or not paired:
+            raise ValueError("paired_params must be a non-empty list of parameter dicts")
+        rest_keys = list(sweep.keys())
+        rest_values = [sweep[k] for k in rest_keys]
+        rest_combos = [dict(zip(rest_keys, combo)) for combo in product(*rest_values)] if rest_keys else [{}]
+        combos = []
+        for pair in paired:
+            for rest in rest_combos:
+                merged = copy.deepcopy(rest)
+                merged.update(copy.deepcopy(pair))
+                combos.append(merged)
+        return combos
     keys = list(sweep.keys())
     values = [sweep[k] for k in keys]
     return [dict(zip(keys, combo)) for combo in product(*values)]
@@ -184,6 +199,8 @@ def main():
     parser = argparse.ArgumentParser("optimization_config_generator")
     parser.add_argument(
         "--sweep-spec",
+        "--config",
+        dest="sweep_spec",
         default="config/pretrain_sweeps/vaewc_proto_infonce_round1.json",
         help="Sweep specification JSON",
     )

@@ -51,3 +51,11 @@ def test_cross_domain_defaults_target_to_source():
     cfg = resolve_proto_training_params({"proto_mode": "cross_domain"})
     assert cfg["proto_direction"] == "target_to_source"
     assert cfg["proto_pair_align"] is False
+
+
+def test_class_gap_schedule_ramp():
+    from tools.pretrain_proto_schedule import get_lambda_class_gap_eff
+
+    param = {"lambda_class_gap": 0.001, "class_gap_start_epoch": 5, "class_gap_full_epoch": 30}
+    assert get_lambda_class_gap_eff(1, param) == 0.0
+    assert get_lambda_class_gap_eff(30, param) == 0.001

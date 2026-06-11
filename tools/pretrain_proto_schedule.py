@@ -27,6 +27,15 @@ def get_lambda_proto_eff(gan_epoch: int, param: dict) -> float:
     return smooth_rampup(gan_epoch, proto_start_epoch, proto_full_epoch, lambda_proto)
 
 
+def get_lambda_class_gap_eff(gan_epoch: int, param: dict) -> float:
+    lambda_class_gap = float(param.get("lambda_class_gap", 0.0))
+    if lambda_class_gap <= 0:
+        return 0.0
+    start_epoch = int(param.get("class_gap_start_epoch", 5))
+    full_epoch = int(param.get("class_gap_full_epoch", start_epoch))
+    return smooth_rampup(gan_epoch, start_epoch, full_epoch, lambda_class_gap)
+
+
 def get_lambda_cmmd_eff(gan_epoch: int, param: dict) -> float:
     lambda_cmmd = float(param.get("lambda_cmmd", 0.0))
     if lambda_cmmd <= 0:
@@ -63,6 +72,19 @@ def post_proto_checkpoint_min_epoch(param: dict) -> int:
     proto_start = int(param.get("proto_start_epoch", 1))
     proto_full = int(param.get("proto_full_epoch", proto_start))
     return max(proto_start + 5, proto_full)
+
+
+def resolve_class_gap_training_params(param: dict) -> dict:
+    return {
+        "lambda_class_gap": float(param.get("lambda_class_gap", 0.0)),
+        "class_gap_metric": str(param.get("class_gap_metric", "cosine")),
+        "class_gap_start_epoch": int(param.get("class_gap_start_epoch", 5)),
+        "class_gap_full_epoch": int(param.get("class_gap_full_epoch", 30)),
+        "class_gap_min_samples_per_domain": int(param.get("class_gap_min_samples_per_domain", 2)),
+        "class_gap_detach_source": bool(param.get("class_gap_detach_source", True)),
+        "class_gap_detach_target": bool(param.get("class_gap_detach_target", False)),
+        "class_gap_l2_squared": bool(param.get("class_gap_l2_squared", True)),
+    }
 
 
 def resolve_cmmd_training_params(param: dict) -> dict:
