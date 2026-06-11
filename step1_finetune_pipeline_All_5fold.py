@@ -37,8 +37,15 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Using device: {device}")
 
 FIXED_DRUG_SMILES_DATA_PATH = "./data/GDSC+214_drug_merge_pubchem.csv"
-FIXED_TCGA_DATA_FOLDER = "data/TCGA/PMID27354694_DR_OMICS_ad_intersect_pretrain.csv"
-FIXED_TCGA_DATA_FOLDER_EXTRA = "data/TCGA/TCGA_drug_response_from_DAPL.csv"
+from tools.finetune_tcga_eval import (
+    DEFAULT_TCGA_EVAL_TARGETS,
+    FIXED_TCGA_DATA_FOLDER,
+    FIXED_TCGA_DATA_FOLDER_EXTRA,
+    EVAL_KEY_TO_LEGACY_TAG,
+    export_codeae_finetune_eval,
+    flatten_tcga_eval_metrics,
+    predictions_from_eval_suite,
+)
 
 # Function to load parameters from config file
 def load_config(config_path='config/params_grid.json'):
@@ -870,12 +877,14 @@ def step_1_finetune_pipeline_zscore(
             tcga_results_extra = best_fold.get('tcga_results_extra', {})
             
             # Store results for this parameter combination
+            best_fold_eval = fold_results[best_fold_idx].get('tcga_eval_results', {})
             current_param_set_results = {
                 'Params': current_hyperparams,
                 'Fold_Results': fold_results,
                 'Mean_Metrics': mean_metrics,
                 'TCGA_Metrics': tcga_results,
                 'TCGA_Metrics_Extra': tcga_results_extra,
+                'TCGA_Eval_Results': best_fold_eval,
                 'Best_Fold': best_fold_idx + 1,
                 'Best_Fold_AUC': best_fold['best_val_auc']
             }
@@ -1225,26 +1234,20 @@ def perform_5fold_cross_validation(response_df,
                           'confusion_matrix': None}
             fold_ccle_pred_df = pd.DataFrame()
         
-        # TCGA Inference for this fold
-        tcga_results_raw = inference_on_tcga_drugs(
-            model_components=model_components,
-            tcga_data_folder=tcga_inference_data_folder,
-            best_model_path=None,  # Pass None to avoid reloading weights
-            ft_params=ft_params,
-            fold_model_folder=fold_model_folder,  # Pass folder info for confusion matrix saving
-            tcga_tag='TCGA1'
-        )
-        
-        tcga_results_extra_raw = {}
-        if tcga_inference_data_folder_extra:
-            tcga_results_extra_raw = inference_on_tcga_drugs(
+        # TCGA Inference for this fold (3 eval targets)
+        tcga_eval_bundle = {}
+        for eval_key, eval_path in DEFAULT_TCGA_EVAL_TARGETS:
+            tag = EVAL_KEY_TO_LEGACY_TAG.get(eval_key, eval_key)
+            tcga_eval_bundle[eval_key] = inference_on_tcga_drugs(
                 model_components=model_components,
-                tcga_data_folder=tcga_inference_data_folder_extra,
+                tcga_data_folder=eval_path,
                 best_model_path=None,
                 ft_params=ft_params,
                 fold_model_folder=fold_model_folder,
-                tcga_tag='TCGA2'
+                tcga_tag=tag,
             )
+        tcga_results_raw = tcga_eval_bundle.get("gdsc_intersect13", {})
+        tcga_results_extra_raw = tcga_eval_bundle.get("dapl", {})
 
         fold_tcga_pred_df = predictions_from_tcga_inference_result(tcga_results_raw, tcga_source="TCGA1")
         if not fold_tcga_pred_df.empty:
@@ -1287,6 +1290,7 @@ def perform_5fold_cross_validation(response_df,
             'test_metrics': test_metrics,
             'tcga_results': tcga_results,
             'tcga_results_extra': tcga_results_extra,
+            'tcga_eval_results': normalize_tcga_eval_suite(tcga_eval_bundle),
             'metrics_history': metrics_history,
             'best_model_path': best_model_path
         }
@@ -1662,6 +1666,13 @@ def create_final_parameter_comparison_csv_5fold(outfolder, all_param_results_lis
                     row[f'TCGA2_{drug_name}_TCGA_Recall'] = metrics.get('recall', np.nan)
                     row[f'TCGA2_{drug_name}_TCGA_F1_Score'] = metrics.get('f1_score', np.nan)
                     row[f'TCGA2_{drug_name}_TCGA_Optimal_Threshold'] = metrics.get('optimal_threshold', np.nan)
+
+        tcga_eval_all = result.get('TCGA_Eval_Results', {})
+        if tcga_eval_all:
+            row.update(flatten_tcga_eval_metrics(tcga_eval_all))
+            if 'Global_TCGA_AUC' in row:
+                row['Overall_TCGA_AUC'] = row['Global_TCGA_AUC']
+                row['Overall_TCGA_AUPRC'] = row.get('Global_TCGA_AUPRC', row.get('Overall_TCGA_AUPRC', np.nan))
         
         comparison_rows.append(row)
     
@@ -1693,9 +1704,13 @@ def create_final_parameter_comparison_csv_5fold(outfolder, all_param_results_lis
     detailed_path = os.path.join(outfolder, 'parameter_comparison_detailed.csv')
     detailed_df.to_csv(detailed_path, index=False)
     
+    integrated_path = write_eval_metrics_integrated_summary(outfolder, detailed_df)
+
     print(f"\nParameter comparison tables saved to:")
     print(f"1. {comparison_path} (TCGA-focused)")
     print(f"2. {detailed_path} (detailed)")
+    if integrated_path:
+        print(f"3. {integrated_path} (integrated gdsc13 + tcga_only3 + dapl)")
     
     return comparison_df
 

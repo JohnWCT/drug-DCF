@@ -1,0 +1,19 @@
+{
+  "_metadata": {
+    "description": "Round 4.1 branch: conservative class-wise MMD (no InfoNCE).",
+    "reference_baseline": "result/pretrain_vaewc/exp_746"
+  },
+  "base_config": "config/params_proto_base_exp746_vaewc.json",
+  "output_config_dir": "config/generated/vaewc_round4_1_cmmd_branch",
+  "run_id": "vaewc_round4_1_cmmd_branch",
+  "sweep": {
+    "lambda_proto": [0],
+    "lambda_cmmd": [0, 0.0005, 0.001, 0.003, 0.005],
+    "cmmd_start_epoch": [5, 10],
+    "cmmd_full_epoch": [20, 40],
+    "cmmd_min_samples_per_domain": [2],
+    "cmmd_gamma": ["median"],
+    "lambda_adv": [1.0],
+    "gan_gen_update_interval": [5]
+  }
+}

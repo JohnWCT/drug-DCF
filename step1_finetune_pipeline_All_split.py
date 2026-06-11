@@ -33,8 +33,15 @@ if not torch.cuda.is_available():
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 FIXED_DRUG_SMILES_DATA_PATH = "data/GDSC_drug_merge_pubchem_dropNA_MACCS.csv"
-FIXED_TCGA_DATA_FOLDER = "data/TCGA/PMID27354694_DR_OMICS_ad_intersect_pretrain.csv"
-FIXED_TCGA_DATA_FOLDER_EXTRA = "data/TCGA/TCGA_drug_response_from_DAPL.csv"
+from tools.finetune_tcga_eval import (
+    DEFAULT_TCGA_EVAL_TARGETS,
+    FIXED_TCGA_DATA_FOLDER,
+    FIXED_TCGA_DATA_FOLDER_EXTRA,
+    export_codeae_finetune_eval,
+    flatten_tcga_eval_metrics,
+    predictions_from_eval_suite,
+    write_eval_metrics_integrated_summary,
+)
 
 # Moved default hyperparameter grids and model configurations here
 DEFAULT_PARAMS_GRID = {
@@ -751,34 +758,52 @@ def step_1_finetune_pipeline_zscore(
                 collate_fn=collate_fn,
             )
             
-            # TCGA inference
+            # TCGA inference (3 eval targets)
             best_model_path = os.path.join(model_folder, 'best_model.pth')
-            tcga_results_raw = inference_on_tcga_drugs(
-                model_components, tcga_inference_data_folder,
-                best_model_path, train_params, ft_params, drug_smiles_df, tcga_tag='TCGA1'
-            )
-            tcga_results_extra_raw = {}
-            if tcga_inference_data_folder_extra:
-                tcga_results_extra_raw = inference_on_tcga_drugs(
-                    model_components, tcga_inference_data_folder_extra,
-                    best_model_path, train_params, ft_params, drug_smiles_df, tcga_tag='TCGA2'
+            tcga_eval_results = {}
+            for eval_key, eval_path in DEFAULT_TCGA_EVAL_TARGETS:
+                from tools.finetune_tcga_eval import EVAL_KEY_TO_LEGACY_TAG
+                tag = EVAL_KEY_TO_LEGACY_TAG.get(eval_key, eval_key)
+                raw_wrap = inference_on_tcga_drugs(
+                    model_components, eval_path,
+                    best_model_path, train_params, ft_params, drug_smiles_df, tcga_tag=tag
                 )
+                tcga_eval_results[eval_key] = raw_wrap.get('_raw_inference', raw_wrap) or {}
 
-            tcga_pred_df = predictions_from_tcga_inference_result(
-                tcga_results_raw.get('_raw_inference', {}), tcga_source="TCGA1"
-            )
-            tcga_pred_extra_df = predictions_from_tcga_inference_result(
-                tcga_results_extra_raw.get('_raw_inference', {}), tcga_source="TCGA2"
-            )
+            tcga_preds = predictions_from_eval_suite(tcga_eval_results)
             save_prediction_tables(
                 model_folder,
                 ccle_test_df=ccle_pred_df,
-                tcga_eval_df=tcga_pred_df,
-                tcga_eval_extra_df=tcga_pred_extra_df,
+                tcga_eval_df=tcga_preds.get("gdsc_intersect13"),
+                tcga_eval_extra_df=tcga_preds.get("dapl"),
+            )
+            export_codeae_finetune_eval(
+                model_folder,
+                config={
+                    "hyperparams": current_hyperparams,
+                    "tcga_eval_targets": [k for k, _ in DEFAULT_TCGA_EVAL_TARGETS],
+                },
+                ccle_pred_df=ccle_pred_df,
+                tcga_eval_results=tcga_eval_results,
+                drug_smiles_df=drug_smiles_df,
+                response_df=response_df,
+                expression_latent_dict={str(sid): [] for sid in expression_df.index},
+                tcga_latent_dict=None,
+                test_metrics={"AUC": test_auc, "AUPRC": test_auprc, "Loss": test_loss},
+                metrics_history=metrics_history,
+                best_model_path=best_model_path,
             )
 
-            tcga_results = {k: v for k, v in tcga_results_raw.items() if k != '_raw_inference'}
-            tcga_results_extra = {k: v for k, v in tcga_results_extra_raw.items() if k != '_raw_inference'}
+            tcga_results_raw = tcga_eval_results.get("gdsc_intersect13", {})
+            tcga_results_extra_raw = tcga_eval_results.get("dapl", {})
+            tcga_results = {k: v for k, v in tcga_results_raw.items() if k not in ('_raw_inference', 'Sample_Predictions')}
+            if 'Drug_Metrics' in tcga_results_raw:
+                tcga_results = {drug: mets for drug, mets in tcga_results_raw.get('Drug_Metrics', {}).items()}
+            else:
+                tcga_results = {k: v for k, v in tcga_results_raw.items() if k not in ('Global_Metrics', 'Average_Metrics', 'Drug_Metrics', 'Sample_Predictions')}
+            tcga_results_extra = {}
+            if tcga_results_extra_raw:
+                tcga_results_extra = {drug: mets for drug, mets in tcga_results_extra_raw.get('Drug_Metrics', {}).items()}
             
             # Calculate overall TCGA metrics and add them to tcga_results
             tcga_results = calculate_overall_tcga_metrics(tcga_results)
@@ -804,6 +829,7 @@ def step_1_finetune_pipeline_zscore(
                 },
                 'TCGA_Metrics': tcga_results,
                 'TCGA_Metrics_Extra': tcga_results_extra,
+                'TCGA_Eval_Results': tcga_eval_results,
                 'Best_Epoch': best_epoch + 1
             }
             
@@ -1033,6 +1059,13 @@ def create_final_parameter_comparison_csv(outfolder, all_param_results_list, use
                 if drug_name not in ['Overall_AUC', 'Overall_AUPRC']:
                     row[f'TCGA2_{drug_name}_TCGA_AUC'] = metrics.get('AUC', np.nan)
                     row[f'TCGA2_{drug_name}_TCGA_AUPRC'] = metrics.get('AUPRC', np.nan)
+
+        tcga_eval_all = result.get('TCGA_Eval_Results', {})
+        if tcga_eval_all:
+            row.update(flatten_tcga_eval_metrics(tcga_eval_all))
+            if 'Global_TCGA_AUC' in row:
+                row['Overall_TCGA_AUC'] = row['Global_TCGA_AUC']
+                row['Overall_TCGA_AUPRC'] = row.get('Global_TCGA_AUPRC', row.get('Overall_TCGA_AUPRC', np.nan))
         
         comparison_rows.append(row)
     
@@ -1105,9 +1138,13 @@ def create_final_parameter_comparison_csv(outfolder, all_param_results_list, use
     detailed_path = os.path.join(outfolder, 'parameter_comparison_detailed.csv')
     detailed_df.to_csv(detailed_path, index=False)
     
+    integrated_path = write_eval_metrics_integrated_summary(outfolder, detailed_df)
+
     print(f"\nParameter comparison tables saved to:")
     print(f"1. {comparison_path} (TCGA-focused, best per parameter set)")
     print(f"2. {detailed_path} (detailed, all runs)")
+    if integrated_path:
+        print(f"3. {integrated_path} (integrated gdsc13 + tcga_only3 + dapl)")
     
     return best_comparison_df
 

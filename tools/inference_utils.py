@@ -153,7 +153,13 @@ def inference_on_tcga_drugs(model_components, tcga_data_path, best_model_path, f
         raise ValueError(
             f"tcga_data_path must be a TCGA response CSV file, got: {tcga_data_path}"
         )
-    tcga_response_df = pd.read_csv(tcga_data_path)
+    from tools.finetune_tcga_eval import load_tcga_response_csv
+
+    try:
+        tcga_response_df = load_tcga_response_csv(tcga_data_path)
+    except ValueError as exc:
+        print(f"Error: {exc}")
+        return {}
 
     # Identify unique drugs dynamically
     if 'drug_name' not in tcga_response_df.columns:

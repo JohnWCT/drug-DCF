@@ -1,0 +1,23 @@
+{
+  "_metadata": {
+    "description": "Round 4.1 latent_size 32 vs 64 small branch (control + t2s InfoNCE only, no large cross grid).",
+    "reference_baseline": "result/pretrain_vaewc/exp_746"
+  },
+  "base_config": "config/params_proto_base_exp746_vaewc.json",
+  "output_config_dir": "config/generated/vaewc_round4_1_latent_ablation",
+  "run_id": "vaewc_round4_1_latent_ablation",
+  "sweep": {
+    "latent_size": [32, 64],
+    "encoder_dims": [[256, 128], [512, 256, 128]],
+    "lambda_proto": [0, 0.001],
+    "proto_mode": ["cross_domain"],
+    "proto_direction": ["target_to_source"],
+    "proto_detach": [true],
+    "proto_temperature": [2.0],
+    "proto_start_epoch": [5],
+    "proto_full_epoch": [20],
+    "proto_pair_align": [false],
+    "lambda_cmmd": [0],
+    "gan_gen_update_interval": [5]
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "_metadata": {
+    "description": "Round 4 latent size ablation (control only, no InfoNCE/cMMD).",
+    "reference_baseline": "result/pretrain_vaewc/exp_746"
+  },
+  "base_config": "config/params_proto_base_exp746_vaewc.json",
+  "output_config_dir": "config/generated/vaewc_round4_latent_ablation",
+  "run_id": "vaewc_round4_latent_ablation",
+  "sweep": {
+    "latent_size": [32, 64],
+    "encoder_dims": [[256, 128], [512, 256, 128]],
+    "lambda_proto": [0],
+    "lambda_cmmd": [0],
+    "lambda_cls": [20],
+    "cls_start_epoch": [40],
+    "cls_full_epoch": [90],
+    "gan_gen_update_interval": [5],
+    "gan_cls_update_every_step": [true],
+    "gan_gp_weight": [10.0]
+  }
+}

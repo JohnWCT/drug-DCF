@@ -43,8 +43,19 @@ from tools.inference_utils import inference_on_tcga_drugs, calculate_comprehensi
 from tools.prediction_export import (
     aggregate_fold_prediction_dfs,
     collect_ccle_predictions,
-    predictions_from_tcga_inference_result,
     save_prediction_tables,
+)
+from tools.finetune_tcga_eval import (
+    DEFAULT_TCGA_EVAL_TARGETS,
+    FIXED_TCGA_DATA_FOLDER,
+    FIXED_TCGA_DATA_FOLDER_EXTRA,
+    export_codeae_finetune_eval,
+    flatten_tcga_eval_metrics,
+    predictions_from_eval_suite,
+    run_tcga_eval_suite_latent,
+    is_per_drug_tcga_column,
+    write_eval_metrics_integrated_summary,
+    write_target_eval_fold_mean_std,
 )
 
 if not torch.cuda.is_available():
@@ -54,8 +65,6 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 print(f"Using device: {device}")
 
 FIXED_DRUG_SMILES_DATA_PATH = "data/GDSC_drug_merge_pubchem_dropNA_MACCS.csv"
-FIXED_TCGA_DATA_FOLDER = "data/TCGA/PMID27354694_DR_OMICS_ad_intersect_pretrain.csv"
-FIXED_TCGA_DATA_FOLDER_EXTRA = "data/TCGA/TCGA_drug_response_from_DAPL.csv"
 
 # Function to load parameters from config file
 def load_config(config_path='config/params_grid_latent.json'):
@@ -873,14 +882,7 @@ def create_final_parameter_comparison_csv_5fold(outfolder, all_param_results_lis
     # --- Create Detailed Table ---
     # Include: Parameters + CCLE + TCGA Global/Avg
     # Exclude: Individual drug columns
-    individual_drug_cols = [
-        c for c in df_all.columns
-        if '_TCGA_' in c
-        and not c.startswith('Global_')
-        and not c.startswith('Average_')
-        and not c.startswith('TCGA2_Global_')
-        and not c.startswith('TCGA2_Average_')
-    ]
+    individual_drug_cols = [c for c in df_all.columns if is_per_drug_tcga_column(c)]
     df_detailed = df_all.drop(columns=individual_drug_cols)
     detailed_path = os.path.join(outfolder, 'parameter_comparison_detailed.csv')
     df_detailed.to_csv(detailed_path, index=False)
@@ -895,10 +897,14 @@ def create_final_parameter_comparison_csv_5fold(outfolder, all_param_results_lis
     
     focus_path = os.path.join(outfolder, 'parameter_comparison_tcga_focus.csv')
     df_focus.to_csv(focus_path, index=False)
+
+    integrated_path = write_eval_metrics_integrated_summary(outfolder, df_detailed)
     
     print(f"\nParameter comparison tables saved to:")
     print(f"1. {focus_path} (TCGA-focused, with individual scores)")
     print(f"2. {detailed_path} (detailed, no individual scores)")
+    if integrated_path:
+        print(f"3. {integrated_path} (integrated gdsc13 + tcga_only3 + dapl)")
         
     return df_focus
 
@@ -1125,71 +1131,36 @@ def perform_5fold_cross_validation(response_df,
                           'confusion_matrix': None}
             fold_ccle_pred_df = pd.DataFrame()
         
-        # TCGA Inference for this fold (weights already loaded, pass None to avoid reloading)
-        # TCGA Inference for this fold
-        tcga_raw_results = inference_on_tcga_drugs(
+        # TCGA Inference for this fold (3 eval targets)
+        tcga_eval_results = run_tcga_eval_suite_latent(
+            inference_on_tcga_drugs,
             model_components=model_components_fold,
-            tcga_data_path=tcga_inference_data_folder, # updated arg name
-            best_model_path=None,  # Pass None to avoid reloading weights
+            best_model_path=None,
             ft_params=ft_params,
             tcga_latent_dict=tcga_latent_dict,
             drug_latent_dict=drug_latent_dict,
             gin_type=model_params['gin_type'],
             fold_model_folder=fold_model_folder,
             drug_smiles_df=drug_smiles_df,
-            tcga_tag='TCGA1'
+            eval_targets=DEFAULT_TCGA_EVAL_TARGETS,
         )
-        tcga_raw_results_extra = {}
-        if tcga_inference_data_folder_extra:
-            tcga_raw_results_extra = inference_on_tcga_drugs(
-                model_components=model_components_fold,
-                tcga_data_path=tcga_inference_data_folder_extra,
-                best_model_path=None,
-                ft_params=ft_params,
-                tcga_latent_dict=tcga_latent_dict,
-                drug_latent_dict=drug_latent_dict,
-                gin_type=model_params['gin_type'],
-                fold_model_folder=fold_model_folder,
-                drug_smiles_df=drug_smiles_df,
-                tcga_tag='TCGA2'
-            )
-        
-        if not tcga_raw_results:
-            tcga_raw_results = {
-                'Global_Metrics': {},
-                'Average_Metrics': {},
-                'Drug_Metrics': {}
-            }
-        if not tcga_raw_results_extra:
-            tcga_raw_results_extra = {
-                'Global_Metrics': {},
-                'Average_Metrics': {},
-                'Drug_Metrics': {}
-            }
-        
-        # Flatten TCGA results for storage and aggregation
-        tcga_results = {}
-        # Global
-        tcga_results['Global_TCGA_AUC'] = tcga_raw_results['Global_Metrics'].get('AUC', np.nan)
-        tcga_results['Global_TCGA_AUPRC'] = tcga_raw_results['Global_Metrics'].get('AUPRC', np.nan)
-        # Average
-        tcga_results['Average_TCGA_AUC'] = tcga_raw_results['Average_Metrics'].get('AUC', np.nan)
-        tcga_results['Average_TCGA_AUPRC'] = tcga_raw_results['Average_Metrics'].get('AUPRC', np.nan)
-        # Individual Drugs
-        for drug, mets in tcga_raw_results['Drug_Metrics'].items():
-            tcga_results[f'{drug}_TCGA_AUC'] = mets['AUC']
-            tcga_results[f'{drug}_TCGA_AUPRC'] = mets['AUPRC']
-        tcga_results['TCGA2_Global_TCGA_AUC'] = tcga_raw_results_extra['Global_Metrics'].get('AUC', np.nan)
-        tcga_results['TCGA2_Global_TCGA_AUPRC'] = tcga_raw_results_extra['Global_Metrics'].get('AUPRC', np.nan)
-        tcga_results['TCGA2_Average_TCGA_AUC'] = tcga_raw_results_extra['Average_Metrics'].get('AUC', np.nan)
-        tcga_results['TCGA2_Average_TCGA_AUPRC'] = tcga_raw_results_extra['Average_Metrics'].get('AUPRC', np.nan)
-        for drug, mets in tcga_raw_results_extra['Drug_Metrics'].items():
-            tcga_results[f'TCGA2_{drug}_TCGA_AUC'] = mets.get('AUC', np.nan)
-            tcga_results[f'TCGA2_{drug}_TCGA_AUPRC'] = mets.get('AUPRC', np.nan)
+        tcga_raw_results = tcga_eval_results.get("gdsc_intersect13") or {
+            'Global_Metrics': {}, 'Average_Metrics': {}, 'Drug_Metrics': {}
+        }
+        tcga_raw_results_extra = tcga_eval_results.get("dapl") or {
+            'Global_Metrics': {}, 'Average_Metrics': {}, 'Drug_Metrics': {}
+        }
 
-        fold_tcga_pred_df = predictions_from_tcga_inference_result(tcga_raw_results, tcga_source="TCGA1")
-        fold_tcga_pred_df["fold"] = fold + 1
-        fold_tcga_extra_pred_df = predictions_from_tcga_inference_result(tcga_raw_results_extra, tcga_source="TCGA2")
+        tcga_results = flatten_tcga_eval_metrics(tcga_eval_results)
+        # Backward-compatible primary keys
+        tcga_results.setdefault('Global_TCGA_AUC', tcga_raw_results['Global_Metrics'].get('AUC', np.nan))
+        tcga_results.setdefault('Average_TCGA_AUC', tcga_raw_results['Average_Metrics'].get('AUC', np.nan))
+
+        fold_preds = predictions_from_eval_suite(tcga_eval_results)
+        fold_tcga_pred_df = fold_preds.get("gdsc_intersect13", pd.DataFrame())
+        if not fold_tcga_pred_df.empty:
+            fold_tcga_pred_df["fold"] = fold + 1
+        fold_tcga_extra_pred_df = fold_preds.get("dapl", pd.DataFrame())
         if not fold_tcga_extra_pred_df.empty:
             fold_tcga_extra_pred_df["fold"] = fold + 1
         all_tcga_pred_dfs.append(fold_tcga_pred_df)
@@ -1199,6 +1170,25 @@ def perform_5fold_cross_validation(response_df,
             ccle_test_df=fold_ccle_pred_df,
             tcga_eval_df=fold_tcga_pred_df,
             tcga_eval_extra_df=fold_tcga_extra_pred_df,
+        )
+        export_codeae_finetune_eval(
+            model_folder,
+            config={
+                "hyperparams": {**ft_params, **classifier_params, **model_params},
+                "param_combination_id": param_combination_id,
+                "fold": fold,
+                "tcga_eval_targets": [k for k, _ in DEFAULT_TCGA_EVAL_TARGETS],
+            },
+            ccle_pred_df=fold_ccle_pred_df,
+            tcga_eval_results=tcga_eval_results,
+            drug_smiles_df=drug_smiles_df,
+            response_df=response_df,
+            expression_latent_dict=expression_latent_dict,
+            tcga_latent_dict=tcga_latent_dict,
+            test_metrics=test_metrics if test_df is not None else None,
+            metrics_history=metrics_history,
+            best_model_path=os.path.join(fold_model_folder, 'best_model.pth'),
+            fold_id=fold,
         )
         
         # Save confusion matrix for validation set
@@ -1237,6 +1227,7 @@ def perform_5fold_cross_validation(response_df,
 
     # Calculate mean and std across folds
     mean_metrics = calculate_fold_statistics(fold_results)
+    write_target_eval_fold_mean_std(model_folder, n_folds=len(fold_results))
     
     return fold_results, mean_metrics
 

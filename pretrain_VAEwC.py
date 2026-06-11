@@ -50,8 +50,17 @@ from tools.pretrain_common import (
     prepare_training_target_csv as _prepare_training_target_csv,
     compute_class_weights as _compute_class_weights,
 )
-from tools.proto_infonce import compute_batch_prototype_infonce, default_proto_metrics
-from tools.pretrain_proto_schedule import get_lambda_proto_eff, resolve_proto_training_params
+from tools.proto_infonce import compute_prototype_infonce, default_proto_metrics
+from tools.classwise_alignment import compute_classwise_mmd
+from tools.pretrain_proto_schedule import (
+    get_lambda_proto_eff,
+    get_lambda_cmmd_eff,
+    resolve_proto_training_params,
+    resolve_cmmd_training_params,
+    compute_proto_checkpoint_guard,
+    post_proto_checkpoint_min_epoch,
+)
+from tools.proto_structure_metrics import compute_proto_structure_metrics
 
 
 if not torch.cuda.is_available():
@@ -97,6 +106,26 @@ def get_lambda_cls_eff(epoch: int, param: dict) -> float:
     return smooth_rampup(epoch, cls_start_epoch, cls_full_epoch, lambda_cls)
 
 
+def _mean_loss_logs(logs):
+    """Average per-step loss dicts; skip non-numeric metadata (e.g. proto_mode strings)."""
+    mean = defaultdict(float)
+    if not logs:
+        return mean
+    counts = defaultdict(int)
+    for log in logs:
+        for k, v in log.items():
+            if isinstance(v, (str, bool)):
+                continue
+            try:
+                mean[k] += _to_scalar(v)
+                counts[k] += 1
+            except (TypeError, ValueError):
+                continue
+    for k in mean:
+        mean[k] /= counts[k]
+    return mean
+
+
 def resolve_gan_training_params(param: dict, gan_lr: float, lambda_cls: float) -> dict:
     """Resolve GAN-stage schedule/config with backward-compatible defaults."""
     return {
@@ -116,6 +145,7 @@ def resolve_schedule_hyperparams(param: dict) -> dict:
     cls_full_epoch = int(param.get("cls_full_epoch", cls_start_epoch))
     gan_cfg = resolve_gan_training_params(param, gan_lr, lambda_cls)
     proto_cfg = resolve_proto_training_params(param)
+    cmmd_cfg = resolve_cmmd_training_params(param)
     return {
         "cls_start_epoch": cls_start_epoch,
         "cls_full_epoch": cls_full_epoch,
@@ -125,6 +155,7 @@ def resolve_schedule_hyperparams(param: dict) -> dict:
         "gan_lambda_cls": gan_cfg["gan_lambda_cls"],
         "gan_gp_weight": gan_cfg["gan_gp_weight"],
         **proto_cfg,
+        **cmmd_cfg,
     }
 
 
@@ -171,6 +202,11 @@ def build_experiment_summary_row(param_dict: dict, exp_name: str, metrics: dict)
         "proto_start_epoch": sched.get("proto_start_epoch", 1),
         "proto_full_epoch": sched.get("proto_full_epoch", 1),
         "lambda_adv": sched.get("lambda_adv", 1.0),
+        "proto_mode": sched.get("proto_mode", "combined"),
+        "proto_direction": sched.get("proto_direction", "symmetric"),
+        "proto_detach": sched.get("proto_detach", True),
+        "proto_min_samples_per_domain": sched.get("proto_min_samples_per_domain", 1),
+        "lambda_cmmd": sched.get("lambda_cmmd", 0.0),
         "best_proto_loss": metrics.get("best_proto_loss"),
         "best_proto_margin": metrics.get("best_proto_margin"),
         "best_proto_acc": metrics.get("best_proto_acc"),
@@ -636,6 +672,13 @@ def train_d_ae(
     lambda_proto_eff: float = 0.0,
     proto_temperature: float = 0.2,
     proto_min_samples_per_class: int = 1,
+    proto_min_samples_per_domain: int = 1,
+    proto_mode: str = "combined",
+    proto_direction: str = "symmetric",
+    proto_detach: bool = True,
+    lambda_cmmd_eff: float = 0.0,
+    cmmd_min_samples_per_domain: int = 2,
+    cmmd_gamma="median",
     source_weights=None,
     target_weights=None,
     use_class_weight: bool = False,
@@ -671,10 +714,10 @@ def train_d_ae(
     vae_loss = ccle_vae_loss + tcga_vae_loss
     o_loss = ortho_loss(ccle_z, pccle_z) + ortho_loss(tcga_z, ptcga_z)
     g_loss = -torch.mean(discrim(torch.cat((tcga_z, ptcga_z), dim=1)))
-    proto_metrics = default_proto_metrics()
+    proto_metrics = default_proto_metrics(mode=proto_mode, direction=proto_direction, detach=proto_detach)
     proto_loss = ccle_z.sum() * 0.0
     if lambda_proto_eff > 0:
-        proto_loss, proto_metrics = compute_batch_prototype_infonce(
+        proto_loss, proto_metrics = compute_prototype_infonce(
             ccle_z,
             s_labels,
             tcga_z,
@@ -682,7 +725,29 @@ def train_d_ae(
             num_classes=num_classes,
             temperature=proto_temperature,
             min_samples_per_class=proto_min_samples_per_class,
+            min_samples_per_domain=proto_min_samples_per_domain,
+            mode=proto_mode,
+            direction=proto_direction,
+            detach_prototypes=proto_detach,
         )
+    cmmd_metrics = {
+        "cmmd_loss": 0.0,
+        "cmmd_valid": False,
+        "cmmd_valid_class_count": 0,
+        "cmmd_mean_class_loss": 0.0,
+    }
+    cmmd_loss = ccle_z.sum() * 0.0
+    if lambda_cmmd_eff > 0:
+        cmmd_loss, cmmd_metrics = compute_classwise_mmd(
+            ccle_z,
+            s_labels,
+            tcga_z,
+            t_labels,
+            num_classes=num_classes,
+            min_samples_per_domain=cmmd_min_samples_per_domain,
+            gamma=cmmd_gamma,
+        )
+    combined_proto_cmmd = bool(lambda_proto_eff > 0 and lambda_cmmd_eff > 0)
     loss = (
         o_loss
         + float(lambda_adv_eff) * g_loss
@@ -690,6 +755,7 @@ def train_d_ae(
         + pvae_loss
         + gan_lambda_cls * cls_loss
         + float(lambda_proto_eff) * proto_loss
+        + float(lambda_cmmd_eff) * cmmd_loss
     )
     loss_log.update({
         "ortho_loss": o_loss,
@@ -700,14 +766,29 @@ def train_d_ae(
         "lambda_cls_eff": gan_lambda_cls,
         "lambda_adv_eff": float(lambda_adv_eff),
         "lambda_proto_eff": float(lambda_proto_eff),
+        "lambda_cmmd_eff": float(lambda_cmmd_eff),
         "proto_loss": proto_metrics["proto_loss"],
         "proto_acc": proto_metrics["proto_acc"],
-        "proto_valid": proto_metrics["proto_valid"],
         "proto_valid_class_count": proto_metrics["proto_valid_class_count"],
         "proto_valid_sample_count": proto_metrics["proto_valid_sample_count"],
         "proto_mean_positive_similarity": proto_metrics["proto_mean_positive_similarity"],
         "proto_mean_negative_similarity": proto_metrics["proto_mean_negative_similarity"],
         "proto_margin": proto_metrics["proto_margin"],
+        "proto_cross_domain_valid": float(proto_metrics.get("proto_cross_domain_valid", False)),
+        "proto_t2s_loss": proto_metrics.get("proto_t2s_loss", 0.0),
+        "proto_s2t_loss": proto_metrics.get("proto_s2t_loss", 0.0),
+        "proto_t2s_acc": proto_metrics.get("proto_t2s_acc", 0.0),
+        "proto_s2t_acc": proto_metrics.get("proto_s2t_acc", 0.0),
+        "proto_t2s_valid_sample_count": proto_metrics.get("proto_t2s_valid_sample_count", 0),
+        "proto_s2t_valid_sample_count": proto_metrics.get("proto_s2t_valid_sample_count", 0),
+        "proto_source_valid_class_count": proto_metrics.get("proto_source_valid_class_count", 0),
+        "proto_target_valid_class_count": proto_metrics.get("proto_target_valid_class_count", 0),
+        "cmmd_loss": cmmd_metrics.get("cmmd_loss", 0.0),
+        "cmmd_valid": float(cmmd_metrics.get("cmmd_valid", False)),
+        "cmmd_valid_class_count": cmmd_metrics.get("cmmd_valid_class_count", 0),
+        "cmmd_mean_class_loss": cmmd_metrics.get("cmmd_mean_class_loss", 0.0),
+        "combined_proto_cmmd": float(combined_proto_cmmd),
+        "proto_valid": float(proto_metrics["proto_valid"]),
     })
     loss.backward()
     optimizer.step()
@@ -911,9 +992,16 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
     gan_lambda_cls = gan_cfg["gan_lambda_cls"]
     gan_gp_weight = gan_cfg["gan_gp_weight"]
     proto_cfg = resolve_proto_training_params(param)
+    cmmd_cfg = resolve_cmmd_training_params(param)
     lambda_adv = proto_cfg["lambda_adv"]
     proto_temperature = proto_cfg["proto_temperature"]
     proto_min_samples_per_class = proto_cfg["proto_min_samples_per_class"]
+    proto_min_samples_per_domain = proto_cfg["proto_min_samples_per_domain"]
+    proto_mode = proto_cfg["proto_mode"]
+    proto_direction = proto_cfg["proto_direction"]
+    proto_detach = proto_cfg["proto_detach"]
+    cmmd_min_samples_per_domain = cmmd_cfg["cmmd_min_samples_per_domain"]
+    cmmd_gamma = cmmd_cfg["cmmd_gamma"]
     best_proto_loss = float("inf")
     best_proto_margin = float("-inf")
     best_proto_acc = 0.0
@@ -942,17 +1030,28 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
     gan_early_stop_min_delta = float(param.get("gan_early_stop_min_delta", 0.0))
     gan_early_stop_start_epoch = int(param.get("gan_early_stop_start_epoch", 1))
     gan_tolerance = 0
-    gan_best_epoch = 0
-    gan_best_score = float("inf")
-    gan_best_loss = float("inf")
+    lambda_proto_cfg = float(proto_cfg["lambda_proto"])
+    post_proto_min_epoch = post_proto_checkpoint_min_epoch(param)
+    gan_best_epoch_overall = 0
+    gan_best_score_overall = float("inf")
+    gan_best_loss_overall = float("inf")
+    gan_best_epoch_post_proto = 0
+    gan_best_score_post_proto = float("inf")
+    gan_best_loss_post_proto = float("inf")
     shared_vae_aftergan_dict = copy.deepcopy(shared_vae.state_dict())
     classifier_aftergan_dict = copy.deepcopy(cancer_classifier.state_dict())
     source_vae_aftergan_dict = copy.deepcopy(source_private_vae.state_dict())
     target_vae_aftergan_dict = copy.deepcopy(target_private_vae.state_dict())
     discrim_aftergan_dict = copy.deepcopy(discrim.state_dict())
+    shared_vae_post_proto_dict = copy.deepcopy(shared_vae.state_dict())
+    classifier_post_proto_dict = copy.deepcopy(cancer_classifier.state_dict())
+    source_vae_post_proto_dict = copy.deepcopy(source_private_vae.state_dict())
+    target_vae_post_proto_dict = copy.deepcopy(target_private_vae.state_dict())
+    discrim_post_proto_dict = copy.deepcopy(discrim.state_dict())
     for epoch in range(gan_epoch):
         gan_epoch_idx = epoch + 1
         lambda_proto_eff = get_lambda_proto_eff(gan_epoch_idx, param)
+        lambda_cmmd_eff = get_lambda_cmmd_eff(gan_epoch_idx, param)
         dloss_list = []
         genloss_list = []
         cls_only_list = []
@@ -1007,6 +1106,13 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
                         lambda_proto_eff=lambda_proto_eff,
                         proto_temperature=proto_temperature,
                         proto_min_samples_per_class=proto_min_samples_per_class,
+                        proto_min_samples_per_domain=proto_min_samples_per_domain,
+                        proto_mode=proto_mode,
+                        proto_direction=proto_direction,
+                        proto_detach=proto_detach,
+                        lambda_cmmd_eff=lambda_cmmd_eff,
+                        cmmd_min_samples_per_domain=cmmd_min_samples_per_domain,
+                        cmmd_gamma=cmmd_gamma,
                         source_weights=source_weights,
                         target_weights=target_weights,
                         use_class_weight=use_class_weight,
@@ -1014,24 +1120,18 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
                 )
         if not dloss_list:
             continue
-        dloss_mean = defaultdict(float)
-        for log in dloss_list:
-            for k, v in log.items():
-                dloss_mean[k] += _to_scalar(v)
-        for k in dloss_mean:
-            dloss_mean[k] /= len(dloss_list)
-        genloss_mean = defaultdict(float)
-        for log in genloss_list:
-            for k, v in log.items():
-                genloss_mean[k] += _to_scalar(v)
-        for k in genloss_mean:
-            genloss_mean[k] /= max(1, len(genloss_list))
+        dloss_mean = _mean_loss_logs(dloss_list)
+        genloss_mean = _mean_loss_logs(genloss_list)
         if cls_only_list:
             genloss_mean["cls_only_loss"] = float(np.mean(cls_only_list))
         genloss_mean["lambda_cls_eff"] = gan_lambda_cls
         genloss_mean["lambda_adv_eff"] = lambda_adv
         genloss_mean["lambda_proto_eff"] = lambda_proto_eff
+        genloss_mean["lambda_cmmd_eff"] = lambda_cmmd_eff
         genloss_mean["gan_gen_update_interval"] = gan_gen_update_interval
+        genloss_mean["proto_mode"] = proto_mode
+        genloss_mean["proto_direction"] = proto_direction
+        genloss_mean["proto_detach"] = float(proto_detach)
         dloss_mean["epoch"] = epoch + 1
         genloss_mean["epoch"] = epoch + 1
         if genloss_mean.get("proto_valid"):
@@ -1045,7 +1145,11 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
             if proto_acc_epoch > best_proto_acc:
                 best_proto_acc = proto_acc_epoch
         append_csv_log(dloss_csv, dloss_mean)
-        temp_loss = sum(v for k, v in dloss_mean.items() if k != "epoch") + sum(v for k, v in genloss_mean.items() if k != "epoch")
+        temp_loss = sum(
+            v for k, v in dloss_mean.items() if k != "epoch" and isinstance(v, (int, float))
+        ) + sum(
+            v for k, v in genloss_mean.items() if k != "epoch" and isinstance(v, (int, float))
+        )
         if gan_early_stop_metric == "fid":
             with torch.no_grad():
                 _, source_epoch_z, _, _ = shared_vae(sourcetest)
@@ -1060,11 +1164,11 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
         genloss_mean["temp_loss"] = temp_loss
         append_csv_log(genloss_csv, genloss_mean)
         monitor_active = (epoch + 1) >= gan_early_stop_start_epoch
-        if current_score < (gan_best_score - gan_early_stop_min_delta):
-            gan_best_score = current_score
-            gan_best_loss = temp_loss
+        if current_score < (gan_best_score_overall - gan_early_stop_min_delta):
+            gan_best_score_overall = current_score
+            gan_best_loss_overall = temp_loss
             gan_tolerance = 0
-            gan_best_epoch = epoch + 1
+            gan_best_epoch_overall = epoch + 1
             shared_vae_aftergan_dict = copy.deepcopy(shared_vae.state_dict())
             classifier_aftergan_dict = copy.deepcopy(cancer_classifier.state_dict())
             source_vae_aftergan_dict = copy.deepcopy(source_private_vae.state_dict())
@@ -1075,17 +1179,52 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
             if gan_tolerance >= max_gan_tolerance:
                 print(f"gan early stop @ epoch {epoch + 1}")
                 break
+        post_proto_eligible = (
+            lambda_proto_cfg > 0
+            and lambda_proto_eff > 0
+            and gan_epoch_idx >= post_proto_min_epoch
+        )
+        if post_proto_eligible and current_score < (gan_best_score_post_proto - gan_early_stop_min_delta):
+            gan_best_score_post_proto = current_score
+            gan_best_loss_post_proto = temp_loss
+            gan_best_epoch_post_proto = gan_epoch_idx
+            shared_vae_post_proto_dict = copy.deepcopy(shared_vae.state_dict())
+            classifier_post_proto_dict = copy.deepcopy(cancer_classifier.state_dict())
+            source_vae_post_proto_dict = copy.deepcopy(source_private_vae.state_dict())
+            target_vae_post_proto_dict = copy.deepcopy(target_private_vae.state_dict())
+            discrim_post_proto_dict = copy.deepcopy(discrim.state_dict())
     _plot_gan_curves(dloss_csv, genloss_csv, exp_dir)
-    shared_vae.load_state_dict(shared_vae_aftergan_dict)
-    source_private_vae.load_state_dict(source_vae_aftergan_dict)
-    target_private_vae.load_state_dict(target_vae_aftergan_dict)
-    discrim.load_state_dict(discrim_aftergan_dict)
-    cancer_classifier.load_state_dict(classifier_aftergan_dict)
-    torch.save(shared_vae_aftergan_dict, os.path.join(exp_dir, "after_traingan_shared_vae.pth"))
-    torch.save(source_vae_aftergan_dict, os.path.join(exp_dir, "after_traingan_source_vae.pth"))
-    torch.save(target_vae_aftergan_dict, os.path.join(exp_dir, "after_traingan_target_vae.pth"))
-    torch.save(classifier_aftergan_dict, os.path.join(exp_dir, "after_traingan_classifier.pth"))
-    torch.save(discrim_aftergan_dict, os.path.join(exp_dir, "after_traingan_discriminator.pth"))
+    use_post_proto = lambda_proto_cfg > 0 and gan_best_epoch_post_proto >= post_proto_min_epoch
+    if use_post_proto:
+        sel_shared = shared_vae_post_proto_dict
+        sel_classifier = classifier_post_proto_dict
+        sel_source = source_vae_post_proto_dict
+        sel_target = target_vae_post_proto_dict
+        sel_discrim = discrim_post_proto_dict
+        best_gan_epoch = gan_best_epoch_post_proto
+        best_gan_loss = gan_best_loss_post_proto
+        best_gan_score = gan_best_score_post_proto
+    else:
+        sel_shared = shared_vae_aftergan_dict
+        sel_classifier = classifier_aftergan_dict
+        sel_source = source_vae_aftergan_dict
+        sel_target = target_vae_aftergan_dict
+        sel_discrim = discrim_aftergan_dict
+        best_gan_epoch = gan_best_epoch_overall
+        best_gan_loss = gan_best_loss_overall
+        best_gan_score = gan_best_score_overall
+    shared_vae.load_state_dict(sel_shared)
+    source_private_vae.load_state_dict(sel_source)
+    target_private_vae.load_state_dict(sel_target)
+    discrim.load_state_dict(sel_discrim)
+    cancer_classifier.load_state_dict(sel_classifier)
+    torch.save(sel_shared, os.path.join(exp_dir, "after_traingan_shared_vae.pth"))
+    torch.save(sel_source, os.path.join(exp_dir, "after_traingan_source_vae.pth"))
+    torch.save(sel_target, os.path.join(exp_dir, "after_traingan_target_vae.pth"))
+    torch.save(sel_classifier, os.path.join(exp_dir, "after_traingan_classifier.pth"))
+    torch.save(sel_discrim, os.path.join(exp_dir, "after_traingan_discriminator.pth"))
+    torch.save(shared_vae_aftergan_dict, os.path.join(exp_dir, "after_traingan_overall_shared_vae.pth"))
+    torch.save(classifier_aftergan_dict, os.path.join(exp_dir, "after_traingan_overall_classifier.pth"))
     ccle_latent_dict = _encode_latent_dict(shared_vae, ccle_df_for_latent)
     tcga_latent_raw_dict = _encode_latent_dict(shared_vae, tcga_df_for_latent)
     tcga_latent_dict = tcga_latent_raw_dict
@@ -1110,15 +1249,40 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
         target_true,
         len(mapping_int2str),
     )
+    proto_guard = compute_proto_checkpoint_guard(
+        param,
+        gan_best_epoch_overall,
+        gan_best_epoch_post_proto,
+        gan_best_loss_overall,
+        gan_best_loss_post_proto if gan_best_epoch_post_proto > 0 else None,
+    )
+    structure_metrics = compute_proto_structure_metrics(
+        source_test_latent,
+        source_true,
+        target_test_latent,
+        target_true,
+        len(mapping_int2str),
+        float(cluster_metrics.get("kmeans_ari", 0.0)),
+        float(cluster_metrics.get("kmeans_silhouette", 0.0)),
+        min_samples_per_domain=proto_min_samples_per_domain,
+    )
     metrics = {
         "exp_id": exp_name,
-        "best_gan_epoch": gan_best_epoch,
-        "best_gan_loss": gan_best_loss,
+        "best_gan_epoch": best_gan_epoch,
+        "best_gan_loss": best_gan_loss,
         "best_proto_loss": None if best_proto_loss == float("inf") else best_proto_loss,
         "best_proto_margin": None if best_proto_margin == float("-inf") else best_proto_margin,
         "best_proto_acc": best_proto_acc if best_proto_acc > 0 else None,
+        "proto_mode": proto_mode,
+        "proto_direction": proto_direction,
+        "proto_detach": proto_detach,
+        "proto_pair_align": proto_cfg.get("proto_pair_align", False),
+        "lambda_cmmd": cmmd_cfg["lambda_cmmd"],
+        "combined_proto_cmmd": bool(float(param.get("lambda_proto", 0)) > 0 and cmmd_cfg["lambda_cmmd"] > 0),
+        **proto_guard,
+        **structure_metrics,
         "gan_early_stop_metric": gan_early_stop_metric,
-        "gan_early_stop_best_score": gan_best_score,
+        "gan_early_stop_best_score": best_gan_score,
         "gan_early_stop_min_delta": gan_early_stop_min_delta,
         "gan_early_stop_start_epoch": gan_early_stop_start_epoch,
         "gan_patience": max_gan_tolerance,

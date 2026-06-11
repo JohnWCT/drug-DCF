@@ -39,6 +39,27 @@ def _resolve_path(path: str) -> str:
     return os.path.join(PROJECT_ROOT, path)
 
 
+
+def _resolve_pretrain_result_folder(model_id: str, model_row, job_row) -> str:
+    """Resolve pretrain folder; supports external baselines via pretrain_result_dir."""
+    candidates = []
+    for source in (job_row, model_row):
+        if source is None:
+            continue
+        for key in ("pretrain_result_dir", "result_folder"):
+            try:
+                val = source.get(key) if hasattr(source, "get") else None
+            except Exception:
+                val = None
+            if val is not None and str(val).strip() and str(val).lower() != "nan":
+                candidates.append(str(val).strip())
+    for val in candidates:
+        resolved = _resolve_path(val)
+        if os.path.isdir(resolved):
+            return resolved
+    return _resolve_path(os.path.join("pretrain", str(model_id)))
+
+
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -314,7 +335,11 @@ def build_finetune_manifest(
                     "job_id": job_id,
                     "model_id": model_id,
                     "combo_id": combo["combo_id"],
-                    "pretrain_result_dir": model_row.get("result_folder", model_id),
+                    "pretrain_result_dir": (
+                        model_row.get("pretrain_result_dir")
+                        or model_row.get("result_folder")
+                        or os.path.join("pretrain", model_id)
+                    ),
                     "status": "pending",
                     "start_time": "",
                     "end_time": "",
@@ -375,7 +400,7 @@ def _run_one_finetune_job(
     model_row = top10_df.loc[[model_id]].reset_index()
     model_select_path = os.path.join(_resolve_path(run_dir), f"_ft_{job_id}_model_select.csv")
     ms_df = build_model_select_from_top10(model_row)
-    ms_df["result_folder"] = os.path.join("pretrain", str(model_id))
+    ms_df["result_folder"] = _resolve_pretrain_result_folder(model_id, model_row.iloc[0], job_row)
     ms_df.to_csv(model_select_path, index=False)
 
     combo_config_path = os.path.join(scratch_dir, f"{job_id}_config.json")
@@ -530,6 +555,18 @@ def build_parser() -> argparse.ArgumentParser:
     sel.add_argument("--no-filter", action="store_true")
     sel.add_argument("--min-passing", type=int, default=10, help="Min experiments passing filter before finetune")
     sel.add_argument("--require-controls", type=int, default=2, help="Min lambda_proto=0 controls in filtered pool")
+    sel.add_argument(
+        "--selection-mode",
+        default="score_total",
+        choices=["score_total", "round4_kmeans_first", "round4_weighted", "round4_1_structure_first"],
+        help="Top-10 ranking (Round 4.1: round4_1_structure_first = structure hard filter + wasserstein rank)",
+    )
+    sel.add_argument(
+        "--exclude-proto-ineffective",
+        action="store_true",
+        help="Drop checkpoints where best_gan_epoch < proto_start_epoch while lambda_proto>0",
+    )
+    sel.add_argument("--run-tag", default=None, help="Optional run tag recorded in running report notes")
 
     ft = sub.add_parser("finetune", help="Dispatch finetune jobs for Top-10")
     ft.add_argument("--manifest", required=True)
@@ -598,12 +635,20 @@ def main(argv: Optional[List[str]] = None) -> None:
                 no_filter=args.no_filter,
                 min_passing=args.min_passing,
                 require_controls=args.require_controls,
+                selection_mode=args.selection_mode,
+                exclude_proto_ineffective=args.exclude_proto_ineffective,
             )
         except SelectionInsufficientError as err:
             print(f"[select] INSUFFICIENT: {err}", file=sys.stderr)
-            _refresh_running_report(run_dir, note=f"Selection insufficient: {err}")
+            note = f"Selection insufficient: {err}"
+            if getattr(args, "run_tag", None):
+                note = f"[{args.run_tag}] {note}"
+            _refresh_running_report(run_dir, note=note)
             sys.exit(2)
-        _refresh_running_report(run_dir, note="Selection stage completed (filter passed).")
+        note = "Selection stage completed (filter passed)."
+        if getattr(args, "run_tag", None):
+            note = f"[{args.run_tag}] {note} mode={args.selection_mode}"
+        _refresh_running_report(run_dir, note=note)
         return
 
     if args.command == "finetune":

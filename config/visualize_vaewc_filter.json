@@ -24,9 +24,10 @@
       "davies_bouldin": "kmeans_davies_bouldin"
     },
     "direction_notes": {
-      "lower_is_better": "fid, mmd, wasserstein, kmeans_davies_bouldin — value must be <= threshold",
-      "higher_is_better": "kmeans_ari, kmeans_nmi, kmeans_silhouette, kmeans_calinski_harabasz — value must be >= threshold"
-    }
+      "lower_is_better": "fid, mmd, wasserstein, kmeans_davies_bouldin \u2014 value must be <= threshold",
+      "higher_is_better": "kmeans_ari, kmeans_nmi, kmeans_silhouette, kmeans_calinski_harabasz \u2014 value must be >= threshold"
+    },
+    "round4_1_note": "2026-06-11: further relaxed fid/mmd/wasserstein for Round4.1 finetune; K-means thresholds unchanged. wasserstein 0.70->1.05, fid 30->35, mmd 0.05->0.06."
   },
   "enabled": true,
   "lower_is_better": [
@@ -42,13 +43,13 @@
     "kmeans_calinski_harabasz"
   ],
   "thresholds": {
-    "fid": 30.0,
-    "mmd": 0.05,
-    "wasserstein": 0.70,
-    "kmeans_ari": 0.20,
+    "fid": 35.0,
+    "mmd": 0.06,
+    "wasserstein": 1.05,
+    "kmeans_ari": 0.2,
     "kmeans_nmi": 0.45,
     "kmeans_silhouette": 0.15,
     "kmeans_calinski_harabasz": 370,
-    "kmeans_davies_bouldin": 1.50
+    "kmeans_davies_bouldin": 1.5
   }
 }

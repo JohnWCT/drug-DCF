@@ -1,0 +1,24 @@
+{
+  "_metadata": {
+    "description": "Round 4 mainline: cross-domain prototype InfoNCE on VAEwC (exp_746-like cls schedule).",
+    "reference_baseline": "result/pretrain_vaewc/exp_746",
+    "strategy": "cross_domain symmetric InfoNCE without increasing lambda_cls"
+  },
+  "base_config": "config/params_proto_base_exp746_vaewc.json",
+  "output_config_dir": "config/generated/vaewc_round4_cross_domain_infonce",
+  "run_id": "vaewc_round4_cross_domain_infonce",
+  "sweep": {
+    "lambda_proto": [0, 0.002, 0.005, 0.01],
+    "proto_mode": ["cross_domain"],
+    "proto_direction": ["symmetric"],
+    "proto_detach": [true],
+    "proto_temperature": [0.7, 1.0, 1.5],
+    "proto_start_epoch": [5, 10],
+    "proto_full_epoch": [30, 50],
+    "proto_min_samples_per_domain": [1],
+    "proto_min_samples_per_class": [1],
+    "lambda_adv": [1.0],
+    "gan_gen_update_interval": [5],
+    "lambda_cmmd": [0]
+  }
+}

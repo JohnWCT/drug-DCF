@@ -1,4 +1,9 @@
-from tools.pretrain_proto_schedule import get_lambda_proto_eff, resolve_proto_training_params
+from tools.pretrain_proto_schedule import (
+    compute_proto_checkpoint_guard,
+    get_lambda_cmmd_eff,
+    get_lambda_proto_eff,
+    resolve_proto_training_params,
+)
 
 
 def test_lambda_proto_zero_is_noop():
@@ -19,3 +24,30 @@ def test_resolve_proto_defaults():
     assert cfg["lambda_proto"] == 0.0
     assert cfg["proto_temperature"] == 0.2
     assert cfg["lambda_adv"] == 1.0
+    assert cfg["proto_mode"] == "combined"
+    assert cfg["proto_direction"] == "symmetric"
+    assert cfg["proto_detach"] is True
+
+
+def test_proto_checkpoint_guard_flags_early_best():
+    guard = compute_proto_checkpoint_guard(
+        {"lambda_proto": 0.01, "proto_start_epoch": 30, "proto_full_epoch": 50}, 10
+    )
+    assert guard["proto_not_effective_checkpoint"] is True
+
+
+def test_proto_checkpoint_guard_ok_when_late_best():
+    guard = compute_proto_checkpoint_guard(
+        {"lambda_proto": 0.01, "proto_start_epoch": 5, "proto_full_epoch": 30}, 40
+    )
+    assert guard["proto_not_effective_checkpoint"] is False
+
+
+def test_cmmd_ramp_zero_before_start():
+    assert get_lambda_cmmd_eff(5, {"lambda_cmmd": 0.03, "cmmd_start_epoch": 10, "cmmd_full_epoch": 40}) == 0.0
+
+
+def test_cross_domain_defaults_target_to_source():
+    cfg = resolve_proto_training_params({"proto_mode": "cross_domain"})
+    assert cfg["proto_direction"] == "target_to_source"
+    assert cfg["proto_pair_align"] is False

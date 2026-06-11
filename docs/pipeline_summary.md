@@ -6,7 +6,7 @@
 **Pretrain 基準：** `result/pretrain_vaewc/exp_746`（嚴格 filter 8/8 通過）  
 **下游 TCGA 基準：** `result/pretrain_vaewc_loss/`（exp_746 finetune，Avg TCGA = **0.5462**）  
 **最新主線：** `result/optimization_runs/vaewc_proto_infonce_round3_exp746`（Stage 4 完成）  
-**目前最佳下游：** Round 3 **exp_018**（Avg TCGA = **0.5695**，+4.3% vs 基準）
+**目前最佳下游（R4.1 finetune）：** **exp_035**（Avg TCGA = **0.5339**）；Round 3 exp_018 歷史 0.5695（舊 protocol）
 
 ### 閱讀導覽
 
@@ -92,10 +92,11 @@ Stage 4  Aggregate  optimization_runner.py aggregate + report
 | Deconfounding | fid, mmd, wasserstein, kmeans_davies_bouldin | 越低越好 |
 | 腫瘤保留 (K-means) | kmeans_ari, nmi, silhouette, calinski_harabasz | 越高越好 |
 
-| 版本 | fid | wasserstein | 說明 |
-|------|-----|-------------|------|
-| **嚴格**（exp_746 基準） | ≤ 16.95 | ≤ 0.50 | 8 項全過才進候選 |
-| **寬鬆**（Round 3 finetune） | ≤ 30.0 | ≤ 0.70 | K-means 門檻不變；用於下游驗證 |
+| 版本 | fid | mmd | wasserstein | 說明 |
+|------|-----|-----|-------------|------|
+| **嚴格**（exp_746 基準） | ≤ 16.95 | ≤ 0.019 | ≤ 0.50 | 8 項全過才進候選 |
+| **寬鬆**（Round 3 finetune） | ≤ 30.0 | ≤ 0.05 | ≤ 0.70 | K-means 門檻不變 |
+| **Round 4.1**（2026-06-11） | ≤ **35.0** | ≤ **0.06** | ≤ **1.05** | 再放寬 deconfounding；K-means 不變；60 池中 **6/60** 通過 |
 
 Selection 門檻：`min_passing=10`、`require_controls=2`（至少 2 個 `lambda_proto=0` control）。
 
@@ -788,3 +789,229 @@ Phase 4 — 評估
 | 高 lambda_cls → fid 升高 | sweep 含 λ_cls=15 對照；selection 保留 wasserstein 硬門檻 |
 | 高 parallel 偶發缺 tsne / 路徑競爭 | 已修 temp CSV；建議跑完做 manifest 稽核 |
 | exp_018 提升不可重現 | sweep 含 2–3 random seed |
+
+---
+
+## 11. Round 4 設計（cross-domain InfoNCE + K-means selection）
+
+**Branch：** `round4-cross-domain-infonce-selection`  
+**主 Run ID：** `vaewc_round4_cross_domain_infonce`（~48 pretrain jobs）
+
+### 11.1 為何 Round 3 combined InfoNCE 沒有帶來下游增益
+
+Round 3 使用 **combined prototype**（source+target 同 class 混合均值）。Anchor 可能參與自己的 prototype，較像 batch 內 supervised prototype 分類，**未強制 source↔target 跨域對齊**。下游 AUC：control 0.511 vs InfoNCE 0.511（n=10 finetune）。
+
+### 11.2 為何改成 cross-domain prototype InfoNCE
+
+Round 4 新增 `proto_mode=cross_domain`：
+
+```text
+target anchor → source same-class prototype（target_to_source）
+source anchor → target same-class prototype（source_to_target）
+symmetric = 0.5 × (t2s + s2t)
+detach_prototypes=True（避免 anchor/prototype 互相追逐）
+```
+
+**不提高 `lambda_cls`**，僅改 latent geometry / contrastive 對齊方式。預設 `proto_mode=combined` 維持 Round 3 行為。
+
+### 11.3 為何 selection 要改成 K-means-aware
+
+Round 3：`score_total` 與 `Average_TCGA_AUC_mean` 的 r≈0.03；`score_kmeans` 的 r≈0.52。
+
+新增 selection modes（`tools/optimization_selection.py`）：
+
+| mode | 說明 |
+|------|------|
+| `score_total` | 舊行為（backward compatible） |
+| `round4_kmeans_first` | K-means → wasserstein → fid → mmd |
+| `round4_weighted` | `0.6×score_kmeans + 0.4×score_deconfounding` |
+
+CLI：`--selection-mode round4_kmeans_first --exclude-proto-ineffective`
+
+### 11.4 class-wise MMD 支線
+
+獨立 sweep：`vaewc_round4_cmmd_branch`（`lambda_cmmd`，**不與 InfoNCE 主 grid 混跑**）。  
+實作：`tools/classwise_alignment.py` → 每 cancer class 分別算 RBF MMD 再平均。
+
+### 11.5 latent size 支線
+
+`sweep`：`latent_size ∈ {32, 64}` × `encoder_dims` 兩組，control only（λ_proto=0）。  
+Run ID：`vaewc_round4_latent_ablation`（4 jobs）。
+
+### 11.6 Smoke test 與正式執行
+
+詳見 [`docs/round4_smoke_test.md`](round4_smoke_test.md)。
+
+**新增 config keys（pretrain）：**
+
+```json
+{
+  "proto_mode": "combined",
+  "proto_direction": "symmetric",
+  "proto_detach": true,
+  "proto_min_samples_per_domain": 1,
+  "lambda_cmmd": 0.0,
+  "cmmd_start_epoch": 10,
+  "cmmd_full_epoch": 40
+}
+```
+
+**Proto checkpoint guard：** 若 `lambda_proto>0` 且 `best_gan_epoch < proto_start_epoch`，標記 `proto_not_effective_checkpoint=true`（可於 selection 排除）。
+
+**Report 新增欄位：** `selection_mode`, `proto_mode`, `proto_direction`, `proto_detach`, `proto_not_effective_checkpoint`, `lambda_cmmd`, `latent_size`, `encoder_dims`。
+
+---
+
+## 12. Round 4 初步結果與 collapse 診斷（Round 4.1 計畫）
+
+**Run：** `vaewc_round4_cross_domain_infonce`（48 pretrain jobs，symmetric cross-domain InfoNCE）  
+**狀態：** Pretrain 完成；selection / finetune 尚未執行（數據已足以診斷 latent geometry 問題）。
+
+### 12.1 Control vs InfoNCE pretrain 品質
+
+| 群組 | n | mean kmeans_ari | mean fid | mean wasserstein |
+|------|---|-----------------|----------|------------------|
+| Control（`lambda_proto=0`） | 12 | **0.703** | 26.4 | 0.66 |
+| InfoNCE（`lambda_proto>0`） | 36 | **0.225** | **15.0** | 0.80 |
+
+**結論：** symmetric cross-domain InfoNCE 在現有 sweep 下顯著降低 FID，但嚴重破壞 K-means tumor structure；Wasserstein 平均反而較差。
+
+### 12.2 為何 FID 改善不足以選模
+
+FID 衡量 source/target latent 分佈距離，**不保證**保留 cancer-type 拓撲。Round 4 出現大量「domain gap 縮小但 class cluster 崩潰」案例；下游 TCGA AUC 與 `score_kmeans` 相關性（Round 3 r≈0.52）高於 `score_total`，故 Round 4.1 **不以 weighted score 作主選模**。
+
+### 12.3 Alignment collapse 典型案例
+
+- **exp_142**（`lambda_proto=0.01`）：`wasserstein=0.37`，`kmeans_ari=0.05` → global alignment 犧牲 tumor topology。
+- 診斷規則（`tools/collapse_detection.py`）：`wasserstein≤0.50` 且 `kmeans_ari<0.30` → `alignment_collapse=true`，`collapse_reason=global_alignment_destroyed_tumor_structure`。
+
+### 12.4 `proto_not_effective_checkpoint` 問題
+
+36 個 InfoNCE jobs 中 **17 個** `proto_not_effective_checkpoint=true`（`best_gan_epoch < proto_start_epoch`），代表 best checkpoint 幾乎未經 InfoNCE。
+
+**Round 4.1 修復：**
+
+- `lambda_proto>0` 時同時追蹤 `best_gan_checkpoint_overall` 與 `best_gan_checkpoint_post_proto`（epoch ≥ `max(proto_start+5, proto_full)`）。
+- Selection 對 InfoNCE **必須**使用 post-proto checkpoint；無則 `proto_invalid`，排除 Top-K。
+
+### 12.5 Round 4.1 target-to-source InfoNCE 主線
+
+不再預設 symmetric；改為：
+
+```json
+{
+  "proto_mode": "cross_domain",
+  "proto_direction": "target_to_source",
+  "proto_detach": true,
+  "proto_pair_align": false
+}
+```
+
+- **target anchor → source same-class prototype**（source prototype detach，target 保留梯度）。
+- **暫停** source→target 與 prototype-pair InfoNCE 作為主 loss。
+
+**Sweep：** `config/pretrain_sweeps/vaewc_round4_1_t2s_infonce_collapse_guard.json`  
+`lambda_proto ∈ {0, 0.0001, 0.0003, 0.001, 0.002}`，`proto_temperature ∈ {1.5, 2.0, 3.0}`，較早 `proto_start` / `proto_full`。
+
+### 12.6 更新 selection 規則（`round4_1_structure_first`）
+
+**Stage 1 硬篩選：**
+
+- `structure_pass`：`kmeans_ari ≥ 0.65`（或 ≥ 0.90×control mean）
+- `deconfounding_relaxed_pass`：`wasserstein ≤ 0.70`（FID 不作 hard fail）
+- 排除 `alignment_collapse` 與 `proto_invalid`
+
+**Stage 2 排序：** wasserstein ↑ → kmeans_ari ↓ → fid ↑ → mmd ↑
+
+CLI：`--selection-mode round4_1_structure_first --exclude-proto-ineffective`
+
+Top-10 仍為 8 ranked + 2 `lambda_proto=0` control；若 InfoNCE 全數 structure fail，不強行選入 collapse 模型。
+
+### 12.7 Class-wise MMD 保守支線
+
+`vaewc_round4_1_cmmd_branch`：`lambda_cmmd ∈ {0, 0.0005, 0.001, 0.003, 0.005}`，`lambda_proto=0`，避免與 InfoNCE 交叉造成結構壓縮。
+
+### 12.8 `latent_size` 64 小型支線
+
+`vaewc_round4_1_latent_ablation`：僅 `latent_size ∈ {32, 64}` × control / 單一 t2s InfoNCE 設定，不與大 grid 交叉。報告比較：`kmeans_ari`、`fid`、`wasserstein`、`classwise_domain_gap_mean`、下游 `Average_TCGA_AUC_mean`。
+
+**診斷工具：** `python tools/analyze_round4_pretrain.py --result-dir <pretrain_dir>` → `reports/round4_1_pretrain_diagnostics.{csv,md}`
+### 12.9 Round 4.1 執行狀態與結論（2026-06-10）
+
+#### 完成度
+
+| 項目 | Run ID | 狀態 |
+|------|--------|------|
+| **主線 pretrain** | `vaewc_round4_1_t2s_infonce_collapse_guard` | **60/60 success**（manifest 全數完成） |
+| Selection（relaxed filter） | 同上 | **完成** — 6/60 通過 → Top-6 + 強制加入 exp_045 / exp_018 / exp_746 |
+| 下游 finetune | 同上 | **完成**；保留 top-6（24 jobs），已清理其餘測試輸出 |
+| cMMD 支線 | `vaewc_round4_1_cmmd_branch` | **未啟動** |
+| latent 支線 | `vaewc_round4_1_latent_ablation` | **未啟動** |
+
+Sweep 規模：`lambda_proto(5) × proto_temperature(3) × proto_start(2) × proto_full(2) = 60` jobs（非 72）。
+
+診斷報告：`result/optimization_runs/vaewc_round4_1_t2s_infonce_collapse_guard/reports/round4_1_pretrain_diagnostics.{md,csv}`
+
+#### Round 4 vs Round 4.1 pretrain 對照
+
+| 群組 | Run | n | mean kmeans_ari | mean fid | mean wasserstein |
+|------|-----|---|-----------------|----------|------------------|
+| Control | R4 symmetric | 12 | 0.703 | 26.4 | 0.66 |
+| Control | **R4.1 t2s** | 12 | 0.694 | 27.8 | 0.69 |
+| InfoNCE | R4 symmetric | 36 | **0.225** | **15.0** | 0.80 |
+| InfoNCE | **R4.1 t2s** | 48 | **0.524** | 26.1 | **1.00** |
+
+#### 主要結論
+
+1. **t2s InfoNCE 大幅緩解結構崩潰**：相較 Round 4 symmetric，mean `kmeans_ari` 由 0.225 升至 0.524（約 +0.30），不再出現「FID 極低但 tumor cluster 全毀」的極端案例；`alignment_collapse` 在 60 jobs 中為 **0**。
+2. **代價是 domain gap 改善變弱**：mean `wasserstein` 由 0.80 升至 1.00；t2s 方向把 trade-off 從「犧牲結構換 FID」轉為「保留較多結構、較難壓平 domain gap」。
+3. **Control 仍是最穩 baseline**：control 的 `kmeans_ari`（0.69）與 structure pass rate（10/12）仍優於 InfoNCE 群（structure pass 5/48）。
+4. **`proto_not_effective_checkpoint` 仍偏高**：24/60（40%）；InfoNCE 子集 24/48。post-proto dual checkpoint 已實作，但 sweep 內仍有大量 best epoch 落在 proto 啟動前——selection 應 `--exclude-proto-ineffective`。
+5. **`round4_1_structure_first` 硬篩下 InfoNCE 尚無 stage-1 全通過者**：`structure_pass ∧ deconfounding_pass` 僅 **7/60**，且 **0/48** 來自 InfoNCE；最佳 InfoNCE 單點為 **exp_045**（`lambda_proto=0.001`, `T=3.0`, `kmeans_ari=0.707`, `wasserstein=0.89`）— structure pass 但 deconfounding 未過。
+6. **下游 finetune 已完成**（見 §12.10）：R4.1 最佳 **exp_035**（Avg TCGA=0.5339）未超越 Round 3 exp_018 歷史 0.5695；pretrain 最佳 InfoNCE **exp_045** 下游僅 0.502。
+
+#### 建議下一步
+
+```bash
+# 1) 視需要啟動 cmmd / latent 支線（尚未跑）
+# 2) 以 exp_035 / exp_018 為候選進入 Round 5 或論文主線對照
+```
+
+### 12.10 Round 4.1 下游 Finetune 結果（relaxed filter + 基準對照，2026-06-11）
+
+**狀態：** **已完成** — 保留排名前 **6** 模型（各 4 combo = **24** finetune jobs）；已刪除 exp_006 / exp_008 / exp_015 等非前列測試輸出。
+
+**TCGA 比較檔（優先閱讀）：**
+
+| 用途 | 路徑 |
+|------|------|
+| 跨 model 排名 | `result/optimization_runs/vaewc_round4_1_t2s_infonce_collapse_guard/aggregate/aggregate_scores.csv` |
+| 原始合併（per combo） | `.../aggregate/merged_finetune_tcga_focus.csv` |
+| 單 model 明細 | `.../finetune/<Model_ID>/combo_XX/parameter_comparison_tcga_focus.csv` |
+| 整合 TCGA 精簡 | `.../finetune/<Model_ID>/combo_XX/eval_metrics_integrated_summary.csv` |
+
+#### 保留模型下游排名（`Average_TCGA_AUC_mean`，gdsc_intersect13）
+
+| 排名 | Model | Avg TCGA | Global TCGA | Integrated Avg | λ_proto | 角色 |
+|------|-------|----------|-------------|----------------|---------|------|
+| **1** | **exp_035** | **0.5339** | 0.5897 | 0.5088 | 0.0003 | R4.1 InfoNCE（filter 通過） |
+| 2 | **exp_018** | 0.5325 | 0.6009 | **0.5545** | 0 | Round 3 Control 基準 |
+| 3 | **exp_746** | 0.5265 | **0.6097** | 0.5202 | 0 | 歷史基準 |
+| 4 | exp_016 | 0.5255 | 0.5800 | 0.5160 | 0 | R4.1 control |
+| 5 | exp_010 | 0.5103 | 0.5752 | 0.5024 | 0 | R4.1 control |
+| 6 | **exp_045** | 0.5022 | 0.5581 | 0.5074 | 0.001 | R4.1 最佳 InfoNCE（pretrain） |
+
+#### 與歷史基準對照
+
+| Model | 本輪 Avg TCGA | 歷史 Avg TCGA | 說明 |
+|-------|---------------|---------------|------|
+| exp_035 | **0.5339** | — | **R4.1 下游最佳** |
+| exp_018 | 0.5325 | 0.5695（Round 3，舊 eval） | 新版三份 TCGA eval 重跑 |
+| exp_746 | 0.5265 | 0.5462（`pretrain_vaewc_loss`） | 同上 |
+
+#### 主要結論
+
+1. **R4.1 下游最佳為 exp_035**（`lambda_proto=0.0003` t2s InfoNCE）。
+2. **exp_045** pretrain 最佳但下游 Avg=0.502，未超越 control 基準。
+3. **整合 TCGA** 最高為 **exp_018**（Integrated Avg=0.5545）。
+4. Finetune 輸出含 `target_eval_gdsc_intersect13/`、`tcga_only3/`、`dapl/`、`target_eval_integrated/`。

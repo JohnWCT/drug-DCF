@@ -35,11 +35,18 @@ KEY_STABILITY_METRICS = [
     "Global_TCGA_AUPRC",
     "Average_TCGA_AUC",
     "Average_TCGA_AUPRC",
+    "tcga_only3_Global_TCGA_AUC",
+    "tcga_only3_Average_TCGA_AUC",
+    "dapl_Global_TCGA_AUC",
+    "dapl_Average_TCGA_AUC",
+    "TCGA2_Global_TCGA_AUC",
+    "TCGA2_Average_TCGA_AUC",
+    "Integrated_Global_TCGA_AUC",
+    "Integrated_Average_TCGA_AUC",
+    "Integrated_DrugMacro_TCGA_AUC",
     "Test_AUC",
     "Test_AUPRC",
     "Val_AUC",
-    "TCGA2_Global_TCGA_AUC",
-    "TCGA2_Average_TCGA_AUC",
 ]
 
 
