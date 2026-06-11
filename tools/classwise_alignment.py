@@ -67,6 +67,7 @@ def compute_classwise_mmd(
     y_target = y_target.long()
     class_losses = []
     valid_class_ids = []
+    valid_sample_count = 0
 
     for class_id in range(int(num_classes)):
         s_mask = y_source == class_id
@@ -82,11 +83,12 @@ def compute_classwise_mmd(
                 g = float(gamma)
             class_losses.append(_class_mmd_unbiased(x, y, g))
             valid_class_ids.append(class_id)
+            valid_sample_count += s_count + t_count
 
     metrics = {
         "cmmd_loss": 0.0,
         "cmmd_valid_class_count": len(valid_class_ids),
-        "cmmd_valid_sample_count": 0,
+        "cmmd_valid_sample_count": valid_sample_count,
         "cmmd_mean_class_loss": 0.0,
         "cmmd_valid": False,
     }
@@ -100,6 +102,7 @@ def compute_classwise_mmd(
         {
             "cmmd_loss": float(loss.detach().item()),
             "cmmd_mean_class_loss": float(stacked.mean().detach().item()),
+            "cmmd_valid_sample_count": valid_sample_count,
             "cmmd_valid": True,
         }
     )

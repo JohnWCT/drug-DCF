@@ -69,9 +69,14 @@ bash tools/run_round5_pretrain.sh
 
 ```bash
 pytest tests/test_classwise_prototype_gap.py \
+       tests/test_classwise_alignment.py \
        tests/test_optimization_selection_round5.py \
+       tests/test_analyze_round5_pretrain.py \
        tests/test_round5_config_generation.py -q
 ```
+
+- `test_classwise_prototype_gap.py`：Round 5 主線 class-wise prototype gap
+- `test_classwise_alignment.py`：cMMD（`compute_classwise_mmd`）
 
 ## 成功標準
 

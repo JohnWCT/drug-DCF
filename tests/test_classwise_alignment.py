@@ -50,3 +50,15 @@ def test_cmmd_no_effect_when_lambda_zero():
     cmmd_loss, _ = compute_classwise_mmd(z_s, y_s, z_t, y_t, num_classes=2, min_samples_per_domain=2)
     total = base + 0.0 * cmmd_loss
     assert float(total.item()) == 2.0
+
+
+def test_classwise_mmd_valid_sample_count():
+    import torch
+    from tools.classwise_alignment import compute_classwise_mmd
+
+    z_s = torch.randn(8, 4)
+    y_s = torch.tensor([0, 0, 0, 0, 1, 1, 1, 1], dtype=torch.long)
+    z_t = torch.randn(8, 4)
+    y_t = torch.tensor([0, 0, 0, 0, 1, 1, 1, 1], dtype=torch.long)
+    _, metrics = compute_classwise_mmd(z_s, y_s, z_t, y_t, num_classes=2, min_samples_per_domain=2)
+    assert metrics["cmmd_valid_sample_count"] == 16

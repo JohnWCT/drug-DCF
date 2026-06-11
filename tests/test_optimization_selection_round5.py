@@ -37,3 +37,31 @@ def test_select_top_k_with_baselines_adds_forced_ids():
     assert "exp_746" in ids
     assert "exp_018" in ids
     assert info["total_selected"] >= 4
+
+
+def test_merge_result_dir_paths_keeps_primary_and_extends():
+    from tools.optimization_selection import merge_result_dir_paths
+
+    merged = merge_result_dir_paths(
+        "result/optimization_runs/control/pretrain",
+        [
+            "result/optimization_runs/class_gap/pretrain",
+            "result/optimization_runs/t2s/pretrain",
+        ],
+    )
+    assert len(merged) == 3
+    assert merged[0].endswith("control/pretrain")
+    assert any(p.endswith("class_gap/pretrain") for p in merged)
+    assert any(p.endswith("t2s/pretrain") for p in merged)
+
+
+def test_round5_selection_info_has_legacy_report_keys():
+    import pandas as pd
+    from tools.optimization_selection import select_top_k_with_baselines
+
+    df = pd.DataFrame([
+        {"ID": "exp_001", "wasserstein": 0.5, "kmeans_ari": 0.7, "fid": 20, "mmd": 0.01, "lambda_proto": 0},
+    ])
+    _, info = select_top_k_with_baselines(df, df, top_k=1, selection_mode="round5_structure_first")
+    for key in ("controls_available", "controls_selected", "ranked_selected", "shortage", "infonce_available"):
+        assert key in info

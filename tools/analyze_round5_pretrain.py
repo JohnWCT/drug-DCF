@@ -93,10 +93,10 @@ def _summarize_group(g: pd.DataFrame) -> dict:
     structure_rate = float(g["structure_pass"].fillna(False).mean())
     proto_invalid_rate = float(g["proto_invalid"].fillna(False).mean()) if "proto_invalid" in g.columns else 0.0
 
-    def _best_id(sort_col: str, ascending: bool) -> Optional[str]:
-        if sort_col not in g.columns or g.empty:
+    def _best_id_from(frame: pd.DataFrame, sort_col: str, ascending: bool) -> Optional[str]:
+        if sort_col not in frame.columns or frame.empty:
             return None
-        row = g.sort_values(sort_col, ascending=ascending, na_position="last").iloc[0]
+        row = frame.sort_values(sort_col, ascending=ascending, na_position="last").iloc[0]
         return str(row.get("ID"))
 
     non_collapse = g[~g["alignment_collapse"].fillna(False)]
@@ -113,9 +113,9 @@ def _summarize_group(g: pd.DataFrame) -> dict:
         "structure_pass_rate": structure_rate,
         "proto_invalid_rate": proto_invalid_rate,
         "filter_pass_rate": structure_rate,
-        "best_model_by_kmeans": _best_id("kmeans_ari", False),
-        "best_model_by_wasserstein": _best_id("wasserstein", True),
-        "best_noncollapse_model": _best_id("wasserstein", True) if not non_collapse.empty else None,
+        "best_model_by_kmeans": _best_id_from(g, "kmeans_ari", False),
+        "best_model_by_wasserstein": _best_id_from(g, "wasserstein", True),
+        "best_noncollapse_model": _best_id_from(non_collapse, "wasserstein", True),
         "best_downstream_model": None,
     }
 

@@ -86,6 +86,17 @@ def load_all_pretrain_rows(result_dir: str, source_tag: str = "") -> pd.DataFram
     return pd.DataFrame(rows)
 
 
+def merge_result_dir_paths(result_dir: str, result_dirs: Optional[list] = None) -> list[str]:
+    """Primary result_dir plus optional extras (deduplicated, order preserved)."""
+    merged = [_resolve_path(result_dir)]
+    if result_dirs:
+        for path in result_dirs:
+            resolved = _resolve_path(path)
+            if resolved not in merged:
+                merged.append(resolved)
+    return merged
+
+
 def load_merged_pretrain_rows(result_dirs: list[str]) -> pd.DataFrame:
     frames = []
     for result_dir in result_dirs:
@@ -408,13 +419,37 @@ def select_top_k_with_baselines(
 
     out = pd.DataFrame(selected_rows)
     if out.empty:
-        info = {"total_selected": 0, "warnings": warnings, "selection_mode": selection_mode}
+        info = _round5_selection_info(
+            out, ranked, top_k, force_baseline_models, best_control_id, warnings, selection_mode
+        )
         return out, info
 
     out = apply_selection_ranking(out, selection_mode=selection_mode)
     out["selection_rank"] = range(1, len(out) + 1)
     out["is_control"] = out.get("lambda_proto", pd.Series(0, index=out.index)).fillna(0.0) == 0.0
-    info = {
+    info = _round5_selection_info(
+        out, ranked, top_k, force_baseline_models, best_control_id, warnings, selection_mode
+    )
+    return out, info
+
+
+def _round5_selection_info(
+    out: pd.DataFrame,
+    ranked: pd.DataFrame,
+    top_k: int,
+    force_baseline_models: list,
+    best_control_id: Optional[str],
+    warnings: list,
+    selection_mode: str,
+) -> dict:
+    controls_available = 0
+    infonce_available = 0
+    if not ranked.empty and "lambda_proto" in ranked.columns:
+        lp = pd.to_numeric(ranked["lambda_proto"], errors="coerce").fillna(0.0)
+        controls_available = int((lp == 0.0).sum())
+        infonce_available = int((lp != 0.0).sum())
+    controls_selected = int(out["is_control"].fillna(False).sum()) if "is_control" in out.columns else 0
+    return {
         "total_selected": int(len(out)),
         "top_k_requested": top_k,
         "force_baseline_models": list(force_baseline_models),
@@ -423,8 +458,12 @@ def select_top_k_with_baselines(
         "selection_mode": selection_mode,
         "ranking_primary_metric": RANKING_PRIMARY_BY_MODE.get(selection_mode, "score_total"),
         "ranking_secondary_metrics": RANKING_SECONDARY_BY_MODE.get(selection_mode, []),
+        "controls_available": controls_available,
+        "controls_selected": controls_selected,
+        "ranked_selected": int(min(len(ranked), top_k)) if not ranked.empty else 0,
+        "shortage": False,
+        "infonce_available": infonce_available,
     }
-    return out, info
 
 
 def run_visualize(
@@ -475,9 +514,7 @@ def write_selection_outputs(
     os.makedirs(selection_dir, exist_ok=True)
     os.makedirs(reports_dir, exist_ok=True)
 
-    merged_dirs = [_resolve_path(result_dir)]
-    if result_dirs:
-        merged_dirs = [_resolve_path(p) for p in result_dirs]
+    merged_dirs = merge_result_dir_paths(result_dir, result_dirs)
     if len(merged_dirs) > 1:
         frames = []
         for d in merged_dirs:
