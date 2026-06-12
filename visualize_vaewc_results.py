@@ -310,7 +310,10 @@ def build_finetune_model_select(df: pd.DataFrame, top_k: int) -> pd.DataFrame:
     selected["pretrain_lr"] = selected.get("pretrain_learning_rate")
     selected["train_lr"] = selected.get("gan_learning_rate")
     selected["dropout"] = selected.get("dropout_rate")
-    selected["result_folder"] = selected.get("ID")
+    if "pretrain_result_dir" in selected.columns:
+        selected["result_folder"] = selected["pretrain_result_dir"].fillna(selected["ID"])
+    else:
+        selected["result_folder"] = selected.get("ID")
     selected["selection_rank"] = range(1, len(selected) + 1)
     cols = [
         "ID", "NO", "model_type",

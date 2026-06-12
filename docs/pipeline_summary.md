@@ -1018,11 +1018,22 @@ Sweep 規模：`lambda_proto(5) × proto_temperature(3) × proto_start(2) × pro
 
 ---
 
-## 13. Round 5 Control-centered + Class-gap optimization（2026-06-11 規劃）
+## 13. Round 5 Control-centered + Class-gap optimization（2026-06-11）
 
-**狀態：** 程式與 sweep 設定已就緒；**pretrain / finetune 尚未執行**。
+**狀態：** Pretrain **102/102**、Selection **16 模型**、Finetune **64/64 success**、Aggregate **已完成**（2026-06-11）。
 
-完整操作手冊：`docs/round5_optimization_manual.md`
+完整操作手冊：`docs/round5_optimization_manual.md`  
+診斷報告：`result/optimization_runs/round5_combined_reports/round5_pretrain_diagnostics.{md,csv}`
+
+### 13.0 Pretrain 完成度（2026-06-11）
+
+| 分支 | Run ID | Manifest | 有效 `gan_metrics` | 狀態 |
+|------|--------|----------|-------------------|------|
+| **A Control** | `vaewc_round5_control_centered` | **48/48 success** | 68（含重啟殘留目錄） | 完成 |
+| **B Class-gap** | `vaewc_round5_class_gap_branch` | **30/30 success** | 31（含 1 殘留） | 完成 |
+| **C t2s appendix** | `vaewc_round5_t2s_infonce_appendix` | **24/24 success** | 24 | 完成 |
+
+> 合計 **102** sweep jobs 全部 manifest `success`。`gan_metrics` 目錄數略多於 manifest（重啟殘留），selection 以 manifest / 最新 metrics 為準。
 
 ### 13.1 為何不再以 InfoNCE 作主線
 
@@ -1062,7 +1073,7 @@ python tools/optimization_runner.py generate \
 python tools/optimization_runner.py pretrain \
   --manifest result/optimization_runs/vaewc_round5_control_centered/manifests/pretrain_sweep_manifest.csv \
   --run-dir result/optimization_runs/vaewc_round5_control_centered \
-  --device cuda --max-parallel 20
+  --device cuda --max-parallel 30
 
 # 診斷（三分支完成後）
 python tools/analyze_round5_pretrain.py \
@@ -1090,3 +1101,204 @@ python tools/optimization_runner.py select \
 2. `kmeans_ari` ≥ 0.65（或 ≥ control mean 的 90%）
 3. 不選入 wasserstein 好但 structure collapse 的模型
 4. class-gap 分支至少一個 non-collapse 且下游接近 control
+
+### 13.7 Pretrain 結果摘要（三分支完成）
+
+#### 跨分支對照（pretrain 指標）
+
+| 群組 | n | mean kmeans_ari | structure pass rate | mean wasserstein | collapse rate |
+|------|---|-----------------|---------------------|------------------|---------------|
+| Control-centered（A） | 68 | 0.372 | 41% | 0.429 | **50%** |
+| Class-gap（B） | 31 | 0.420 | 39% | 0.721 | 13% |
+| t2s appendix（C） | 24 | **0.633** | **54%** | 0.902 | **0%** |
+
+#### `latent_size` 分組（三分支合併）
+
+| latent_size | n | mean kmeans_ari | structure pass rate |
+|-------------|---|-----------------|---------------------|
+| 32 | 50 | 0.416 | 40% |
+| **64** | **38** | **0.451** | **50%** |
+| 128 | 35 | 0.444 | 40% |
+
+#### Class-gap 子分析（B 分支，`lambda_class_gap > 0`）
+
+| class_gap_metric | n | mean kmeans_ari | structure pass rate |
+|------------------|---|-----------------|---------------------|
+| **cosine** | 12 | **0.452** | **33%** |
+| l2 | 12 | 0.278 | 25% |
+
+#### 單點最佳
+
+| 分支 | Model | kmeans_ari | wasserstein | latent | 備註 |
+|------|-------|------------|-------------|--------|------|
+| Control（A） | exp_059 | 0.686 | **0.330** | 32 | structure pass 內 deconfounding 最佳 |
+| Control（A） | exp_073 | **0.819** | 0.678 | 64 | 全分支 kmeans 最高 |
+| Class-gap（B） | exp_035 | **0.807** | 0.582 | 32 | B 分支 kmeans 最高 |
+| Class-gap（B） | exp_053 | 0.704 | 0.535 | — | structure pass 內較佳 |
+| t2s appendix（C） | exp_016 | 0.702 | 0.498 | 128 | C 分支 structure+deconfounding 平衡 |
+
+#### 主要結論（pretrain 階段）
+
+1. **三分支 manifest 全數完成**，但 **Control（A）collapse 率仍高（~50%）**；擴 latent / 調 GAN 未根除 structure–deconfounding trade-off。
+2. **Class-gap（B）已可評估**：cosine 優於 L2（mean ari 0.45 vs 0.28）；整體 mean ari 略優於 A，但 structure pass 仍僅 ~39%。
+3. **t2s appendix（C）pretrain 幾何最穩**：mean kmeans_ari 0.63、collapse 0%，但 wasserstein ~0.90 偏高。
+4. **`latent_size=64` 仍是最穩容量**（structure pass ~50%）。
+5. **下游已驗證**（見 §13.8–§13.9）：Round 5 最佳 **exp_001**（Avg TCGA=**0.5403**）已超越 R4.1 **exp_035**（0.5339）；但入選模型 **全部 `lambda_proto=0`**，active InfoNCE 仍未進 Top-16。
+
+### 13.8 Selection + Finetune 執行紀錄（已完成）
+
+#### Selection（`round5_combined`）
+
+| 項目 | 設定 / 結果 |
+|------|-------------|
+| 模式 | `round5_structure_first`，`--exclude-proto-ineffective` |
+| Top-K | 15 ranked + 強制 **exp_018**、**exp_746**（`exp_018` 已在 Top-15）→ **16 模型** |
+| `--min-passing` | 5（stage-1 通過者足夠時才補滿 Top-K） |
+| 輸出 | `result/optimization_runs/round5_combined/selection/pretrain_top10.csv` |
+
+**程式修復（finetune 前）：** 多分支合併時 `pretrain_top10.csv` 須帶 `pretrain_result_dir` / `result_folder`，否則 finetune 會誤指向 `pretrain/exp_XXX` 根目錄。已修 `tools/optimization_selection.py`、`visualize_vaewc_results.py`。
+
+#### Finetune + Aggregate
+
+| 項目 | 設定 |
+|------|------|
+| 模型數 × combo | **16 × 4 = 64** jobs（`config/params_finetune_mini.json`：bce/focal × dropout 0.05/0.1） |
+| 訓練 | `epochs=1000`，`batch_size=4096`，`mini_batch_size=1024` |
+| 平行度 | `max_parallel=26`（當次實跑；腳本預設 42 供後續重跑） |
+| 狀態 | **64/64 success**（`manifests/finetune_dispatch_manifest.csv`） |
+| Log | `result/optimization_runs/round5_combined/logs/round5_finetune_aggregate.log` |
+
+**TCGA 比較檔：**
+
+| 用途 | 路徑 |
+|------|------|
+| 跨 model 排名 | `result/optimization_runs/round5_combined/aggregate/aggregate_scores.csv` |
+| 原始合併（per combo） | `.../aggregate/merged_finetune_tcga_focus.csv` |
+| 單 model 明細 | `.../finetune/<Model_ID>/combo_XX/parameter_comparison_tcga_focus.csv` |
+
+後續重跑 finetune：`bash tools/run_round5_finetune_aggregate.sh`（預設 `FINETUNE_MAX_PARALLEL=42`）。
+
+### 13.9 Round 5 下游 Finetune 結果與參數–結果對照（2026-06-11）
+
+**主指標：** `Average_TCGA_AUC_mean`（gdsc_intersect13，4 combo 平均）。  
+**R4.1 基準：** `result/optimization_runs/vaewc_round4_1_t2s_infonce_collapse_guard/aggregate/aggregate_scores.csv`。
+
+#### 13.9.1 成功標準達成（對照 §13.6）
+
+| # | 標準 | 結果 |
+|---|------|------|
+| 1 | Avg TCGA 超越 R4.1 exp_035（0.5339） | **達成** — **exp_001 = 0.5403**（+0.0064） |
+| 2 | `kmeans_ari` ≥ 0.65 | **部分** — exp_001（0.669）、exp_005（0.754）、exp_035（0.807）等達標；非全數 |
+| 3 | 不選 collapse 模型 | **達成** — structure-first 已過濾；入選 16 模型無 `alignment_collapse` |
+| 4 | class-gap 下游接近 control | **部分** — 最佳 class-gap **exp_035**（0.5195）< 最佳 control **exp_005**（0.5301），差距 ~0.011 |
+
+#### 13.9.2 下游排名（16 模型，依 `Average_TCGA_AUC_mean`）
+
+| 排名 | Model | Avg TCGA | Global TCGA | Integrated Avg | Test AUC | Sel# | 分支 | 關鍵 pretrain 參數 |
+|------|-------|----------|-------------|----------------|----------|------|------|-------------------|
+| **1** | **exp_001** | **0.5403** | 0.6031 | 0.5093 | 0.7474 | 13 | C t2s appendix | `latent=32`, `[256,128]`, **`λ_proto=0`**, `proto_dir=t2s`（未啟用）, `kmeans_ari=0.669`, `wass=0.629` |
+| 2 | exp_005 | 0.5301 | 0.5864 | **0.5252** | 0.7816 | 14 | A control | `latent=32`, `[256,128]`, pure control, `kmeans_ari=0.754`, `wass=0.643` |
+| 3 | exp_746 | 0.5214 | **0.6053** | 0.5145 | 0.7817 | 16 | 外部 baseline | 歷史 `pretrain_vaewc/exp_746` |
+| 4 | exp_035 | 0.5195 | 0.6025 | 0.5098 | 0.7381 | 7 | B class-gap | `latent=32`, **`λ_class_gap=0.001`**, `metric=cosine`, `kmeans_ari=0.807`, `wass=0.582` |
+| 5 | exp_057 | 0.5193 | 0.5936 | 0.4930 | 0.7970 | 11 | A control | `latent=64`, `[512,256,128]`, pure control |
+| 6 | exp_015 | 0.5119 | 0.5703 | 0.5187 | 0.8128 | 8 | A control | `latent=64` |
+| 7 | exp_059 | 0.5051 | 0.5800 | 0.4635 | 0.7185 | **1** | A control | `latent=32`, **selection #1**（`wass=0.330` 最佳 deconfounding） |
+| 8 | exp_053 | 0.5004 | 0.5952 | **0.5507** | 0.7603 | 5 | B class-gap | `λ_class_gap=0`（僅 metric=cosine 槽位）, `kmeans_ari=0.704` |
+| 9 | exp_063 | 0.4923 | 0.5417 | 0.4899 | 0.7863 | 4 | A control | `latent=64` |
+| 10 | exp_018 | 0.4909 | 0.5725 | 0.4561 | 0.7984 | 3 | A control（強制） | R4.1 曾 0.5325（新版 eval）；本輪 pretrain 重跑後下游下降 |
+| 11 | exp_016 | 0.4797 | 0.5857 | 0.5024 | 0.7927 | 2 | C t2s appendix | `latent=128`, `[1024,512,256]`, `λ_proto=0`, `T=3.0` |
+| 12 | exp_033 | 0.4699 | 0.5617 | 0.4637 | 0.8069 | 12 | B class-gap | `λ_class_gap=0`, `metric=l2` |
+| 13 | exp_038 | 0.4639 | 0.5505 | 0.4778 | 0.7958 | 15 | B class-gap | `latent=128`, `λ_class_gap=0.001`, cosine |
+| 14 | exp_007 | 0.4627 | 0.6008 | **0.5409** | 0.7603 | 6 | A control | `latent=64` |
+| 15 | exp_071 | 0.4527 | 0.5301 | 0.4704 | 0.7883 | 10 | A control | `latent=32`, 高 `kmeans_ari=0.780` 但下游偏弱 |
+| 16 | exp_051 | 0.4416 | 0.5755 | 0.4778 | **0.8270** | 9 | A control | Test AUC 最高但 TCGA 最低之一 |
+
+> **Global TCGA** 排名與 Avg 不同：exp_746（0.605）> exp_035（0.603）> exp_001（0.603）。  
+> **Integrated Avg** 最高為 exp_053（0.551）、exp_007（0.541），與 gdsc_intersect13 主指標不一致時以 Avg TCGA 為準。
+
+#### 13.9.3 與 R4.1 / 歷史基準對照
+
+| Model | Round | Avg TCGA | Global TCGA | 備註 |
+|-------|-------|----------|-------------|------|
+| **exp_001** | **R5** | **0.5403** | 0.6031 | **全專案本輪最佳（新版 eval）** |
+| exp_035 | R4.1 | 0.5339 | 0.5897 | R4.1 下游最佳；R5 同 ID 為 class-gap 分支（0.5195） |
+| exp_018 | R4.1 | 0.5325 | 0.6009 | R5 control 重跑後 0.4909 |
+| exp_746 | R4.1 | 0.5265 | 0.6097 | R5 0.5214，略降 |
+
+#### 13.9.4 參數 ↔ 結果：系統性觀察
+
+**（1）Pretrain selection 排名 ≠ 下游排名**
+
+| 現象 | 代表案例 | 解讀 |
+|------|----------|------|
+| Selection 依 wasserstein 排 #1，下游僅中游 | **exp_059**（`wass=0.330` → Avg 0.505） | 過度 deconfounding 可能損失對 TCGA 有用的 domain/tumor 訊號 |
+| 高 `kmeans_ari` 不保證高 TCGA | **exp_035**（ari 0.807 → Avg 0.5195） | 結構保留佳 ≠ 藥物反應可轉移 |
+| 下游最佳非 selection 前列 | **exp_001**（sel #13 → Avg **0.5403**） | structure-first 排序偏 deconfounding，與下游最優解錯位 |
+
+**（2）分支（A/B/C）與 loss 類型**
+
+| 分支 | 入選 n | Avg TCGA 最佳 | mean Avg TCGA | 重點 |
+|------|--------|---------------|---------------|------|
+| A Control-centered | 9 | exp_005 **0.5301** | ~0.489 | 最穩；純 control 仍具競爭力 |
+| B Class-gap | 4 | exp_035 0.5195 | ~0.489 | pretrain ari 高，下游未超越 A 最佳 control |
+| C t2s appendix | 2 | exp_001 **0.5403** | ~0.510 | 下游冠軍來自 C，但 **`λ_proto=0`（無 active InfoNCE）** |
+| 外部 | 1 | exp_746 0.5214 | — | Global 仍強 |
+
+**重要：** 入選 16 模型 **`lambda_proto` 均為 0**；C 分支雖掛 t2s InfoNCE sweep，通過 structure-first 且進 downstream 者皆為 control 槽位。Active InfoNCE 仍未證明下游優勢。
+
+**（3）`latent_size`**
+
+| latent_size | 入選數 | 下游最佳 | mean Avg TCGA（入選子集） |
+|-------------|--------|----------|---------------------------|
+| **32** | 8 | **exp_001 0.5403** | ~0.501 |
+| 64 | 5 | exp_057 0.5193 | ~0.497 |
+| 128 | 2 | exp_016 0.4797 | ~0.472 |
+
+Top-4 皆為 **latent=32**；128 在下游明顯偏弱（exp_016、exp_038）。
+
+**（4）Class-gap 參數**
+
+| 設定 | Model | `kmeans_ari` | Avg TCGA | 解讀 |
+|------|-------|--------------|----------|------|
+| `λ_class_gap=0.001`, cosine | exp_035 | 0.807 | 0.5195 | B 分支最佳；略低於 pure control exp_005 |
+| `λ_class_gap=0.001`, cosine, latent=128 | exp_038 | 0.673 | 0.4639 | 大 latent + class-gap 組合下游差 |
+| `λ_class_gap=0`, metric=l2 | exp_033 | 0.712 | 0.4699 | L2 槽位無 active loss，下游偏弱 |
+| `λ_class_gap=0`, metric=cosine | exp_053 | 0.704 | 0.5004 | Integrated Avg 高（0.551）但 gdsc_intersect13 主指標一般 |
+
+**（5）Pretrain 幾何指標 vs 下游（入選子集趨勢）**
+
+- **`wasserstein` 與 Avg TCGA：弱負相關** — 越低 wasserstein（deconfounding 越好）未必越高 TCGA（exp_059 vs exp_001）。
+- **`kmeans_ari` 與 Avg TCGA：無單調正相關** — exp_071（ari 0.78）下游 0.453；exp_001（ari 0.67）下游 0.540。
+- **Sweet spot 假說：** 中等 `kmeans_ari`（0.65–0.75）+ 中等 `wasserstein`（0.58–0.65）+ `latent=32` + pure control → 較利下游（exp_001、exp_005）。
+
+**（6）Finetune 側（固定 grid，非 sweep 變因）**
+
+所有模型共用：`params_finetune_mini.json`（4 combo）、`ftlr=0.001`、classifier `[256,128]`、GIN `dapl`。  
+下游差異主要來自 **pretrain checkpoint / latent**，非 finetune 超參 grid（每模型 4 combo 平均）。
+
+#### 13.9.5 主要結論
+
+1. **Round 5 達成首要目標：** **exp_001**（Avg TCGA **0.5403**）超越 R4.1 **exp_035**（0.5339），為目前新版 TCGA eval 最佳。
+2. **獲勝配方實質為 pure control：** exp_001 在 C 分支 sweep 中 `lambda_proto=0`，僅保留 t2s 相關 config 槽位；**非 active InfoNCE 勝出**。
+3. **Class-gap 未證明下游優於 control：** exp_035 pretrain 結構最佳（ari 0.81），下游仍低於 exp_005 / exp_001。
+4. **Selection 指標與下游錯位：** wasserstein-first 選出的 exp_059 下游一般；建議下一輪 selection 加權或加入下游 proxy（若可負擔）。
+5. **`latent_size=32` 仍是下游首選**；64 可接受，128 在本輪入選者中偏弱。
+6. **exp_018 強制 baseline 在本輪 pretrain 重跑後下游降至 0.491** — 論文對照宜註明「同 ID、不同 pretrain run」。
+
+#### 13.9.6 建議下一步
+
+| 方向 | 建議 |
+|------|------|
+| **論文 / 主線 checkpoint** | 採用 **exp_001**（R5 C 分支、`result/.../vaewc_round5_t2s_infonce_appendix/pretrain/exp_001`） |
+| **對照組** | exp_005（pure A control）、exp_035（class-gap）、exp_746（歷史） |
+| **Selection 調整** | 考慮降低 wasserstein 權重，或 Top-K 內強制保留「中等 wass + 高 ari」候選 |
+| **InfoNCE** | 本輪無 `λ_proto>0` 入選；若再試，需放寬 deconfounding 或改 stage-2 排序 |
+| **Finetune 重跑** | `bash tools/run_round5_finetune_aggregate.sh`（`max_parallel=42`） |
+
+**決策要點（更新後）：**
+
+| 問題 | Round 5 下游判讀 |
+|------|------------------|
+| Class-gap 是否值得繼續？ | pretrain 有亮點，下游未贏 control；可縮小 sweep 或僅作 ablation |
+| InfoNCE 是否保留？ | 入選者全 `λ_proto=0`；appendix 可保留但非主線 |
+| 主線收斂方向？ | **`latent_size=32` pure control**（exp_001 / exp_005 族）+ 以 **exp_001** 為 production checkpoint |

@@ -81,6 +81,8 @@ def load_all_pretrain_rows(result_dir: str, source_tag: str = "") -> pd.DataFram
     rows = []
     for d in exp_dirs:
         row = load_experiment_data(d)
+        row["pretrain_result_dir"] = d
+        row["result_folder"] = d
         if source_tag:
             row["pretrain_run_tag"] = source_tag
         rows.append(row)
@@ -115,7 +117,12 @@ def load_and_enrich_merged_results(merged_dirs: list[str]) -> pd.DataFrame:
     if len(merged_dirs) > 1:
         frames = []
         for d in merged_dirs:
-            part = load_all_pretrain_rows(d, source_tag=os.path.basename(d))
+            resolved_dir = _resolve_path(d)
+            if os.path.basename(resolved_dir) == "pretrain":
+                branch_tag = os.path.basename(os.path.dirname(resolved_dir))
+            else:
+                branch_tag = os.path.basename(resolved_dir)
+            part = load_all_pretrain_rows(d, source_tag=branch_tag)
             if part.empty:
                 continue
             part = enrich_selection_metadata(part, d)

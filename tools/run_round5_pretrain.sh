@@ -3,7 +3,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 DEVICE="${DEVICE:-cuda}"
-PARALLEL="${PARALLEL:-20}"
+PARALLEL="${PARALLEL:-30}"
 
 for BRANCH in \
   vaewc_round5_control_centered \
