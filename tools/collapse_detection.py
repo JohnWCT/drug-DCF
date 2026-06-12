@@ -158,6 +158,23 @@ def rank_round5_stage2(df: pd.DataFrame) -> pd.DataFrame:
     return df.sort_values(by=by, ascending=asc, na_position="last").reset_index(drop=True)
 
 
+def apply_round6_stage1_filter(
+    df: pd.DataFrame,
+    control_mean_kmeans_ari: float = DEFAULT_CONTROL_MEAN_KMEANS_ARI,
+    structure_absolute_min: float = DEFAULT_STRUCTURE_ABSOLUTE_MIN,
+    exclude_collapse: bool = True,
+    exclude_proto_invalid: bool = True,
+) -> pd.DataFrame:
+    """Round 6 stage-1: same hard gates as Round 5; ranking uses sweetspot separately."""
+    return apply_round5_stage1_filter(
+        df,
+        control_mean_kmeans_ari=control_mean_kmeans_ari,
+        structure_absolute_min=structure_absolute_min,
+        exclude_collapse=exclude_collapse,
+        exclude_proto_invalid=exclude_proto_invalid,
+    )
+
+
 def rank_round41_stage2(df: pd.DataFrame) -> pd.DataFrame:
     """Rank survivors: wasserstein ↑, kmeans_ari ↓, fid ↑, mmd ↑."""
     sort_cols = []

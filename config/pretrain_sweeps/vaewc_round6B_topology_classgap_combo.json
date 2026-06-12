@@ -1,0 +1,32 @@
+{
+  "_metadata": {
+    "description": "Round 6B: topology + class-gap combination (cosine only).",
+    "reference_baseline": "exp_001",
+    "expected_jobs": 18
+  },
+  "base_config": "config/params_proto_base_exp001_vaewc.json",
+  "output_config_dir": "config/generated/vaewc_round6B_topology_classgap_combo",
+  "run_id": "vaewc_round6B_topology_classgap_combo",
+  "sweep": {
+    "paired_params": [
+      {"latent_size": 32, "encoder_dims": [256, 128]},
+      {"latent_size": 64, "encoder_dims": [512, 256, 128]}
+    ],
+    "lambda_proto": [0],
+    "lambda_class_gap": [0, 0.0001, 0.0003],
+    "class_gap_metric": ["cosine"],
+    "class_gap_start_epoch": [5],
+    "class_gap_full_epoch": [30],
+    "class_gap_min_samples_per_domain": [2],
+    "class_gap_detach_source": [true],
+    "class_gap_detach_target": [false],
+    "lambda_tumor_topology": [0, 0.0001, 0.0003],
+    "tumor_topology_metric": ["cosine_distance"],
+    "tumor_topology_loss_type": ["smooth_l1"],
+    "tumor_topology_start_epoch": [5],
+    "tumor_topology_full_epoch": [30],
+    "tumor_topology_min_samples_per_domain": [2],
+    "tumor_topology_detach_source": [true],
+    "tumor_topology_normalize_distance": [true]
+  }
+}

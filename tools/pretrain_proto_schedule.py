@@ -87,6 +87,86 @@ def resolve_class_gap_training_params(param: dict) -> dict:
     }
 
 
+def get_lambda_tumor_topology_eff(gan_epoch: int, param: dict) -> float:
+    lam = float(param.get("lambda_tumor_topology", 0.0))
+    if lam <= 0:
+        return 0.0
+    start_epoch = int(param.get("tumor_topology_start_epoch", 5))
+    full_epoch = int(param.get("tumor_topology_full_epoch", 30))
+    return smooth_rampup(gan_epoch, start_epoch, full_epoch, lam)
+
+
+def get_lambda_tumor_supcon_eff(gan_epoch: int, param: dict) -> float:
+    lam = float(param.get("lambda_tumor_supcon", 0.0))
+    if lam <= 0:
+        return 0.0
+    start_epoch = int(param.get("tumor_supcon_start_epoch", 5))
+    full_epoch = int(param.get("tumor_supcon_full_epoch", 30))
+    return smooth_rampup(gan_epoch, start_epoch, full_epoch, lam)
+
+
+def get_lambda_tumor_var_eff(gan_epoch: int, param: dict) -> float:
+    lam = float(param.get("lambda_tumor_var", 0.0))
+    if lam <= 0:
+        return 0.0
+    start_epoch = int(param.get("tumor_vicreg_start_epoch", 5))
+    full_epoch = int(param.get("tumor_vicreg_full_epoch", 30))
+    return smooth_rampup(gan_epoch, start_epoch, full_epoch, lam)
+
+
+def get_lambda_tumor_cov_eff(gan_epoch: int, param: dict) -> float:
+    lam = float(param.get("lambda_tumor_cov", 0.0))
+    if lam <= 0:
+        return 0.0
+    start_epoch = int(param.get("tumor_vicreg_start_epoch", 5))
+    full_epoch = int(param.get("tumor_vicreg_full_epoch", 30))
+    return smooth_rampup(gan_epoch, start_epoch, full_epoch, lam)
+
+
+def get_lambda_subspace_ortho_eff(gan_epoch: int, param: dict) -> float:
+    lam = float(param.get("lambda_subspace_ortho", 0.0))
+    if lam <= 0:
+        return 0.0
+    start_epoch = int(param.get("subspace_ortho_start_epoch", 5))
+    full_epoch = int(param.get("subspace_ortho_full_epoch", 30))
+    return smooth_rampup(gan_epoch, start_epoch, full_epoch, lam)
+
+
+def resolve_tumor_topology_training_params(param: dict) -> dict:
+    return {
+        "lambda_tumor_topology": float(param.get("lambda_tumor_topology", 0.0)),
+        "tumor_topology_metric": str(param.get("tumor_topology_metric", "cosine_distance")),
+        "tumor_topology_loss_type": str(param.get("tumor_topology_loss_type", "smooth_l1")),
+        "tumor_topology_start_epoch": int(param.get("tumor_topology_start_epoch", 5)),
+        "tumor_topology_full_epoch": int(param.get("tumor_topology_full_epoch", 30)),
+        "tumor_topology_min_samples_per_domain": int(param.get("tumor_topology_min_samples_per_domain", 2)),
+        "tumor_topology_detach_source": bool(param.get("tumor_topology_detach_source", True)),
+        "tumor_topology_normalize_distance": bool(param.get("tumor_topology_normalize_distance", True)),
+    }
+
+
+def resolve_tumor_supcon_training_params(param: dict) -> dict:
+    return {
+        "lambda_tumor_supcon": float(param.get("lambda_tumor_supcon", 0.0)),
+        "tumor_supcon_temperature": float(param.get("tumor_supcon_temperature", 1.0)),
+        "tumor_supcon_start_epoch": int(param.get("tumor_supcon_start_epoch", 5)),
+        "tumor_supcon_full_epoch": int(param.get("tumor_supcon_full_epoch", 30)),
+        "tumor_supcon_min_samples_per_class": int(param.get("tumor_supcon_min_samples_per_class", 2)),
+        "tumor_supcon_latent_view": str(param.get("tumor_supcon_latent_view", "shared")),
+    }
+
+
+def resolve_tumor_vicreg_training_params(param: dict) -> dict:
+    return {
+        "lambda_tumor_var": float(param.get("lambda_tumor_var", 0.0)),
+        "lambda_tumor_cov": float(param.get("lambda_tumor_cov", 0.0)),
+        "tumor_vicreg_latent_view": str(param.get("tumor_vicreg_latent_view", "shared")),
+        "tumor_vicreg_start_epoch": int(param.get("tumor_vicreg_start_epoch", 5)),
+        "tumor_vicreg_full_epoch": int(param.get("tumor_vicreg_full_epoch", 30)),
+        "tumor_vicreg_var_target": float(param.get("tumor_vicreg_var_target", 1.0)),
+    }
+
+
 def resolve_cmmd_training_params(param: dict) -> dict:
     return {
         "lambda_cmmd": float(param.get("lambda_cmmd", 0.0)),

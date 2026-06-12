@@ -52,13 +52,33 @@ from tools.pretrain_common import (
 )
 from tools.proto_infonce import compute_prototype_infonce, default_proto_metrics
 from tools.classwise_alignment import compute_classwise_mmd, compute_classwise_prototype_gap
+from tools.tumor_geometry import compute_tumor_topology_loss
+from tools.tumor_subspace import (
+    alignment_discriminator_input,
+    classifier_input_dim,
+    discriminator_input_dim,
+    resolve_subspace_training_params,
+    select_latent_view,
+    split_tumor_transfer_latent,
+    compute_subspace_orthogonality_loss,
+)
+from tools.tumor_supcon import compute_within_domain_supcon_loss
+from tools.tumor_vicreg import compute_vicreg_var_cov_loss
 from tools.pretrain_proto_schedule import (
     get_lambda_proto_eff,
     get_lambda_cmmd_eff,
     get_lambda_class_gap_eff,
+    get_lambda_tumor_topology_eff,
+    get_lambda_tumor_supcon_eff,
+    get_lambda_tumor_var_eff,
+    get_lambda_tumor_cov_eff,
+    get_lambda_subspace_ortho_eff,
     resolve_proto_training_params,
     resolve_class_gap_training_params,
     resolve_cmmd_training_params,
+    resolve_tumor_topology_training_params,
+    resolve_tumor_supcon_training_params,
+    resolve_tumor_vicreg_training_params,
     compute_proto_checkpoint_guard,
     post_proto_checkpoint_min_epoch,
 )
@@ -584,8 +604,10 @@ def train_discrim(
     optimizer,
     scheduler,
     gan_gp_weight: float = 10.0,
+    subspace_cfg=None,
 ):
     """WGAN-GP discriminator step: encoders frozen, critic learns from latent scores."""
+    subspace_cfg = subspace_cfg or resolve_subspace_training_params({})
     loss_log = defaultdict(float)
     discrim.zero_grad()
     sencoder.eval()
@@ -598,8 +620,8 @@ def train_discrim(
         _, pzt, _, _ = tencoder(t_batch)
         _, zs, _, _ = shared_encoder(s_batch)
         _, zt, _, _ = shared_encoder(t_batch)
-        s = torch.cat((zs, pzs), dim=1)
-        t = torch.cat((zt, pzt), dim=1)
+        s = alignment_discriminator_input(zs, pzs, subspace_cfg)
+        t = alignment_discriminator_input(zt, pzt, subspace_cfg)
     d_s = discrim(s)
     d_t = discrim(t)
     d_loss = torch.mean(d_t) - torch.mean(d_s)
@@ -631,16 +653,20 @@ def train_classifier_step(
     source_weights=None,
     target_weights=None,
     use_class_weight: bool = False,
+    subspace_cfg=None,
 ):
     """Classifier-only GAN step: shared encoder frozen, classifier adapts to current latents."""
+    subspace_cfg = subspace_cfg or resolve_subspace_training_params({})
+    cls_view = subspace_cfg.get("classifier_latent_view", "shared")
     loss_log = defaultdict(float)
     classifier.zero_grad()
     shared_encoder.eval()
     classifier.train()
     optimizer.zero_grad()
-    with torch.no_grad():
-        _, ccle_z, _, _ = shared_encoder(s_batch)
-        _, tcga_z, _, _ = shared_encoder(t_batch)
+    _, ccle_z, _, _ = shared_encoder(s_batch)
+    _, tcga_z, _, _ = shared_encoder(t_batch)
+    ccle_z = select_latent_view(ccle_z, cls_view, subspace_cfg)
+    tcga_z = select_latent_view(tcga_z, cls_view, subspace_cfg)
     if use_class_weight and source_weights is not None and target_weights is not None:
         s_cls_criterion = nn.CrossEntropyLoss(weight=source_weights)
         t_cls_criterion = nn.CrossEntropyLoss(weight=target_weights)
@@ -687,10 +713,29 @@ def train_d_ae(
     class_gap_detach_source: bool = True,
     class_gap_detach_target: bool = False,
     class_gap_l2_squared: bool = True,
+    subspace_cfg=None,
+    lambda_tumor_topology_eff: float = 0.0,
+    tumor_topology_metric: str = "cosine_distance",
+    tumor_topology_loss_type: str = "smooth_l1",
+    tumor_topology_min_samples_per_domain: int = 2,
+    tumor_topology_detach_source: bool = True,
+    tumor_topology_normalize_distance: bool = True,
+    lambda_tumor_supcon_eff: float = 0.0,
+    tumor_supcon_temperature: float = 1.0,
+    tumor_supcon_min_samples_per_class: int = 2,
+    tumor_supcon_latent_view: str = "shared",
+    lambda_tumor_var_eff: float = 0.0,
+    lambda_tumor_cov_eff: float = 0.0,
+    tumor_vicreg_latent_view: str = "shared",
+    tumor_vicreg_var_target: float = 1.0,
+    lambda_subspace_ortho_eff: float = 0.0,
     source_weights=None,
     target_weights=None,
     use_class_weight: bool = False,
 ):
+    subspace_cfg = subspace_cfg or resolve_subspace_training_params({})
+    cls_view = subspace_cfg.get("classifier_latent_view", "shared")
+    topo_view = subspace_cfg.get("topology_latent_view", "shared")
     loss_log = defaultdict(float)
     shared_encoder.zero_grad()
     sencoder.zero_grad()
@@ -711,17 +756,20 @@ def train_d_ae(
     ccle_vae_loss = vaeloss(ccle_mu, ccle_sigma, ccle_re_x, s_batch)
     tcga_re_x, tcga_z, tcga_mu, tcga_sigma = shared_encoder(t_batch)
     tcga_vae_loss = vaeloss(tcga_mu, tcga_sigma, tcga_re_x, t_batch)
+    ccle_cls_z = select_latent_view(ccle_z, cls_view, subspace_cfg)
+    tcga_cls_z = select_latent_view(tcga_z, cls_view, subspace_cfg)
     if use_class_weight and source_weights is not None and target_weights is not None:
         s_cls_criterion = nn.CrossEntropyLoss(weight=source_weights)
         t_cls_criterion = nn.CrossEntropyLoss(weight=target_weights)
-        cls_loss = s_cls_criterion(classifier(ccle_z), s_labels) + t_cls_criterion(classifier(tcga_z), t_labels)
+        cls_loss = s_cls_criterion(classifier(ccle_cls_z), s_labels) + t_cls_criterion(classifier(tcga_cls_z), t_labels)
     else:
         cls_criterion = nn.CrossEntropyLoss()
-        cls_loss = cls_criterion(classifier(ccle_z), s_labels) + cls_criterion(classifier(tcga_z), t_labels)
+        cls_loss = cls_criterion(classifier(ccle_cls_z), s_labels) + cls_criterion(classifier(tcga_cls_z), t_labels)
     pvae_loss = pccle_vae_loss + ptcga_vae_loss
     vae_loss = ccle_vae_loss + tcga_vae_loss
     o_loss = ortho_loss(ccle_z, pccle_z) + ortho_loss(tcga_z, ptcga_z)
-    g_loss = -torch.mean(discrim(torch.cat((tcga_z, ptcga_z), dim=1)))
+    g_in = alignment_discriminator_input(tcga_z, ptcga_z, subspace_cfg)
+    g_loss = -torch.mean(discrim(g_in))
     proto_metrics = default_proto_metrics(mode=proto_mode, direction=proto_direction, detach=proto_detach)
     proto_loss = ccle_z.sum() * 0.0
     if lambda_proto_eff > 0:
@@ -779,6 +827,62 @@ def train_d_ae(
             detach_target=class_gap_detach_target,
             l2_squared=class_gap_l2_squared,
         )
+    topo_metrics = {
+        "tumor_topology_loss": 0.0,
+        "tumor_topology_valid": False,
+        "tumor_topology_valid_class_count": 0,
+    }
+    tumor_topology_loss = ccle_z.sum() * 0.0
+    if lambda_tumor_topology_eff > 0:
+        z_src_topo = select_latent_view(ccle_z, topo_view, subspace_cfg)
+        z_tgt_topo = select_latent_view(tcga_z, topo_view, subspace_cfg)
+        tumor_topology_loss, topo_metrics = compute_tumor_topology_loss(
+            z_src_topo,
+            s_labels,
+            z_tgt_topo,
+            t_labels,
+            num_classes=num_classes,
+            min_samples_per_domain=tumor_topology_min_samples_per_domain,
+            metric=tumor_topology_metric,
+            topology_loss_type=tumor_topology_loss_type,
+            detach_source=tumor_topology_detach_source,
+            normalize_distance=tumor_topology_normalize_distance,
+        )
+    supcon_metrics = {"tumor_supcon_loss": 0.0, "tumor_supcon_valid": False}
+    tumor_supcon_loss = ccle_z.sum() * 0.0
+    if lambda_tumor_supcon_eff > 0:
+        z_src_sc = select_latent_view(ccle_z, tumor_supcon_latent_view, subspace_cfg)
+        z_tgt_sc = select_latent_view(tcga_z, tumor_supcon_latent_view, subspace_cfg)
+        tumor_supcon_loss, supcon_metrics = compute_within_domain_supcon_loss(
+            z_src_sc,
+            s_labels,
+            z_tgt_sc,
+            t_labels,
+            temperature=tumor_supcon_temperature,
+            min_samples_per_class=tumor_supcon_min_samples_per_class,
+        )
+    vicreg_metrics = {
+        "tumor_vicreg_var_loss": 0.0,
+        "tumor_vicreg_cov_loss": 0.0,
+        "tumor_vicreg_valid": False,
+    }
+    tumor_var_loss = ccle_z.sum() * 0.0
+    tumor_cov_loss = ccle_z.sum() * 0.0
+    if lambda_tumor_var_eff > 0 or lambda_tumor_cov_eff > 0:
+        z_src_v = select_latent_view(ccle_z, tumor_vicreg_latent_view, subspace_cfg)
+        z_tgt_v = select_latent_view(tcga_z, tumor_vicreg_latent_view, subspace_cfg)
+        z_vicreg = torch.cat([z_src_v, z_tgt_v], dim=0)
+        tumor_var_loss, tumor_cov_loss, vicreg_metrics = compute_vicreg_var_cov_loss(
+            z_vicreg, var_target=tumor_vicreg_var_target
+        )
+    subspace_ortho_loss = ccle_z.sum() * 0.0
+    if lambda_subspace_ortho_eff > 0 and subspace_cfg.get("use_tumor_subspace", False):
+        z_t_s, z_tr_s = split_tumor_transfer_latent(ccle_z, subspace_cfg["tumor_dim"])
+        z_t_t, z_tr_t = split_tumor_transfer_latent(tcga_z, subspace_cfg["tumor_dim"])
+        subspace_ortho_loss = 0.5 * (
+            compute_subspace_orthogonality_loss(z_t_s, z_tr_s)
+            + compute_subspace_orthogonality_loss(z_t_t, z_tr_t)
+        )
     combined_proto_cmmd = bool(lambda_proto_eff > 0 and lambda_cmmd_eff > 0)
     loss = (
         o_loss
@@ -789,6 +893,11 @@ def train_d_ae(
         + float(lambda_proto_eff) * proto_loss
         + float(lambda_cmmd_eff) * cmmd_loss
         + float(lambda_class_gap_eff) * class_gap_loss
+        + float(lambda_tumor_topology_eff) * tumor_topology_loss
+        + float(lambda_tumor_supcon_eff) * tumor_supcon_loss
+        + float(lambda_tumor_var_eff) * tumor_var_loss
+        + float(lambda_tumor_cov_eff) * tumor_cov_loss
+        + float(lambda_subspace_ortho_eff) * subspace_ortho_loss
     )
     loss_log.update({
         "ortho_loss": o_loss,
@@ -831,6 +940,15 @@ def train_d_ae(
         "cmmd_mean_class_loss": cmmd_metrics.get("cmmd_mean_class_loss", 0.0),
         "combined_proto_cmmd": float(combined_proto_cmmd),
         "proto_valid": float(proto_metrics["proto_valid"]),
+        "lambda_tumor_topology_eff": float(lambda_tumor_topology_eff),
+        "lambda_tumor_supcon_eff": float(lambda_tumor_supcon_eff),
+        "lambda_tumor_var_eff": float(lambda_tumor_var_eff),
+        "lambda_tumor_cov_eff": float(lambda_tumor_cov_eff),
+        "lambda_subspace_ortho_eff": float(lambda_subspace_ortho_eff),
+        "subspace_ortho_loss": float(subspace_ortho_loss.detach().item()),
+        **{k: (float(v) if isinstance(v, (bool, int, float)) else v) for k, v in topo_metrics.items()},
+        **{k: (float(v) if isinstance(v, (bool, int, float)) else v) for k, v in supcon_metrics.items()},
+        **{k: (float(v) if isinstance(v, (bool, int, float)) else v) for k, v in vicreg_metrics.items()},
     })
     loss.backward()
     optimizer.step()
@@ -923,10 +1041,12 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
     decoder_hidden_dims = encoder_hidden_dims[::-1]
     dropout_rate = param["dropout_rate"]
     lambda_cls = param["lambda_cls"]
+    subspace_cfg = resolve_subspace_training_params(param)
+    cls_dim = classifier_input_dim(subspace_cfg)
     shared_vae = MODEL_BACKBONE(input_size=input_size, output_size=input_size, latent_size=latent_size, encoder_hidden_dims=encoder_hidden_dims, decoder_hidden_dims=decoder_hidden_dims, dop=dropout_rate, act_fn=nn.ReLU).to(device)
     source_private_vae = MODEL_BACKBONE(input_size=input_size, output_size=input_size, latent_size=latent_size, encoder_hidden_dims=encoder_hidden_dims, decoder_hidden_dims=decoder_hidden_dims, dop=dropout_rate, act_fn=nn.ReLU).to(device)
     target_private_vae = MODEL_BACKBONE(input_size=input_size, output_size=input_size, latent_size=latent_size, encoder_hidden_dims=encoder_hidden_dims, decoder_hidden_dims=decoder_hidden_dims, dop=dropout_rate, act_fn=nn.ReLU).to(device)
-    cancer_classifier = PrimaryClassifier(input_dim=latent_size, num_classes=num_classes, hidden_dims=[64, 32], dop=0.2, act_fn=nn.ReLU).to(device)
+    cancer_classifier = PrimaryClassifier(input_dim=cls_dim, num_classes=num_classes, hidden_dims=[64, 32], dop=0.2, act_fn=nn.ReLU).to(device)
     shared_vae.apply(init_weights)
     source_private_vae.apply(init_weights)
     target_private_vae.apply(init_weights)
@@ -963,10 +1083,13 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
             p_vae_loss = vaeloss(pccle_mu, pccle_sigma, pccle_re_x, ccledata) + vaeloss(ptcga_mu, ptcga_sigma, ptcga_re_x, tcgadata)
             vae_loss = vaeloss(ccle_mu, ccle_sigma, ccle_re_x, ccledata) + vaeloss(tcga_mu, tcga_sigma, tcga_re_x, tcgadata)
             o_loss = ortho_loss(ccle_z, pccle_z) + ortho_loss(tcga_z, ptcga_z)
+            cls_view = subspace_cfg.get("classifier_latent_view", "shared")
+            ccle_cls_z = select_latent_view(ccle_z, cls_view, subspace_cfg)
+            tcga_cls_z = select_latent_view(tcga_z, cls_view, subspace_cfg)
             if use_class_weight and source_weights is not None and target_weights is not None:
-                cls_loss = s_cls_criterion(cancer_classifier(ccle_z), ccle_labels) + t_cls_criterion(cancer_classifier(tcga_z), tcga_labels)
+                cls_loss = s_cls_criterion(cancer_classifier(ccle_cls_z), ccle_labels) + t_cls_criterion(cancer_classifier(tcga_cls_z), tcga_labels)
             else:
-                cls_loss = cls_criterion(cancer_classifier(ccle_z), ccle_labels) + cls_criterion(cancer_classifier(tcga_z), tcga_labels)
+                cls_loss = cls_criterion(cancer_classifier(ccle_cls_z), ccle_labels) + cls_criterion(cancer_classifier(tcga_cls_z), tcga_labels)
             loss = o_loss + vae_loss + p_vae_loss + lambda_cls_eff * cls_loss
             loss.backward()
             optimizer.step()
@@ -993,10 +1116,12 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
             eval_p = vaeloss(pccle_mu, pccle_sigma, pccle_re_x, sourcetest) + vaeloss(ptcga_mu, ptcga_sigma, ptcga_re_x, targettest)
             eval_v = vaeloss(ccle_mu, ccle_sigma, ccle_re_x, sourcetest) + vaeloss(tcga_mu, tcga_sigma, tcga_re_x, targettest)
             eval_o = ortho_loss(ccle_z, pccle_z) + ortho_loss(tcga_z, ptcga_z)
+            ccle_cls_z = select_latent_view(ccle_z, subspace_cfg.get("classifier_latent_view", "shared"), subspace_cfg)
+            tcga_cls_z = select_latent_view(tcga_z, subspace_cfg.get("classifier_latent_view", "shared"), subspace_cfg)
             if use_class_weight and source_weights is not None and target_weights is not None:
-                eval_cls = s_cls_criterion(cancer_classifier(ccle_z), source_test_labels) + t_cls_criterion(cancer_classifier(tcga_z), target_test_labels)
+                eval_cls = s_cls_criterion(cancer_classifier(ccle_cls_z), source_test_labels) + t_cls_criterion(cancer_classifier(tcga_cls_z), target_test_labels)
             else:
-                eval_cls = cls_criterion(cancer_classifier(ccle_z), source_test_labels) + cls_criterion(cancer_classifier(tcga_z), target_test_labels)
+                eval_cls = cls_criterion(cancer_classifier(ccle_cls_z), source_test_labels) + cls_criterion(cancer_classifier(tcga_cls_z), target_test_labels)
             eval_total = eval_o + eval_p + eval_v + lambda_cls_eff * eval_cls
             append_csv_log(evalloss_csv, {
                 "epoch": epoch + 1,
@@ -1025,7 +1150,7 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
     cancer_classifier.load_state_dict(classifier_dict)
     gan_epoch = param["train_num_epochs"]
     gan_lr = param["gan_learning_rate"]
-    discrim = Discriminator(input_dim=latent_size * 2, dop=dropout_rate).to(device)
+    discrim = Discriminator(input_dim=discriminator_input_dim(subspace_cfg), dop=dropout_rate).to(device)
     discrim.apply(init_weights)
     gan_cfg = resolve_gan_training_params(param, gan_lr, lambda_cls)
     gan_gen_update_interval = gan_cfg["gan_gen_update_interval"]
@@ -1036,6 +1161,9 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
     proto_cfg = resolve_proto_training_params(param)
     class_gap_cfg = resolve_class_gap_training_params(param)
     cmmd_cfg = resolve_cmmd_training_params(param)
+    topology_cfg = resolve_tumor_topology_training_params(param)
+    supcon_cfg = resolve_tumor_supcon_training_params(param)
+    vicreg_cfg = resolve_tumor_vicreg_training_params(param)
     lambda_adv = proto_cfg["lambda_adv"]
     proto_temperature = proto_cfg["proto_temperature"]
     proto_min_samples_per_class = proto_cfg["proto_min_samples_per_class"]
@@ -1100,6 +1228,11 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
         lambda_proto_eff = get_lambda_proto_eff(gan_epoch_idx, param)
         lambda_cmmd_eff = get_lambda_cmmd_eff(gan_epoch_idx, param)
         lambda_class_gap_eff = get_lambda_class_gap_eff(gan_epoch_idx, param)
+        lambda_tumor_topology_eff = get_lambda_tumor_topology_eff(gan_epoch_idx, param)
+        lambda_tumor_supcon_eff = get_lambda_tumor_supcon_eff(gan_epoch_idx, param)
+        lambda_tumor_var_eff = get_lambda_tumor_var_eff(gan_epoch_idx, param)
+        lambda_tumor_cov_eff = get_lambda_tumor_cov_eff(gan_epoch_idx, param)
+        lambda_subspace_ortho_eff = get_lambda_subspace_ortho_eff(gan_epoch_idx, param)
         dloss_list = []
         genloss_list = []
         cls_only_list = []
@@ -1117,6 +1250,7 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
                     discrim_optimizer,
                     discrim_scheduler,
                     gan_gp_weight=gan_gp_weight,
+                    subspace_cfg=subspace_cfg,
                 )
             )
             if gan_cls_update_every_step:
@@ -1132,6 +1266,7 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
                     source_weights=source_weights,
                     target_weights=target_weights,
                     use_class_weight=use_class_weight,
+                    subspace_cfg=subspace_cfg,
                 )
                 cls_only_list.append(_to_scalar(cls_log.get("cls_only_loss", 0.0)))
             if (step + 1) % gan_gen_update_interval == 0:
@@ -1167,6 +1302,22 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
                         class_gap_detach_source=class_gap_cfg["class_gap_detach_source"],
                         class_gap_detach_target=class_gap_cfg["class_gap_detach_target"],
                         class_gap_l2_squared=class_gap_cfg["class_gap_l2_squared"],
+                        subspace_cfg=subspace_cfg,
+                        lambda_tumor_topology_eff=lambda_tumor_topology_eff,
+                        tumor_topology_metric=topology_cfg["tumor_topology_metric"],
+                        tumor_topology_loss_type=topology_cfg["tumor_topology_loss_type"],
+                        tumor_topology_min_samples_per_domain=topology_cfg["tumor_topology_min_samples_per_domain"],
+                        tumor_topology_detach_source=topology_cfg["tumor_topology_detach_source"],
+                        tumor_topology_normalize_distance=topology_cfg["tumor_topology_normalize_distance"],
+                        lambda_tumor_supcon_eff=lambda_tumor_supcon_eff,
+                        tumor_supcon_temperature=supcon_cfg["tumor_supcon_temperature"],
+                        tumor_supcon_min_samples_per_class=supcon_cfg["tumor_supcon_min_samples_per_class"],
+                        tumor_supcon_latent_view=supcon_cfg["tumor_supcon_latent_view"],
+                        lambda_tumor_var_eff=lambda_tumor_var_eff,
+                        lambda_tumor_cov_eff=lambda_tumor_cov_eff,
+                        tumor_vicreg_latent_view=vicreg_cfg["tumor_vicreg_latent_view"],
+                        tumor_vicreg_var_target=vicreg_cfg["tumor_vicreg_var_target"],
+                        lambda_subspace_ortho_eff=lambda_subspace_ortho_eff,
                         source_weights=source_weights,
                         target_weights=target_weights,
                         use_class_weight=use_class_weight,
@@ -1352,6 +1503,14 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
         "class_gap_valid_rate": (
             float(class_gap_valid_steps) / float(class_gap_total_steps) if class_gap_total_steps else None
         ),
+        "lambda_tumor_topology": topology_cfg["lambda_tumor_topology"],
+        "tumor_topology_metric": topology_cfg["tumor_topology_metric"],
+        "lambda_tumor_supcon": supcon_cfg["lambda_tumor_supcon"],
+        "lambda_tumor_var": vicreg_cfg["lambda_tumor_var"],
+        "lambda_tumor_cov": vicreg_cfg["lambda_tumor_cov"],
+        "use_tumor_subspace": subspace_cfg["use_tumor_subspace"],
+        "tumor_dim": subspace_cfg["tumor_dim"],
+        "lambda_subspace_ortho": subspace_cfg["lambda_subspace_ortho"],
         **proto_guard,
         **structure_metrics,
         "gan_early_stop_metric": gan_early_stop_metric,

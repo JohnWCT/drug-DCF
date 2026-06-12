@@ -62,18 +62,24 @@ def _flatten_base_params(base_config: dict) -> dict:
 def expand_sweep_combinations(sweep: dict) -> List[dict]:
     sweep = copy.deepcopy(sweep)
     paired = sweep.pop("paired_params", None)
+    paired_groups = sweep.pop("paired_sweep_groups", None)
     if paired is not None:
         if not isinstance(paired, list) or not paired:
             raise ValueError("paired_params must be a non-empty list of parameter dicts")
+        if paired_groups is not None and (not isinstance(paired_groups, list) or not paired_groups):
+            raise ValueError("paired_sweep_groups must be a non-empty list of parameter dicts")
         rest_keys = list(sweep.keys())
         rest_values = [sweep[k] for k in rest_keys]
         rest_combos = [dict(zip(rest_keys, combo)) for combo in product(*rest_values)] if rest_keys else [{}]
+        group_list = paired_groups if paired_groups is not None else [{}]
         combos = []
         for pair in paired:
-            for rest in rest_combos:
-                merged = copy.deepcopy(rest)
-                merged.update(copy.deepcopy(pair))
-                combos.append(merged)
+            for group in group_list:
+                for rest in rest_combos:
+                    merged = copy.deepcopy(rest)
+                    merged.update(copy.deepcopy(pair))
+                    merged.update(copy.deepcopy(group))
+                    combos.append(merged)
         return combos
     keys = list(sweep.keys())
     values = [sweep[k] for k in keys]

@@ -19,14 +19,18 @@ SELECTION_MODES = (
     "round4_weighted",
     "round4_1_structure_first",
     "round5_structure_first",
+    "round6_sweetspot",
 )
-STRUCTURE_FIRST_MODES = frozenset({"round4_1_structure_first", "round5_structure_first"})
+STRUCTURE_FIRST_MODES = frozenset(
+    {"round4_1_structure_first", "round5_structure_first", "round6_sweetspot"}
+)
 RANKING_PRIMARY_BY_MODE = {
     "score_total": "score_total",
     "round4_kmeans_first": "score_kmeans",
     "round4_weighted": "score_round4",
     "round4_1_structure_first": "wasserstein",
     "round5_structure_first": "wasserstein",
+    "round6_sweetspot": "sweetspot_score",
 }
 RANKING_SECONDARY_BY_MODE = {
     "score_total": ["score_total"],
@@ -34,6 +38,7 @@ RANKING_SECONDARY_BY_MODE = {
     "round4_weighted": ["score_round4", "score_kmeans", "wasserstein"],
     "round4_1_structure_first": ["kmeans_ari", "fid", "mmd"],
     "round5_structure_first": ["kmeans_ari", "fid", "mmd", "class_gap_loss"],
+    "round6_sweetspot": ["sweetspot_kmeans_score", "sweetspot_wasserstein_score", "kmeans_ari", "wasserstein"],
 }
 
 DEFAULT_FORCE_BASELINE_PATHS = {
@@ -145,6 +150,10 @@ def apply_structure_first_stage1_filter(all_df: pd.DataFrame, selection_mode: st
         from tools.collapse_detection import apply_round5_stage1_filter
 
         return apply_round5_stage1_filter(all_df)
+    if selection_mode == "round6_sweetspot":
+        from tools.collapse_detection import apply_round6_stage1_filter
+
+        return apply_round6_stage1_filter(all_df)
     raise ValueError(f"Not a structure-first selection mode: {selection_mode}")
 
 
@@ -326,6 +335,10 @@ def apply_selection_ranking(df: pd.DataFrame, selection_mode: str = "score_total
         from tools.collapse_detection import rank_round5_stage2
 
         return rank_round5_stage2(out)
+    elif selection_mode == "round6_sweetspot":
+        from tools.round6_selection import rank_round6_sweetspot
+
+        return rank_round6_sweetspot(out)
     else:
         sort_cols = [("score_total", False)]
 

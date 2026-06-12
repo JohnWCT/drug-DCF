@@ -1,0 +1,27 @@
+{
+  "_metadata": {
+    "description": "Round 6E: VICReg-style tumor latent anti-collapse (paired var/cov lambdas).",
+    "reference_baseline": "exp_001",
+    "expected_jobs": 12
+  },
+  "base_config": "config/params_proto_base_exp001_vaewc.json",
+  "output_config_dir": "config/generated/vaewc_round6E_tumor_vicreg_stabilizer",
+  "run_id": "vaewc_round6E_tumor_vicreg_stabilizer",
+  "sweep": {
+    "paired_params": [
+      {"latent_size": 32, "encoder_dims": [256, 128]},
+      {"latent_size": 64, "encoder_dims": [512, 256, 128]}
+    ],
+    "lambda_proto": [0],
+    "lambda_class_gap": [0],
+    "lambda_tumor_topology": [0, 0.0003],
+    "paired_sweep_groups": [
+      {"lambda_tumor_var": 0, "lambda_tumor_cov": 0},
+      {"lambda_tumor_var": 0.0001, "lambda_tumor_cov": 0.0001},
+      {"lambda_tumor_var": 0.0003, "lambda_tumor_cov": 0.0003}
+    ],
+    "tumor_vicreg_latent_view": ["shared"],
+    "tumor_vicreg_start_epoch": [5],
+    "tumor_vicreg_full_epoch": [30]
+  }
+}

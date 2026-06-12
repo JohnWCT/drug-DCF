@@ -1302,3 +1302,72 @@ Top-4 皆為 **latent=32**；128 在下游明顯偏弱（exp_016、exp_038）。
 | Class-gap 是否值得繼續？ | pretrain 有亮點，下游未贏 control；可縮小 sweep 或僅作 ablation |
 | InfoNCE 是否保留？ | 入選者全 `λ_proto=0`；appendix 可保留但非主線 |
 | 主線收斂方向？ | **`latent_size=32` pure control**（exp_001 / exp_005 族）+ 以 **exp_001** 為 production checkpoint |
+
+---
+
+## 14. Round 6 Tumor-topology-aware latent representation（2026-06-12）
+
+**狀態：** 程式與 sweep **已就緒**；pretrain / finetune **尚未執行**。
+
+完整操作手冊：`docs/round6_optimization_manual.md`
+
+### 14.1 Motivation from Round 5
+
+Round 5 下游最佳 **exp_001**（Avg TCGA=0.5403）實質為 **`lambda_proto=0` pure control**；wasserstein-first selection 與下游最佳錯位。Round 6 主題改為 **tumor latent geometry**（topology / subspace / within-domain SupCon / VICReg），不以提高 `lambda_cls` 或 cross-domain InfoNCE 為主線。
+
+### 14.2 分支總覽
+
+| 分支 | Run ID | Jobs | 目的 |
+|------|--------|------|------|
+| **6A** | `vaewc_round6A_tumor_topology` | 16 | class prototype **topology** 保留 |
+| **6B** | `vaewc_round6B_topology_classgap_combo` | 18 | topology + class-gap 組合 |
+| **6C** | `vaewc_round6C_tumor_transfer_subspace` | 24 | tumor / transfer subspace split |
+| **6D** | `vaewc_round6D_within_domain_tumor_supcon` | 32 | domain 內 SupCon |
+| **6E** | `vaewc_round6E_tumor_vicreg_stabilizer` | 12 | VICReg anti-collapse |
+| **6S** | selection | — | `round6_sweetspot`（非獨立 pretrain sweep） |
+
+Baseline config：`config/params_proto_base_exp001_vaewc.json`（對齊 R5 **exp_001**）。
+
+### 14.3 新增程式
+
+| 模組 | 用途 |
+|------|------|
+| `tools/tumor_geometry.py` | `compute_tumor_topology_loss` |
+| `tools/tumor_subspace.py` | latent view / orthogonality |
+| `tools/tumor_supcon.py` | within-domain SupCon |
+| `tools/tumor_vicreg.py` | variance + covariance regularization |
+| `tools/round6_selection.py` | sweet-spot score + `rank_round6_sweetspot` |
+| `tools/analyze_round6_pretrain.py` | 跨分支 pretrain 診斷 |
+
+`pretrain_VAEwC.py` 已接入上述 loss（僅 GAN generator step）；`optimization_selection.py` 新增 **`round6_sweetspot`**。
+
+### 14.4 執行（摘要）
+
+```bash
+bash tools/run_round6_pretrain.sh
+
+python tools/optimization_runner.py select \
+  --run-dir result/optimization_runs/round6_combined \
+  --result-dirs \
+    result/optimization_runs/vaewc_round6A_tumor_topology/pretrain,\
+    result/optimization_runs/vaewc_round6B_topology_classgap_combo/pretrain,\
+    result/optimization_runs/vaewc_round6C_tumor_transfer_subspace/pretrain,\
+    result/optimization_runs/vaewc_round6D_within_domain_tumor_supcon/pretrain,\
+    result/optimization_runs/vaewc_round6E_tumor_vicreg_stabilizer/pretrain \
+  --selection-mode round6_sweetspot \
+  --force-baseline-models exp_001,exp_005,exp_746 \
+  --top-k 30
+```
+
+Finetune 仍用 `config/params_finetune_mini.json`（不變 grid）。
+
+### 14.5 成功標準
+
+1. `Average_TCGA_AUC_mean` **> 0.5403**（R5 exp_001）
+2. `kmeans_ari` ≥ 0.65，無 structure collapse
+3. **至少一個 active tumor loss 分支**進 downstream Top-5（非全 `lambda=0` control）
+4. `round6_sweetspot` 選模較 `round5_structure_first` 更接近下游最佳
+
+### 14.6–14.10 結果
+
+（pretrain / finetune 完成後填寫：分支排名、topology vs class-gap、subspace trade-off、selection 對照、最終 checkpoint 建議）

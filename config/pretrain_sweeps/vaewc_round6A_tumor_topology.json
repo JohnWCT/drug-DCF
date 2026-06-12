@@ -1,0 +1,26 @@
+{
+  "_metadata": {
+    "description": "Round 6A: tumor prototype topology preservation.",
+    "reference_baseline": "exp_001",
+    "expected_jobs": 16
+  },
+  "base_config": "config/params_proto_base_exp001_vaewc.json",
+  "output_config_dir": "config/generated/vaewc_round6A_tumor_topology",
+  "run_id": "vaewc_round6A_tumor_topology",
+  "sweep": {
+    "paired_params": [
+      {"latent_size": 32, "encoder_dims": [256, 128]},
+      {"latent_size": 64, "encoder_dims": [512, 256, 128]}
+    ],
+    "lambda_proto": [0],
+    "lambda_class_gap": [0],
+    "lambda_tumor_topology": [0, 0.0001, 0.0003, 0.001],
+    "tumor_topology_metric": ["cosine_distance", "euclidean"],
+    "tumor_topology_loss_type": ["smooth_l1"],
+    "tumor_topology_start_epoch": [5],
+    "tumor_topology_full_epoch": [30],
+    "tumor_topology_min_samples_per_domain": [2],
+    "tumor_topology_detach_source": [true],
+    "tumor_topology_normalize_distance": [true]
+  }
+}

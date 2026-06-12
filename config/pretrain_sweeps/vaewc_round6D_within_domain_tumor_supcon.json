@@ -1,0 +1,25 @@
+{
+  "_metadata": {
+    "description": "Round 6D: within-domain tumor supervised contrastive learning.",
+    "reference_baseline": "exp_001",
+    "expected_jobs": 32
+  },
+  "base_config": "config/params_proto_base_exp001_vaewc.json",
+  "output_config_dir": "config/generated/vaewc_round6D_within_domain_tumor_supcon",
+  "run_id": "vaewc_round6D_within_domain_tumor_supcon",
+  "sweep": {
+    "paired_params": [
+      {"latent_size": 32, "encoder_dims": [256, 128]},
+      {"latent_size": 64, "encoder_dims": [512, 256, 128]}
+    ],
+    "lambda_proto": [0],
+    "lambda_class_gap": [0],
+    "lambda_tumor_topology": [0, 0.0003],
+    "lambda_tumor_supcon": [0, 0.0001, 0.0003, 0.001],
+    "tumor_supcon_temperature": [1.0, 2.0],
+    "tumor_supcon_start_epoch": [5],
+    "tumor_supcon_full_epoch": [30],
+    "tumor_supcon_min_samples_per_class": [2],
+    "tumor_supcon_latent_view": ["shared"]
+  }
+}

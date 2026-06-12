@@ -1,0 +1,28 @@
+{
+  "_metadata": {
+    "description": "Round 6C: tumor / transfer subspace split.",
+    "reference_baseline": "exp_001",
+    "expected_jobs": 24
+  },
+  "base_config": "config/params_proto_base_exp001_vaewc.json",
+  "output_config_dir": "config/generated/vaewc_round6C_tumor_transfer_subspace",
+  "run_id": "vaewc_round6C_tumor_transfer_subspace",
+  "sweep": {
+    "paired_params": [
+      {"latent_size": 32, "encoder_dims": [256, 128]},
+      {"latent_size": 64, "encoder_dims": [512, 256, 128]}
+    ],
+    "use_tumor_subspace": [true],
+    "tumor_dim": [8, 16],
+    "classifier_latent_view": ["tumor"],
+    "topology_latent_view": ["tumor"],
+    "alignment_latent_view": ["transfer"],
+    "lambda_subspace_ortho": [0, 0.0003, 0.001],
+    "lambda_tumor_topology": [0.0003],
+    "tumor_topology_metric": ["cosine_distance"],
+    "tumor_topology_loss_type": ["smooth_l1"],
+    "lambda_class_gap": [0, 0.0003],
+    "class_gap_metric": ["cosine"],
+    "lambda_proto": [0]
+  }
+}
