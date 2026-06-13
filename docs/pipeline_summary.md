@@ -1548,28 +1548,57 @@ Round 7 主軸：**7A** exp_010 鄰域 control refinement；**7B** VICReg-only a
 
 \*7A 載入含 OOM 重試產生之額外 checkpoint；sweep 以 manifest **108 success** 為準。
 
-### 15.7 Selection + Finetune（進行中，2026-06-13）
+### 15.7 Selection + Finetune 結果（2026-06-13 完成）
 
 | 階段 | 結果 |
 |------|------|
 | Selection（7C） | **30 模型**（`round7_diverse_downstream_probe`，含 exp_010 / exp_012 / exp_001 / exp_005 / exp_746） |
-| Finetune 首輪 | **120 jobs**（30×4 mini config）；首輪 parallel=42 因 CUBLAS 競爭大量失敗 → **重跑 parallel=26** |
+| Finetune 首輪 | **120/120 success**（30×4 mini config）；首輪 parallel=42 因 CUBLAS 競爭失敗 → **重跑 parallel=26** 成功 |
+| Aggregate / report | `round7_combined/aggregate/aggregate_scores.csv`、`reports/final_selection_report.md`、`reports/run_summary.json` |
 | Finetune sensitivity（7D） | _pending_ |
-| 下游最佳 | _pending_（目標 Avg TCGA **> 0.5569**） |
+| 30 模型 mean Avg TCGA | **0.5109** |
+| 超越 R6 exp_010（0.5569） | **2 / 30**（exp_048、exp_021） |
 
-**Selection Top-5（exp010-sim）：** exp_034、exp_010、exp_164、exp_165…（多數 G1_exp010_like_control）。
+**Downstream Top-5（Average_TCGA_AUC_mean，4 finetune runs 平均）：**
+
+| Rank | Model | Avg TCGA | Global TCGA | Branch | Selection group |
+|------|-------|----------|-------------|--------|-----------------|
+| 1 | **exp_048** | **0.5918** | 0.5836 | 7B VICReg | G2_vicreg_active |
+| 2 | **exp_021** | **0.5723** | 0.6035 | 7B VICReg | G6_high_integrated_proxy |
+| 3 | exp_178 | 0.5444 | 0.5843 | 7A control | G8_fill_ranked |
+| 4 | exp_127 | 0.5385 | 0.5778 | 7A control | G8_fill_ranked |
+| 5 | exp_041 | 0.5328 | 0.6022 | 7B VICReg | G2_vicreg_active |
+
+**Forced baseline 對照（R7 finetune）：**
+
+| Model | Avg TCGA | 備註 |
+|-------|----------|------|
+| exp_010（7A retrain） | 0.4835 | 低於 R6 exp_010 **0.5569**（不同 checkpoint / sweep 設定） |
+| exp_012 | 0.4839 | |
+| exp_005 | 0.5197 | historical baseline |
+| exp_034（selection #1 by exp010-sim） | 0.5071 | pretrain proxy 與 downstream 仍錯位 |
+
+**觀察：**
+
+1. **7B VICReg** 產出 Round 7 最佳下游：**exp_048**（+0.035 vs R6 exp_010）。
+2. **7A control refinement** 未在 Avg TCGA 上超越 R6 exp_010；selection 偏 exp010-like 的 G1 模型下游普遍偏低。
+3. exp_048 / exp_021 的 Integrated Avg TCGA（0.544 / 0.538）仍低於 primary Avg TCGA，但 primary 指標已達成功標準。
+4. Finetune 重跑耗時約 **4 h**（parallel=26，~30 min/batch）。
 
 ```bash
-# Finetune 重跑（若中斷）
-docker exec -w /workspace/DAPL DAPL bash tools/run_round7_finetune_retry.sh
-
-# 監控
-docker exec -w /workspace/DAPL DAPL python3 -c "
-import pandas as pd
-print(pd.read_csv('result/optimization_runs/round7_combined/manifests/finetune_dispatch_manifest.csv').status.value_counts())
-"
+# 重現 aggregate（finetune 已完成時）
+docker exec -w /workspace/DAPL DAPL python3 tools/optimization_runner.py aggregate \
+  --run-dir result/optimization_runs/round7_combined
+docker exec -w /workspace/DAPL DAPL python3 tools/optimization_runner.py report \
+  --run-dir result/optimization_runs/round7_combined
 ```
 
 ### 15.8 Final recommendation
 
-_（待 §15.7 finetune aggregate 後更新）_
+| 決策 | 建議 |
+|------|------|
+| **Round 7 主線 checkpoint** | **exp_048**（7B VICReg，Avg TCGA **0.5918**） |
+| 次選 | **exp_021**（7B VICReg，Avg TCGA **0.5723**） |
+| R6 exp_010 地位 | 仍為 R6 定案基準；R7 7A 重訓 exp_010 未復現 0.5569 |
+| 7D finetune sensitivity | 可選：對 exp_048 / exp_021 跑 8 combos/checkpoint，驗證 finetune 是否還有 headroom |
+| Pretrain 結論 | 7A 鄰域掃描未穩定提升 downstream；**VICReg-only 7B** 為 R7 主要增益來源 |

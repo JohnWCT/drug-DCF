@@ -11,10 +11,10 @@
 |------|--------------|------|--------|
 | **7A** Control refinement | `config/pretrain_sweeps/vaewc_round7A_exp010_control_refinement.json` | 108 ✓ | `vaewc_round7A_exp010_control_refinement` |
 | **7B** VICReg ablation | `config/pretrain_sweeps/vaewc_round7B_vicreg_focused_ablation.json` | 56 ✓ | `vaewc_round7B_vicreg_focused_ablation` |
-| **7C** Selection | `--selection-mode round7_diverse_downstream_probe` | 待執行 | `round7_combined` |
-| **7D** Finetune sensitivity | `config/finetune_sweeps/round7_finetune_sensitivity.json` | 8/checkpoint | `round7_finetune_sensitivity` |
+| **7C** Selection | `--selection-mode round7_diverse_downstream_probe` | 30 ✓ | `round7_combined` |
+| **7D** Finetune sensitivity | `config/finetune_sweeps/round7_finetune_sensitivity.json` | 8/checkpoint（pending） | `round7_finetune_sensitivity` |
 
-**GPU 平行度（全專案共用）：** `config/gpu_parallel_profile.json` + `tools/gpu_parallel_env.sh`（pretrain **33**、finetune **42**）。
+**GPU 平行度（全專案共用）：** `config/gpu_parallel_profile.json` + `tools/gpu_parallel_env.sh`（pretrain **33**；combined finetune 實測 **26** 穩定，profile 預設 finetune **42** 易 CUBLAS 競爭）。
 
 Baseline configs：
 
@@ -184,15 +184,23 @@ docker exec -w /workspace/DAPL DAPL python3 -m pytest tests/test_round7_*.py -q
 | 7A/7B 均未超越 exp_010 | pretrain 可能近上限；轉向下游 finetune / 資料協議 |
 | Finetune sensitivity 有提升 | 下一輪固定 exp_010-like pretrain，優化 classifier |
 
-## 執行結果摘要（2026-06-13）
+## 執行結果摘要（2026-06-13 完成）
 
 | 階段 | 結果 |
 |------|------|
 | **Pretrain 7A** | **108/108 success**（manifest） |
 | **Pretrain 7B** | **56/56 success**（manifest） |
-| GPU 平行度 | `config/gpu_parallel_profile.json`：**pretrain=33**、finetune=42（RTX 6000 Ada；parallel=36 曾整批 OOM） |
+| GPU 平行度 | pretrain **33**；combined finetune **26**（42→CUBLAS；36 pretrain→OOM） |
 | 診斷 | `result/optimization_runs/round7_combined/reports/round7_pretrain_diagnostics.csv` |
-| **Selection + Finetune** | **Selection 30 模型完成**；Finetune **120 jobs 進行中**（parallel=26） |
+| **Selection（7C）** | **30 模型**（`round7_diverse_downstream_probe`） |
+| **Finetune 首輪** | **120/120 success** → aggregate + report 已產出 |
+| **下游最佳** | **exp_048** Avg TCGA **0.5918**（7B VICReg）；次選 **exp_021** **0.5723** |
+| vs R6 exp_010（0.5569） | **2/30** 超越；R7 7A 重訓 exp_010 僅 **0.4835** |
+
+**Downstream Top-5：** exp_048（0.5918）> exp_021（0.5723）> exp_178（0.5444）> exp_127（0.5385）> exp_041（0.5328）。
+
+**Aggregate 路徑：** `result/optimization_runs/round7_combined/aggregate/aggregate_scores.csv`  
+**Report：** `result/optimization_runs/round7_combined/reports/final_selection_report.md`
 
 **Finetune 重跑（若 parallel=42 造成 CUBLAS 錯誤）：**
 
@@ -201,5 +209,7 @@ docker exec -w /workspace/DAPL DAPL bash tools/run_round7_finetune_retry.sh
 ```
 
 **Pretrain 診斷摘要（combined 182 runs loaded）：** mean exp010-similarity **0.638**；7A best control-like **exp_124**；7B best VICReg **exp_041**；collapse rate ~51%（structure gate 仍嚴）。
+
+**定案：** 採 **exp_048** 作 R7 主線 checkpoint；7D sensitivity 為可選後續。詳見 `docs/pipeline_summary.md` §15.7–15.8。
 
 > 7A `pretrain/` 目錄可能含 OOM 重試產生的額外 `exp_*` 子目錄；以 manifest **108 success** 為準。
