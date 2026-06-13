@@ -781,7 +781,14 @@ def write_selection_outputs(
         ]
     )
     if info.get("group_counts"):
-        report_lines.extend(["", "## Round 7 selection groups", ""])
+        round_label = (
+            "Round 8"
+            if selection_mode == "round8_architecture_broad_probe"
+            else "Round 7"
+            if selection_mode == "round7_diverse_downstream_probe"
+            else "Selection"
+        )
+        report_lines.extend(["", f"## {round_label} selection groups", ""])
         for group, count in info["group_counts"].items():
             report_lines.append(f"- {group}: {count}")
     if info.get("shortage"):
