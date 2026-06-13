@@ -84,27 +84,33 @@ python tools/optimization_runner.py select \
 ## Finetune + aggregate
 
 ```bash
+# 首輪或完整重跑
 python tools/optimization_runner.py finetune \
   --run-dir result/optimization_runs/round6_combined \
   --top10 result/optimization_runs/round6_combined/selection/pretrain_top10.csv \
-  --epochs 1000 --batch-size 4096 --mini-batch-size 1024 --max-parallel 26
+  --epochs 1000 --batch-size 4096 --mini-batch-size 1024 --max-parallel 42
+
+# 僅重跑 failed / running jobs（推薦）
+bash tools/run_round6_finetune_retry.sh
 
 python tools/optimization_runner.py aggregate --run-dir result/optimization_runs/round6_combined
 ```
 
-> **2026-06-12 執行紀錄：** `max_parallel=42` 時 23/64 finetune OOM（`-9`）。建議 **26** 並重跑 failed jobs。
-
-## 執行結果摘要（2026-06-12）
+## 執行結果摘要（定案 2026-06-13）
 
 | 階段 | 結果 |
 |------|------|
 | Pretrain 6A–6E | **102/102** |
 | Selection | **16** 模型（top-k=30 因 sweetspot gate 不足） |
-| Finetune | **41/64** success（23 OOM） |
-| 下游最佳（暫） | **exp_010** Avg TCGA **0.5643**（3/4 combo，λ=0） |
-| R5 基準 | exp_001 **0.5403** |
+| Finetune | 首輪 41/64 → 重跑後 **64/64 success** |
+| 重跑設定 | `batch=12288`, `mini=3072`, `parallel=42` |
+| 下游最佳 | **exp_010** Avg TCGA **0.5569**（4/4，λ=0，6E） |
+| R5 基準 | exp_001 **0.5403**（已被 R6 超越 +0.0166） |
+| Active-loss Top-5 | **exp_012** #4（VICReg λ=0.0003，Integrated 0.562） |
 
-完整分析：`docs/pipeline_summary.md` §14.6–§14.10。Aggregate：`result/optimization_runs/round6_combined/aggregate/aggregate_scores.csv`。
+完整分析：`docs/pipeline_summary.md` §14.6–§14.10。  
+Aggregate：`result/optimization_runs/round6_combined/aggregate/aggregate_scores.csv`  
+Checkpoint 建議：**exp_010**（主線）、**exp_012**（active VICReg 對照）。
 
 ## 測試
 
