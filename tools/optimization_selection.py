@@ -614,7 +614,10 @@ def write_selection_outputs(
         filter_report_path = ""
 
     aggregated_path = os.path.join(selection_dir, "aggregated_vaewc_results.csv")
-    if selection_mode in STRUCTURE_FIRST_MODES or selection_mode in ROUND7_SELECTION_MODES:
+    already_enriched_per_branch = (
+        selection_mode in STRUCTURE_FIRST_MODES or selection_mode in ROUND7_SELECTION_MODES
+    )
+    if already_enriched_per_branch:
         # all_df already enriched per branch; do not re-enrich with primary result_dir only.
         stage_mode = "round6_sweetspot" if selection_mode == "round7_diverse_downstream_probe" else selection_mode
         aggregated_df = apply_structure_first_stage1_filter(all_df, stage_mode)
@@ -625,7 +628,9 @@ def write_selection_outputs(
             raise SelectionInsufficientError(
                 "No experiments passed the quality filter; aggregated_vaewc_results.csv was not created."
             )
-        aggregated_df = pd.read_csv(aggregated_path)
+
+    aggregated_df = pd.read_csv(aggregated_path)
+    if not already_enriched_per_branch:
         aggregated_df = enrich_selection_metadata(aggregated_df, _resolve_path(result_dir))
 
     excluded_proto = 0
