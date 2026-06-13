@@ -2,16 +2,16 @@
 # Retry failed Round 6 finetune jobs → aggregate → report.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# shellcheck source=tools/gpu_parallel_env.sh
+source tools/gpu_parallel_env.sh
 
 RUN_DIR="${RUN_DIR:-result/optimization_runs/round6_combined}"
 TOP10="${RUN_DIR}/selection/pretrain_top10.csv"
 FT_MANIFEST="${RUN_DIR}/manifests/finetune_dispatch_manifest.csv"
 LOG="${RUN_DIR}/logs/round6_finetune_retry.log"
-
-# RTX 6000 Ada: parallel=42 + batch=12288 targets higher GPU/memory utilization.
-FINETUNE_BATCH_SIZE="${FINETUNE_BATCH_SIZE:-12288}"
-FINETUNE_MINI_BATCH="${FINETUNE_MINI_BATCH:-3072}"
-FINETUNE_MAX_PARALLEL="${FINETUNE_MAX_PARALLEL:-42}"
+FINETUNE_BATCH_SIZE="${FINETUNE_BATCH_SIZE}"
+FINETUNE_MINI_BATCH="${FINETUNE_MINI_BATCH}"
+FINETUNE_MAX_PARALLEL="${FINETUNE_MAX_PARALLEL}"
 
 mkdir -p "${RUN_DIR}/logs"
 exec > >(tee -a "${LOG}") 2>&1

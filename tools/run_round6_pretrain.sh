@@ -2,8 +2,10 @@
 # Round 6 multi-branch pretrain (6A–6E).
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# shellcheck source=tools/gpu_parallel_env.sh
+source tools/gpu_parallel_env.sh
 DEVICE="${DEVICE:-cuda}"
-PARALLEL="${PARALLEL:-20}"
+PARALLEL="${PARALLEL}"
 
 for SPEC in \
   vaewc_round6A_tumor_topology \

@@ -44,7 +44,14 @@ tools/run_round7_pretrain.sh        # 7A+7B generate + pretrain + diagnostics
 
 ```bash
 bash tools/run_round7_pretrain.sh
-# 環境變數：DEVICE=cuda PARALLEL=20（同 Round 6，目標 ~80%+ GPU）
+# 平行度由 config/gpu_parallel_profile.json 載入（預設 pretrain max_parallel=33）
+# 覆寫：PRETRAIN_PARALLEL=30 bash tools/run_round7_pretrain.sh
+```
+
+執行中若要提高平行度並續跑（不重跑已完成 jobs）：
+
+```bash
+bash tools/resume_pretrain_with_profile.sh result/optimization_runs/vaewc_round7A_exp010_control_refinement
 ```
 
 ## Generate configs
@@ -68,11 +75,11 @@ python tools/optimization_runner.py generate \
 ```bash
 python tools/optimization_runner.py pretrain \
   --run-dir result/optimization_runs/vaewc_round7A_exp010_control_refinement \
-  --device cuda --max-parallel 20
+  --device cuda --max-parallel 33
 
 python tools/optimization_runner.py pretrain \
   --run-dir result/optimization_runs/vaewc_round7B_vicreg_focused_ablation \
-  --device cuda --max-parallel 20
+  --device cuda --max-parallel 33
 ```
 
 ## 診斷

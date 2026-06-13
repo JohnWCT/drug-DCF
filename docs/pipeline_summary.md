@@ -78,8 +78,8 @@ Stage 4  Aggregate  optimization_runner.py aggregate + report
 
 | 階段 | 平行化 | 建議 GPU 參數 |
 |------|--------|----------------|
-| Pretrain | `max_parallel` 個子進程，各跑一組超參 | `batch_size=128`（CCLE≈1128 列，≥1128 會使 GAN 0 batch）, `max_parallel=20` |
-| Finetune | `max_parallel` 個子進程，各跑一組 (model×combo) | `batch=4096`, `mini=1024`, `max_parallel=26` |
+| Pretrain | `max_parallel` 個子進程，各跑一組超參 | `batch_size=128`；**`max_parallel=33`**（RTX 6000 Ada 49GB，~80% VRAM；見 `config/gpu_parallel_profile.json`） |
+| Finetune | `max_parallel` 個子進程，各跑一組 (model×combo) | `batch=12288`, `mini=3072`, **`max_parallel=42`** |
 
 **重要：** Pretrain 的 `batch_size` 不可用 finetune 的 4096；`drop_last=True` 且 CCLE 僅 ~1128 樣本時，batch≥1128 會跳過整個 GAN。
 
@@ -1527,7 +1527,7 @@ Round 7 主軸：**7A** exp_010 鄰域 control refinement；**7B** VICReg-only a
 
 - Config：`config/finetune_sweeps/round7_finetune_sensitivity.json`（8 combos/checkpoint）
 - 第二輪：少數 checkpoint 上測 classifier loss / hidden_dims / dropout
-- 平行度：pretrain `max-parallel=20`；finetune `max-parallel=42`、`batch=12288`（同 R6 重跑設定，目標 ~80%+ GPU）
+- 平行度：見 **`config/gpu_parallel_profile.json`**（2026-06-13：parallel=20→49% VRAM；**33** 目標 ~80% VRAM；36 會 OOM）
 
 ### 15.6 Results and interpretation
 

@@ -2,13 +2,14 @@
 # Round 7 post-pretrain: diagnostics → diverse selection → finetune → aggregate.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# shellcheck source=tools/gpu_parallel_env.sh
+source tools/gpu_parallel_env.sh
 
 RUN_DIR="${RUN_DIR:-result/optimization_runs/round7_combined}"
 LOG="${RUN_DIR}/logs/round7_post_pretrain.log"
-# Match Round 6 finetune retry settings (parallel=42, batch=12288) for ~80%+ GPU.
-FINETUNE_BATCH_SIZE="${FINETUNE_BATCH_SIZE:-12288}"
-FINETUNE_MINI_BATCH="${FINETUNE_MINI_BATCH:-3072}"
-FINETUNE_MAX_PARALLEL="${FINETUNE_MAX_PARALLEL:-42}"
+FINETUNE_BATCH_SIZE="${FINETUNE_BATCH_SIZE}"
+FINETUNE_MINI_BATCH="${FINETUNE_MINI_BATCH}"
+FINETUNE_MAX_PARALLEL="${FINETUNE_MAX_PARALLEL}"
 SELECTION_TOP_K="${SELECTION_TOP_K:-30}"
 SELECTION_MIN_PASSING="${SELECTION_MIN_PASSING:-5}"
 

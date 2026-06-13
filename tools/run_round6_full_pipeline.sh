@@ -2,14 +2,16 @@
 # Round 6 full pipeline: pretrain (6A–6E) → diagnostics → selection → finetune → aggregate → report.
 set -euo pipefail
 cd "$(dirname "$0")/.."
+# shellcheck source=tools/gpu_parallel_env.sh
+source tools/gpu_parallel_env.sh
 
 RUN_DIR="${RUN_DIR:-result/optimization_runs/round6_combined}"
 LOG="${RUN_DIR}/logs/round6_full_pipeline.log"
 DEVICE="${DEVICE:-cuda}"
-PRETRAIN_PARALLEL="${PRETRAIN_PARALLEL:-20}"
-FINETUNE_BATCH_SIZE="${FINETUNE_BATCH_SIZE:-4096}"
-FINETUNE_MINI_BATCH="${FINETUNE_MINI_BATCH:-1024}"
-FINETUNE_MAX_PARALLEL="${FINETUNE_MAX_PARALLEL:-42}"
+PRETRAIN_PARALLEL="${PRETRAIN_PARALLEL}"
+FINETUNE_BATCH_SIZE="${FINETUNE_BATCH_SIZE}"
+FINETUNE_MINI_BATCH="${FINETUNE_MINI_BATCH}"
+FINETUNE_MAX_PARALLEL="${FINETUNE_MAX_PARALLEL}"
 SELECTION_TOP_K="${SELECTION_TOP_K:-30}"
 SELECTION_MIN_PASSING="${SELECTION_MIN_PASSING:-5}"
 
