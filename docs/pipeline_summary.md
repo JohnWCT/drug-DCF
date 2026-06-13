@@ -1529,19 +1529,38 @@ Round 7 主軸：**7A** exp_010 鄰域 control refinement；**7B** VICReg-only a
 - 第二輪：少數 checkpoint 上測 classifier loss / hidden_dims / dropout
 - 平行度：見 **`config/gpu_parallel_profile.json`**（2026-06-13：parallel=20→49% VRAM；**33** 目標 ~80% VRAM；36 會 OOM）
 
-### 15.6 Results and interpretation
-
-_（pretrain / finetune 完成後填寫）_
+### 15.6 Pretrain 結果摘要（164/164 完成，2026-06-13）
 
 | 階段 | 結果 |
 |------|------|
-| Pretrain 7A | _pending_ |
-| Pretrain 7B | _pending_ |
-| Selection | _pending_ |
+| Pretrain 7A | **108/108 success**（`vaewc_round7A_exp010_control_refinement`） |
+| Pretrain 7B | **56/56 success**（`vaewc_round7B_vicreg_focused_ablation`） |
+| GPU 平行度 | **`config/gpu_parallel_profile.json`**：pretrain **33**、finetune **42**（parallel=20→49% VRAM；36→OOM；33→~99% SM / ~36GB VRAM） |
+| 診斷 | `round7_combined/reports/round7_pretrain_diagnostics.csv` |
+
+**Pretrain 指標（diagnostics）：**
+
+| Branch | n | mean kmeans_ari | mean wasserstein | mean exp010-sim | best control | best VICReg | collapse rate |
+|--------|---|-----------------|------------------|-----------------|--------------|-------------|---------------|
+| 7A | 126* | 0.384 | 0.387 | 0.666 | exp_124 | — | 51% |
+| 7B | 56 | 0.317 | 0.463 | 0.576 | exp_003 | exp_041 | 50% |
+| combined | 182 | 0.363 | 0.410 | 0.638 | exp_128 | exp_041 | 51% |
+
+\*7A 載入含 OOM 重試產生之額外 checkpoint；sweep 以 manifest **108 success** 為準。
+
+### 15.7 Selection + Finetune（待執行）
+
+| 階段 | 結果 |
+|------|------|
+| Selection（7C） | _pending_ → `bash tools/run_round7_post_pretrain.sh` |
 | Finetune 首輪 | _pending_ |
-| Finetune sensitivity | _pending_ |
-| 下游最佳 | _pending_（目標 > 0.5569） |
+| Finetune sensitivity（7D） | _pending_ |
+| 下游最佳 | _pending_（目標 Avg TCGA **> 0.5569**，R6 exp_010） |
 
-### 15.7 Final recommendation
+```bash
+docker exec -w /workspace/DAPL DAPL bash tools/run_round7_post_pretrain.sh
+```
 
-_（待 aggregate 後更新：繼續 pretrain / selection 或轉向下游 classifier tuning）_
+### 15.8 Final recommendation
+
+_（待 §15.7 finetune aggregate 後更新）_

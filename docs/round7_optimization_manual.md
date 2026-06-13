@@ -9,10 +9,12 @@
 
 | 分支 | Sweep / 工具 | Jobs | Run ID |
 |------|--------------|------|--------|
-| **7A** Control refinement | `config/pretrain_sweeps/vaewc_round7A_exp010_control_refinement.json` | 108 | `vaewc_round7A_exp010_control_refinement` |
-| **7B** VICReg ablation | `config/pretrain_sweeps/vaewc_round7B_vicreg_focused_ablation.json` | 56 | `vaewc_round7B_vicreg_focused_ablation` |
-| **7C** Selection | `--selection-mode round7_diverse_downstream_probe` | — | `round7_combined` |
+| **7A** Control refinement | `config/pretrain_sweeps/vaewc_round7A_exp010_control_refinement.json` | 108 ✓ | `vaewc_round7A_exp010_control_refinement` |
+| **7B** VICReg ablation | `config/pretrain_sweeps/vaewc_round7B_vicreg_focused_ablation.json` | 56 ✓ | `vaewc_round7B_vicreg_focused_ablation` |
+| **7C** Selection | `--selection-mode round7_diverse_downstream_probe` | 待執行 | `round7_combined` |
 | **7D** Finetune sensitivity | `config/finetune_sweeps/round7_finetune_sensitivity.json` | 8/checkpoint | `round7_finetune_sensitivity` |
+
+**GPU 平行度（全專案共用）：** `config/gpu_parallel_profile.json` + `tools/gpu_parallel_env.sh`（pretrain **33**、finetune **42**）。
 
 Baseline configs：
 
@@ -181,3 +183,17 @@ docker exec -w /workspace/DAPL DAPL python3 -m pytest tests/test_round7_*.py -q
 | VICReg 進 Top-5 但未超 exp_010 | 保留 VICReg 作 robustness ablation |
 | 7A/7B 均未超越 exp_010 | pretrain 可能近上限；轉向下游 finetune / 資料協議 |
 | Finetune sensitivity 有提升 | 下一輪固定 exp_010-like pretrain，優化 classifier |
+
+## 執行結果摘要（2026-06-13）
+
+| 階段 | 結果 |
+|------|------|
+| **Pretrain 7A** | **108/108 success**（manifest） |
+| **Pretrain 7B** | **56/56 success**（manifest） |
+| GPU 平行度 | `config/gpu_parallel_profile.json`：**pretrain=33**、finetune=42（RTX 6000 Ada；parallel=36 曾整批 OOM） |
+| 診斷 | `result/optimization_runs/round7_combined/reports/round7_pretrain_diagnostics.csv` |
+| **Selection + Finetune** | **待執行** → `bash tools/run_round7_post_pretrain.sh` |
+
+**Pretrain 診斷摘要（combined 182 runs loaded）：** mean exp010-similarity **0.638**；7A best control-like **exp_124**；7B best VICReg **exp_041**；collapse rate ~51%（structure gate 仍嚴）。
+
+> 7A `pretrain/` 目錄可能含 OOM 重試產生的額外 `exp_*` 子目錄；以 manifest **108 success** 為準。
