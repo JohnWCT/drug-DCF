@@ -123,7 +123,7 @@ bash tools/run_round7_post_pretrain.sh
 python tools/optimization_runner.py finetune \
   --run-dir result/optimization_runs/round7_combined \
   --top10 result/optimization_runs/round7_combined/selection/pretrain_top10.csv \
-  --epochs 1000 --batch-size 12288 --mini-batch-size 3072 --max-parallel 42
+  --epochs 1000 --batch-size 12288 --mini-batch-size 3072 --max-parallel 26
 
 python tools/optimization_runner.py aggregate --run-dir result/optimization_runs/round7_combined
 ```
@@ -192,7 +192,13 @@ docker exec -w /workspace/DAPL DAPL python3 -m pytest tests/test_round7_*.py -q
 | **Pretrain 7B** | **56/56 success**（manifest） |
 | GPU 平行度 | `config/gpu_parallel_profile.json`：**pretrain=33**、finetune=42（RTX 6000 Ada；parallel=36 曾整批 OOM） |
 | 診斷 | `result/optimization_runs/round7_combined/reports/round7_pretrain_diagnostics.csv` |
-| **Selection + Finetune** | **待執行** → `bash tools/run_round7_post_pretrain.sh` |
+| **Selection + Finetune** | **Selection 30 模型完成**；Finetune **120 jobs 進行中**（parallel=26） |
+
+**Finetune 重跑（若 parallel=42 造成 CUBLAS 錯誤）：**
+
+```bash
+docker exec -w /workspace/DAPL DAPL bash tools/run_round7_finetune_retry.sh
+```
 
 **Pretrain 診斷摘要（combined 182 runs loaded）：** mean exp010-similarity **0.638**；7A best control-like **exp_124**；7B best VICReg **exp_041**；collapse rate ~51%（structure gate 仍嚴）。
 

@@ -1548,17 +1548,26 @@ Round 7 主軸：**7A** exp_010 鄰域 control refinement；**7B** VICReg-only a
 
 \*7A 載入含 OOM 重試產生之額外 checkpoint；sweep 以 manifest **108 success** 為準。
 
-### 15.7 Selection + Finetune（待執行）
+### 15.7 Selection + Finetune（進行中，2026-06-13）
 
 | 階段 | 結果 |
 |------|------|
-| Selection（7C） | _pending_ → `bash tools/run_round7_post_pretrain.sh` |
-| Finetune 首輪 | _pending_ |
+| Selection（7C） | **30 模型**（`round7_diverse_downstream_probe`，含 exp_010 / exp_012 / exp_001 / exp_005 / exp_746） |
+| Finetune 首輪 | **120 jobs**（30×4 mini config）；首輪 parallel=42 因 CUBLAS 競爭大量失敗 → **重跑 parallel=26** |
 | Finetune sensitivity（7D） | _pending_ |
-| 下游最佳 | _pending_（目標 Avg TCGA **> 0.5569**，R6 exp_010） |
+| 下游最佳 | _pending_（目標 Avg TCGA **> 0.5569**） |
+
+**Selection Top-5（exp010-sim）：** exp_034、exp_010、exp_164、exp_165…（多數 G1_exp010_like_control）。
 
 ```bash
-docker exec -w /workspace/DAPL DAPL bash tools/run_round7_post_pretrain.sh
+# Finetune 重跑（若中斷）
+docker exec -w /workspace/DAPL DAPL bash tools/run_round7_finetune_retry.sh
+
+# 監控
+docker exec -w /workspace/DAPL DAPL python3 -c "
+import pandas as pd
+print(pd.read_csv('result/optimization_runs/round7_combined/manifests/finetune_dispatch_manifest.csv').status.value_counts())
+"
 ```
 
 ### 15.8 Final recommendation

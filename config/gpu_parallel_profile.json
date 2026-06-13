@@ -29,6 +29,7 @@
   "finetune": {
     "batch_size": 12288,
     "mini_batch_size": 3072,
-    "max_parallel": 42
+    "max_parallel": 26,
+    "notes": "Round 7: 120 jobs at parallel=42 hit CUBLAS_STATUS_NOT_INITIALIZED; use 26. Round 6 (64 jobs) succeeded at 42."
   }
 }
