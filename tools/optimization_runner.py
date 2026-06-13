@@ -567,7 +567,7 @@ def build_parser() -> argparse.ArgumentParser:
             "round6_sweetspot",
             "round7_diverse_downstream_probe",
         ],
-        help="Top-K ranking (Round 7: round7_diverse_downstream_probe = diverse downstream probe)",
+        help="Top-K ranking (Round 7: round7_diverse_downstream_probe = diverse downstream-aware probing)",
     )
     sel.add_argument(
         "--exclude-proto-ineffective",

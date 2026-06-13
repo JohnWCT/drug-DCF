@@ -126,10 +126,15 @@ python tools/optimization_runner.py aggregate --run-dir result/optimization_runs
 
 ```bash
 python tools/optimization_runner.py finetune \
+  --manifest result/optimization_runs/round7_finetune_sensitivity/manifests/finetune_dispatch_manifest.csv \
   --run-dir result/optimization_runs/round7_finetune_sensitivity \
   --top10 result/optimization_runs/round7_finetune_sensitivity/selection/model_select.csv \
-  --config config/finetune_sweeps/round7_finetune_sensitivity.json \
-  --device cuda --max-parallel 42
+  --finetune-config config/finetune_sweeps/round7_finetune_sensitivity.json \
+  --epochs 1000 \
+  --batch-size 12288 \
+  --mini-batch-size 3072 \
+  --max-parallel 42 \
+  --force-manifest
 
 python tools/optimization_runner.py aggregate \
   --run-dir result/optimization_runs/round7_finetune_sensitivity

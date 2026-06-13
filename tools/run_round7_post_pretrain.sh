@@ -32,6 +32,7 @@ python3 tools/optimization_runner.py select \
   --run-dir "${RUN_DIR}" \
   --result-dir "${RUN7A}/pretrain" \
   --result-dirs "${RESULT_DIRS_CSV}" \
+  --filter-config config/visualize_vaewc_filter.json \
   --selection-mode round7_diverse_downstream_probe \
   --exclude-proto-ineffective \
   --force-baseline-models exp_010,exp_012,exp_001,exp_005,exp_746 \

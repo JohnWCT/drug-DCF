@@ -33,6 +33,7 @@ RANKING_PRIMARY_BY_MODE = {
     "round4_1_structure_first": "wasserstein",
     "round5_structure_first": "wasserstein",
     "round6_sweetspot": "sweetspot_score",
+    "round7_diverse_downstream_probe": "round7_downstream_probe_priority",
 }
 RANKING_SECONDARY_BY_MODE = {
     "score_total": ["score_total"],

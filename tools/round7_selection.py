@@ -213,7 +213,12 @@ def select_round7_diverse_downstream_probe(
     selected_rows: list = []
     group_counts: dict = {}
 
-    for group_name, metric, ascending, limit in ROUND7_GROUP_SPECS:
+    for group_name, metric, ascending, default_limit in ROUND7_GROUP_SPECS:
+        limit = (
+            per_group_limits.get(group_name, default_limit)
+            if per_group_limits
+            else default_limit
+        )
         reason_map = {
             "G1_exp010_like_control": "best exp010-like control neighborhood",
             "G2_vicreg_active": "best active VICReg candidate",

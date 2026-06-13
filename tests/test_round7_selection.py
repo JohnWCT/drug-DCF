@@ -83,3 +83,95 @@ def test_topk_not_all_one_type():
     selected, _ = select_round7_diverse_downstream_probe(pool, pool, top_k=10)
     assert selected["round7_control_like"].fillna(False).any()
     assert selected["round7_vicreg_active"].fillna(False).any()
+
+
+def test_runner_parser_accepts_round7_selection_mode():
+    from tools.optimization_runner import build_parser
+
+    parser = build_parser()
+    args = parser.parse_args([
+        "select",
+        "--run-dir", "dummy_run",
+        "--result-dir", "dummy_result",
+        "--selection-mode", "round7_diverse_downstream_probe",
+    ])
+    assert args.selection_mode == "round7_diverse_downstream_probe"
+
+
+def test_round7_multi_result_selection_does_not_reenrich_with_primary_only(monkeypatch, tmp_path):
+    import os
+    import pandas as pd
+    import tools.optimization_selection as sel
+
+    control_dir = tmp_path / "round7A"
+    vicreg_dir = tmp_path / "round7B"
+    control_dir.mkdir()
+    vicreg_dir.mkdir()
+    run_dir = tmp_path / "run"
+
+    enrich_calls = []
+
+    def fake_load(result_dir, source_tag=""):
+        tag = source_tag or os.path.basename(result_dir)
+        if "round7B" in tag or "round7B" in result_dir:
+            return pd.DataFrame(
+                [
+                    {
+                        "ID": "exp_vicreg",
+                        "kmeans_ari": 0.70,
+                        "wasserstein": 0.65,
+                        "fid": 20.0,
+                        "mmd": 0.01,
+                        "lambda_proto": 0.0,
+                        "pretrain_run_tag": tag,
+                    }
+                ]
+            )
+        return pd.DataFrame(
+            [
+                {
+                    "ID": "exp_control",
+                    "kmeans_ari": 0.74,
+                    "wasserstein": 0.63,
+                    "fid": 20.0,
+                    "mmd": 0.01,
+                    "lambda_proto": 0.0,
+                    "pretrain_run_tag": tag,
+                }
+            ]
+        )
+
+    def tracking_enrich(df, result_dir):
+        enrich_calls.append(result_dir)
+        out = df.copy()
+        if "round7B" in result_dir or "round7B" in str(result_dir):
+            out["lambda_tumor_var"] = 0.0003
+            out["lambda_tumor_cov"] = 0.0003
+            out["latent_size"] = 64
+        else:
+            out["lambda_tumor_var"] = 0.0
+            out["lambda_tumor_cov"] = 0.0
+            out["latent_size"] = 64
+        from tools.collapse_detection import annotate_alignment_collapse
+
+        return annotate_alignment_collapse(out)
+
+    monkeypatch.setattr(sel, "load_all_pretrain_rows", fake_load)
+    monkeypatch.setattr(sel, "enrich_selection_metadata", tracking_enrich)
+
+    sel.write_selection_outputs(
+        str(run_dir),
+        str(control_dir),
+        result_dirs=[str(vicreg_dir)],
+        selection_mode="round7_diverse_downstream_probe",
+        no_filter=True,
+        min_passing=1,
+        require_controls=0,
+        top_k=5,
+    )
+
+    assert len(enrich_calls) == 2
+    filtered = pd.read_csv(run_dir / "selection" / "pretrain_filtered_candidates.csv")
+    vicreg_row = filtered[filtered["ID"] == "exp_vicreg"].iloc[0]
+    assert float(vicreg_row["lambda_tumor_var"]) == 0.0003
+    assert float(vicreg_row["lambda_tumor_cov"]) == 0.0003
