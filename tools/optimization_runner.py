@@ -564,8 +564,9 @@ def build_parser() -> argparse.ArgumentParser:
             "round4_weighted",
             "round4_1_structure_first",
             "round5_structure_first",
+            "round6_sweetspot",
         ],
-        help="Top-K ranking (Round 5: round5_structure_first = structure gate + wasserstein rank)",
+        help="Top-K ranking (Round 6: round6_sweetspot = structure gate + sweet-spot score)",
     )
     sel.add_argument(
         "--exclude-proto-ineffective",

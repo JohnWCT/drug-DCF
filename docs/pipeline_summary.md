@@ -1307,9 +1307,10 @@ Top-4 皆為 **latent=32**；128 在下游明顯偏弱（exp_016、exp_038）。
 
 ## 14. Round 6 Tumor-topology-aware latent representation（2026-06-12）
 
-**狀態：** 程式與 sweep **已就緒**；pretrain / finetune **尚未執行**。
+**狀態：** pretrain / selection / finetune / aggregate **已完成**（finetune **41/64** success，23 jobs OOM `-9` 需重跑）。
 
-完整操作手冊：`docs/round6_optimization_manual.md`
+完整操作手冊：`docs/round6_optimization_manual.md`  
+一鍵腳本：`tools/run_round6_full_pipeline.sh`（pretrain→aggregate）；selection 修復後續跑：`tools/run_round6_post_pretrain.sh`
 
 ### 14.1 Motivation from Round 5
 
@@ -1359,15 +1360,135 @@ python tools/optimization_runner.py select \
   --top-k 30
 ```
 
-Finetune 仍用 `config/params_finetune_mini.json`（不變 grid）。
+Finetune 仍用 `config/params_finetune_mini.json`（不變 grid）。建議 `max_parallel=26`（本輪實跑 42 時有 23 次 OOM `-9`）。
 
-### 14.5 成功標準
+### 14.5 成功標準（設計時）
 
 1. `Average_TCGA_AUC_mean` **> 0.5403**（R5 exp_001）
-2. `kmeans_ari` ≥ 0.65，無 structure collapse
-3. **至少一個 active tumor loss 分支**進 downstream Top-5（非全 `lambda=0` control）
-4. `round6_sweetspot` 選模較 `round5_structure_first` 更接近下游最佳
+2. `kmeans_ari` ≥ 0.65；無 alignment collapse
+3. 至少一個 **active tumor loss** 模型進 downstream Top-5
+4. `round6_sweetspot` 選模較 wasserstein-first 更接近下游最佳
 
-### 14.6–14.10 結果
+### 14.6 Pretrain 結果摘要（102/102 完成）
 
-（pretrain / finetune 完成後填寫：分支排名、topology vs class-gap、subspace trade-off、selection 對照、最終 checkpoint 建議）
+| 分支 | n | mean kmeans_ari | structure pass | collapse rate | mean sweetspot | best sweetspot |
+|------|---|-----------------|----------------|---------------|----------------|----------------|
+| **6A** topology | 16 | 0.297 | 25% | 13% | 0.579 | exp_001 |
+| **6B** topology+class-gap | 18 | 0.353 | 28% | 6% | 0.604 | exp_017 |
+| **6C** subspace | 24 | **0.112** | **0%** | **38%** | 0.520 | exp_015 |
+| **6D** within-domain SupCon | 32 | 0.218 | 13% | 19% | 0.547 | exp_004 |
+| **6E** VICReg | 12 | 0.379 | 33% | 8% | **0.640** | exp_012 |
+
+**Pretrain 重點：**
+
+1. **6C subspace 整體失敗**：structure pass 0%、collapse 38%，不建議再擴 sweep。
+2. **6E VICReg** pretrain sweetspot 最高（mean 0.640），但多為 **`lambda=0` control 槽位** 或極小 λ。
+3. **6B class-gap 組合** pretrain 最均衡（collapse 6%、sweetspot pass ~28%）。
+4. 全體僅 **17/102** structure pass、**19/102** sweetspot pass → selection 僅能補滿 **16** 模型（目標 top-k=30）。
+
+診斷輸出：`result/optimization_runs/round6_combined/reports/round6_pretrain_diagnostics.md`
+
+### 14.7 Selection + Finetune 執行紀錄
+
+#### Selection（`round6_combined`）
+
+| 項目 | 設定 / 結果 |
+|------|-------------|
+| 模式 | `round6_sweetspot`，`--exclude-proto-ineffective` |
+| Top-K | 30（實際入選 **16**；sweetspot/structure gate 通過者不足） |
+| 強制 baseline | **exp_001**（R5 最佳）、**exp_005**（R5 control）、**exp_746** |
+| 輸出 | `result/optimization_runs/round6_combined/selection/pretrain_top10.csv` |
+
+**程式修復（selection 階段）：** `round6_selection.py` 修正缺失 lambda 欄位時 `.fillna` 失敗、以及 sweetspot 欄位重複導致排序 crash；`optimization_runner.py` CLI 補上 `round6_sweetspot`；`optimization_selection.py` 讓 round6 走 `select_top_k_with_baselines`。
+
+#### Finetune + Aggregate
+
+| 項目 | 設定 |
+|------|------|
+| 模型 × combo | **16 × 4 = 64** jobs |
+| 平行度 | `max_parallel=42` |
+| 狀態 | **41 success / 23 failed**（failed 皆 `code -9`，推定 GPU OOM） |
+| Aggregate | 已產出（含部分 combo 平均） |
+| Log | `result/optimization_runs/round6_combined/logs/round6_post_pretrain.log` |
+
+**TCGA 比較檔：**
+
+| 用途 | 路徑 |
+|------|------|
+| 跨 model 排名 | `result/optimization_runs/round6_combined/aggregate/aggregate_scores.csv` |
+| Finetune manifest | `.../manifests/finetune_dispatch_manifest.csv` |
+
+重跑失敗 finetune：降低 `FINETUNE_MAX_PARALLEL`（建議 26）後執行 `bash tools/run_round6_post_pretrain.sh`（或僅 finetune 段）。
+
+### 14.8 Round 6 下游 Finetune 結果（2026-06-12）
+
+**主指標：** `Average_TCGA_AUC_mean`（gdsc_intersect13，可用 combo 平均）。  
+**R5 基準：** **exp_001 = 0.5403**。
+
+> **注意：** 11/16 模型 finetune **未滿 4 combo**；下列排名含不完整平均，**exp_010 / exp_015 / exp_005 等需重跑後再定論**。
+
+#### 14.8.1 下游排名（16 模型，依 Avg TCGA）
+
+| 排名 | Model | Avg TCGA | Global TCGA | n_ft | Sel# | 分支 | 關鍵 pretrain |
+|------|-------|----------|-------------|------|------|------|---------------|
+| **1** | **exp_010** | **0.5643** | 0.6090 | 3/4 | 6 | 6E VICReg | `latent=64`, **全 λ=0**（6E control 槽）, ari=0.744, wass=0.631 |
+| 2 | exp_015 | 0.5480 | 0.5580 | 1/4 | 9 | 6D SupCon | `latent=64`, λ=0, ari=0.666, wass=0.731 |
+| 3 | exp_005 | 0.5448 | 0.5806 | 1/4 | 7 | 6B topo+gap | `latent=64`, **`λ_class_gap=0.0003`**, ari=0.737 |
+| 4 | exp_009 | 0.5239 | 0.6129 | 1/4 | 14 | 6A topology | `latent=64`, λ=0, ari=0.763, wass=0.806 |
+| 5 | exp_746 | 0.5211 | 0.5954 | 2/4 | 16 | 外部 baseline | 歷史 checkpoint |
+| 6 | exp_016 | 0.5161 | 0.5606 | 3/4 | 8 | 6D SupCon | `latent=32`, λ=0, ari=0.692 |
+| 7 | exp_012 | 0.5074 | 0.6014 | 3/4 | 5 | 6E VICReg | `latent=64`, **`λ_var=λ_cov=0.0003`**, ari=0.751 |
+| 8 | exp_004 | 0.5039 | 0.5894 | 4/4 | **1** | 6D SupCon | `latent=32`, λ=0, ari=0.701, wass=0.545 |
+| 9 | exp_011 | 0.4922 | 0.5719 | 1/4 | 13 | 6E VICReg | `λ_var=λ_cov=0.0001` |
+| 10 | exp_003 | 0.4892 | 0.5952 | 1/4 | 15 | 6A topology | `latent=64`, λ=0 |
+| 11 | exp_017 | 0.4879 | 0.6042 | 4/4 | 2 | 6B topo+gap | **`λ_class_gap=0.0003`**, ari=0.777, wass=0.537 |
+| 12 | exp_002 | 0.4856 | 0.5795 | 4/4 | 11 | 6A topology | **`λ_topology=0.0003`**, ari=0.763 |
+| 13 | exp_001 | 0.4760 | 0.5799 | 4/4 | 4 | 6A（R5 ID 重跑） | R5 最佳 ID 在本輪 6A 重 pretrain 後下游下降 |
+| 14 | exp_007 | 0.4784 | 0.5609 | 4/4 | 3 | 6E VICReg | `λ_var=λ_cov=0.0003`, ari=0.793 |
+| 15 | exp_013 | 0.4835 | 0.5468 | 2/4 | 10 | 6B | `λ_class_gap=0.0001` |
+| 16 | exp_006 | 0.4730 | 0.5612 | 3/4 | 12 | 6B | λ=0 |
+
+**分支 mean Avg TCGA（入選子集）：** 6E **0.511**（max 0.564）> 6D 0.523 > 6B 0.497 > 6A 0.494。
+
+#### 14.8.2 與 R5 對照
+
+| Model | Round | Avg TCGA | 備註 |
+|-------|-------|----------|------|
+| **exp_010** | **R6** | **0.5643** | 點估超越 R5，但 **3/4 combo**、且 **λ=0** |
+| exp_001 | R5 | **0.5403** | 全專案 R5 最佳 |
+| exp_005 | R5 | 0.5301 | R6 同名不同 pretrain（6B）→ 0.5448（1/4 combo） |
+| exp_004 | R6 | 0.5039 | sweetspot **#1**，下游 **#8**（4/4 完整） |
+
+#### 14.8.3 參數 ↔ 結果觀察
+
+1. **Sweetspot selection #1（exp_004）≠ 下游最佳**：與 R5 wasserstein-first 類似，pretrain 幾何優 ≠ TCGA 高。
+2. **下游 Top-3 皆 `lambda=0` 或僅 1/4 finetune**：active tumor loss **未**在可靠 Top-5 勝出。
+3. **唯一 4/4 且 active loss 較佳者：exp_017**（`λ_class_gap=0.0003`，Avg 0.4879）— 低於 R5 control。
+4. **6C 無入選**（pretrain 全滅）；**6A topology active λ**（exp_009）下游 0.524 但未滿 combo。
+5. **`latent_size=64`** 主導下游前排（exp_010/015/005/009），與 R5「32 最佳」不同—可能因 incomplete finetune 偏差。
+
+### 14.9 成功標準達成
+
+| # | 標準 | 結果 |
+|---|------|------|
+| 1 | Avg TCGA > 0.5403 | **未確認** — exp_010 點估 0.5643 但 3/4 combo；需重跑 finetune |
+| 2 | kmeans_ari ≥ 0.65、無 collapse | **達成**（入選 16 皆通過 structure gate） |
+| 3 | active tumor loss 進 Top-5 | **未達成** — Top-5 皆 λ=0 或 forced baseline |
+| 4 | sweetspot 更接近下游 | **部分** — #1 exp_004 下游 #8；#6 exp_010 下游 #1 但為 λ=0 |
+
+### 14.10 主要結論與建議
+
+1. **Pipeline 技術面完成**，但 finetune **64% 成功率**；aggregate 排名**不可直接作 production 定案**。
+2. **6C subspace 分支建議停用**；**6E/6B** 可保留小規模 ablation。
+3. **Tumor loss 仍未證明 downstream 優勢**；下游前排仍由 **λ=0 control 槽** 佔據。
+4. **下一步必做：** 以 `FINETUNE_MAX_PARALLEL=26` 重跑 23 failed jobs，再更新 aggregate。
+5. **Checkpoint 建議（暫定）：** 完整 4/4 中 downstream 最高為 **exp_017**（0.4879，active class-gap）或 **exp_004**（0.5039，sweetspot #1）；**論文主線仍維持 R5 exp_001（0.5403）** 直至 R6 finetune 重跑完成。
+
+**決策要點：**
+
+| 問題 | Round 6 判讀 |
+|------|----------------|
+| Tumor topology 是否值得繼續？ | pretrain 有 signal，下游未贏；需更小 λ + 完整 finetune |
+| Subspace（6C）？ | **否** — structure 全滅 |
+| Selection 改進？ | sweetspot 優於純 wasserstein，但仍與下游錯位 |
+| 主線 checkpoint？ | **仍用 R5 exp_001**；R6 exp_010 待 finetune 補跑後複評 |

@@ -40,7 +40,15 @@ tools/analyze_round6_pretrain.py
 
 ```bash
 bash tools/run_round6_pretrain.sh
-# 環境變數：DEVICE=cuda PARALLEL=20
+# 或全流程（pretrain → aggregate）：
+bash tools/run_round6_full_pipeline.sh
+# 環境變數：DEVICE=cuda PRETRAIN_PARALLEL=20 FINETUNE_MAX_PARALLEL=26
+```
+
+若 pretrain 已完成、僅需 selection 後續：
+
+```bash
+bash tools/run_round6_post_pretrain.sh
 ```
 
 ## 診斷
@@ -83,6 +91,20 @@ python tools/optimization_runner.py finetune \
 
 python tools/optimization_runner.py aggregate --run-dir result/optimization_runs/round6_combined
 ```
+
+> **2026-06-12 執行紀錄：** `max_parallel=42` 時 23/64 finetune OOM（`-9`）。建議 **26** 並重跑 failed jobs。
+
+## 執行結果摘要（2026-06-12）
+
+| 階段 | 結果 |
+|------|------|
+| Pretrain 6A–6E | **102/102** |
+| Selection | **16** 模型（top-k=30 因 sweetspot gate 不足） |
+| Finetune | **41/64** success（23 OOM） |
+| 下游最佳（暫） | **exp_010** Avg TCGA **0.5643**（3/4 combo，λ=0） |
+| R5 基準 | exp_001 **0.5403** |
+
+完整分析：`docs/pipeline_summary.md` §14.6–§14.10。Aggregate：`result/optimization_runs/round6_combined/aggregate/aggregate_scores.csv`。
 
 ## 測試
 

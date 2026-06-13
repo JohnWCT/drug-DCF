@@ -14,6 +14,18 @@ PREFERRED_LATENT = 32
 ACCEPTABLE_LATENT = 64
 PENALIZED_LATENT = 128
 
+SWEETSPOT_OUTPUT_COLS = (
+    "has_active_tumor_loss",
+    "sweetspot_kmeans_score",
+    "sweetspot_wasserstein_score",
+    "sweetspot_latent_score",
+    "sweetspot_tcga_proxy_score",
+    "sweetspot_diversity_bonus",
+    "sweetspot_score",
+    "sweetspot_pass",
+    "sweetspot_diversity_group",
+)
+
 
 def range_score(x: float, low: float, high: float) -> float:
     if x is None or (isinstance(x, float) and np.isnan(x)):
@@ -91,16 +103,25 @@ def compute_sweetspot_score_row(row: pd.Series, tcga_proxy_weight: float = 0.15)
     }
 
 
+def _numeric_column(df: pd.DataFrame, col: str, default: float = 0.0) -> pd.Series:
+    if col not in df.columns:
+        return pd.Series(default, index=df.index, dtype=float)
+    return pd.to_numeric(df[col], errors="coerce").fillna(default)
+
+
 def annotate_sweetspot_scores(df: pd.DataFrame) -> pd.DataFrame:
     if df.empty:
         return df.copy()
     out = df.copy()
-    lt = pd.to_numeric(out.get("lambda_tumor_topology"), errors="coerce").fillna(0.0)
-    lg = pd.to_numeric(out.get("lambda_class_gap"), errors="coerce").fillna(0.0)
-    ls = pd.to_numeric(out.get("lambda_tumor_supcon"), errors="coerce").fillna(0.0)
-    lv = pd.to_numeric(out.get("lambda_tumor_var"), errors="coerce").fillna(0.0)
-    lcov = pd.to_numeric(out.get("lambda_tumor_cov"), errors="coerce").fillna(0.0)
-    lortho = pd.to_numeric(out.get("lambda_subspace_ortho"), errors="coerce").fillna(0.0)
+    drop_cols = [c for c in SWEETSPOT_OUTPUT_COLS if c in out.columns]
+    if drop_cols:
+        out = out.drop(columns=drop_cols)
+    lt = _numeric_column(out, "lambda_tumor_topology")
+    lg = _numeric_column(out, "lambda_class_gap")
+    ls = _numeric_column(out, "lambda_tumor_supcon")
+    lv = _numeric_column(out, "lambda_tumor_var")
+    lcov = _numeric_column(out, "lambda_tumor_cov")
+    lortho = _numeric_column(out, "lambda_subspace_ortho")
     out["has_active_tumor_loss"] = (lt > 0) | (lg > 0) | (ls > 0) | (lv > 0) | (lcov > 0) | (lortho > 0)
 
     rows = []

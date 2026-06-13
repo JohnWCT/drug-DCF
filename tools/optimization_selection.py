@@ -44,6 +44,8 @@ RANKING_SECONDARY_BY_MODE = {
 DEFAULT_FORCE_BASELINE_PATHS = {
     "exp_746": "result/pretrain_vaewc/exp_746",
     "exp_018": "result/optimization_runs/vaewc_proto_infonce_round3_exp746/pretrain/exp_018",
+    "exp_001": "result/optimization_runs/vaewc_round5_t2s_infonce_appendix/pretrain/exp_001",
+    "exp_005": "result/optimization_runs/vaewc_round5_control_centered/pretrain/exp_005",
 }
 
 
@@ -622,7 +624,7 @@ def write_selection_outputs(
                 f" Only {controls_in_pool} control(s) passed filter (need >= {require_controls})."
             )
 
-    if selection_mode == "round5_structure_first":
+    if selection_mode in STRUCTURE_FIRST_MODES:
         top10_df, info = select_top_k_with_baselines(
             aggregated_df,
             all_df,

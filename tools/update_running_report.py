@@ -80,6 +80,15 @@ def _stage_pretrain_section(run_dir: str, manifest: pd.DataFrame | None) -> list
     return lines
 
 
+def _fmt_opt(val, prec: int = 4) -> str:
+    if val is None or (isinstance(val, float) and pd.isna(val)):
+        return "NA"
+    try:
+        return f"{float(val):.{prec}f}"
+    except (TypeError, ValueError):
+        return str(val)
+
+
 def _stage_selection_section(run_dir: str) -> list[str]:
     lines = ["## Stage 2: Selection (filter + Top-10 with controls)", ""]
     top10_path = _resolve(os.path.join(run_dir, "selection", "pretrain_top10.csv"))
@@ -96,8 +105,9 @@ def _stage_selection_section(run_dir: str) -> list[str]:
     lines.append("- Selected IDs:")
     for _, row in top10.iterrows():
         tag = " [control]" if row.get("is_control") else ""
+        score = row.get("sweetspot_score", row.get("score_total"))
         lines.append(
-            f"  - `{row['ID']}` score_total={row.get('score_total', 'NA'):.4f} lambda_proto={row.get('lambda_proto', 'NA')}{tag}"
+            f"  - `{row['ID']}` score={_fmt_opt(score)} lambda_proto={_fmt_opt(row.get('lambda_proto'))}{tag}"
         )
     lines.extend(
         [
