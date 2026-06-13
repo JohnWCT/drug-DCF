@@ -1,0 +1,32 @@
+{
+  "_metadata": {
+    "description": "Round 7B: VICReg-only focused ablation around exp_012-like settings.",
+    "reference_baseline": "exp_012",
+    "expected_jobs": 56
+  },
+  "base_config": "config/params_proto_base_exp012_like_vaewc.json",
+  "output_config_dir": "config/generated/vaewc_round7B_vicreg_focused_ablation",
+  "run_id": "vaewc_round7B_vicreg_focused_ablation",
+  "sweep": {
+    "paired_params": [
+      {"latent_size": 64, "encoder_dims": [512, 256, 128], "lambda_tumor_var": 0, "lambda_tumor_cov": 0},
+      {"latent_size": 64, "encoder_dims": [512, 256, 128], "lambda_tumor_var": 0.0001, "lambda_tumor_cov": 0.0001},
+      {"latent_size": 64, "encoder_dims": [512, 256, 128], "lambda_tumor_var": 0.0002, "lambda_tumor_cov": 0.0002},
+      {"latent_size": 64, "encoder_dims": [512, 256, 128], "lambda_tumor_var": 0.0003, "lambda_tumor_cov": 0.0003},
+      {"latent_size": 64, "encoder_dims": [512, 256, 128], "lambda_tumor_var": 0.0005, "lambda_tumor_cov": 0.0005},
+      {"latent_size": 64, "encoder_dims": [512, 256, 128], "lambda_tumor_var": 0.0003, "lambda_tumor_cov": 0.0001},
+      {"latent_size": 64, "encoder_dims": [512, 256, 128], "lambda_tumor_var": 0.0001, "lambda_tumor_cov": 0.0003}
+    ],
+    "lambda_proto": [0],
+    "lambda_class_gap": [0],
+    "lambda_cmmd": [0],
+    "lambda_tumor_topology": [0],
+    "lambda_tumor_supcon": [0],
+    "lambda_subspace_ortho": [0],
+    "use_tumor_subspace": [false],
+    "tumor_vicreg_latent_view": ["shared"],
+    "tumor_vicreg_start_epoch": [5, 10],
+    "tumor_vicreg_full_epoch": [30, 50],
+    "gan_gen_update_interval": [5, 10]
+  }
+}

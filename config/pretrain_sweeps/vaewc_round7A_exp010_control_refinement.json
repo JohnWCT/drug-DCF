@@ -1,0 +1,30 @@
+{
+  "_metadata": {
+    "description": "Round 7A: exp_010 neighborhood control refinement (no active tumor loss).",
+    "reference_baseline": "exp_010",
+    "expected_jobs": 108
+  },
+  "base_config": "config/params_proto_base_exp010_like_vaewc.json",
+  "output_config_dir": "config/generated/vaewc_round7A_exp010_control_refinement",
+  "run_id": "vaewc_round7A_exp010_control_refinement",
+  "sweep": {
+    "paired_params": [
+      {"latent_size": 64, "encoder_dims": [512, 256, 128], "cls_start_epoch": 30, "cls_full_epoch": 80},
+      {"latent_size": 64, "encoder_dims": [512, 256, 128], "cls_start_epoch": 40, "cls_full_epoch": 90},
+      {"latent_size": 64, "encoder_dims": [512, 256, 128], "cls_start_epoch": 50, "cls_full_epoch": 110}
+    ],
+    "lambda_proto": [0],
+    "lambda_class_gap": [0],
+    "lambda_cmmd": [0],
+    "lambda_tumor_topology": [0],
+    "lambda_tumor_supcon": [0],
+    "lambda_tumor_var": [0],
+    "lambda_tumor_cov": [0],
+    "lambda_subspace_ortho": [0],
+    "use_tumor_subspace": [false],
+    "lambda_cls": [15, 20, 25],
+    "gan_gen_update_interval": [5, 10],
+    "gan_patience": [30, 50, 70],
+    "gan_early_stop_start_epoch": [20, 30]
+  }
+}

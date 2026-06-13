@@ -1,0 +1,47 @@
+{
+  "_metadata": {
+    "description": "VAEwC baseline aligned with Round 6 active VICReg exp_012 (latent=64, lambda_var=cov=0.0003).",
+    "reference": "result/optimization_runs/vaewc_round6E_tumor_vicreg_stabilizer/pretrain/exp_012/params.json",
+    "notes": {
+      "latent_size": "64",
+      "encoder_dims": "[512, 256, 128]",
+      "lambda_tumor_var": "0.0003",
+      "lambda_tumor_cov": "0.0003"
+    }
+  },
+  "pretrain_params": {
+    "pretrain_num_epochs": [300],
+    "pretrain_learning_rate": [0.001],
+    "gan_learning_rate": [0.0005],
+    "train_num_epochs": [600],
+    "dropout_rate": [0.1],
+    "encoder_dims": [[512, 256, 128]],
+    "latent_size": [64],
+    "lambda_cls": [20],
+    "use_class_weight": [true],
+    "cls_start_epoch": [40],
+    "cls_full_epoch": [90],
+    "gan_cls_update_every_step": [true],
+    "gan_cls_learning_rate": [0.0005],
+    "gan_gp_weight": [10.0],
+    "gan_early_stop_metric": ["loss"],
+    "gan_patience": [50],
+    "gan_early_stop_min_delta": [0.0],
+    "gan_early_stop_start_epoch": [30],
+    "pretrain_patience": [30],
+    "batch_size": [128],
+    "gan_gen_update_interval": [5],
+    "lambda_proto": [0],
+    "lambda_class_gap": [0],
+    "lambda_cmmd": [0],
+    "lambda_tumor_topology": [0],
+    "lambda_tumor_supcon": [0],
+    "lambda_subspace_ortho": [0],
+    "use_tumor_subspace": [false],
+    "tumor_vicreg_latent_view": ["shared"],
+    "tumor_vicreg_start_epoch": [5],
+    "tumor_vicreg_full_epoch": [30],
+    "lambda_tumor_var": [0.0003],
+    "lambda_tumor_cov": [0.0003]
+  }
+}

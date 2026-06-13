@@ -20,10 +20,12 @@ SELECTION_MODES = (
     "round4_1_structure_first",
     "round5_structure_first",
     "round6_sweetspot",
+    "round7_diverse_downstream_probe",
 )
 STRUCTURE_FIRST_MODES = frozenset(
     {"round4_1_structure_first", "round5_structure_first", "round6_sweetspot"}
 )
+ROUND7_SELECTION_MODES = frozenset({"round7_diverse_downstream_probe"})
 RANKING_PRIMARY_BY_MODE = {
     "score_total": "score_total",
     "round4_kmeans_first": "score_kmeans",
@@ -39,6 +41,11 @@ RANKING_SECONDARY_BY_MODE = {
     "round4_1_structure_first": ["kmeans_ari", "fid", "mmd"],
     "round5_structure_first": ["kmeans_ari", "fid", "mmd", "class_gap_loss"],
     "round6_sweetspot": ["sweetspot_kmeans_score", "sweetspot_wasserstein_score", "kmeans_ari", "wasserstein"],
+    "round7_diverse_downstream_probe": [
+        "round7_downstream_probe_priority",
+        "round7_exp010_similarity_score",
+        "round7_sweetspot_score",
+    ],
 }
 
 DEFAULT_FORCE_BASELINE_PATHS = {
@@ -46,6 +53,8 @@ DEFAULT_FORCE_BASELINE_PATHS = {
     "exp_018": "result/optimization_runs/vaewc_proto_infonce_round3_exp746/pretrain/exp_018",
     "exp_001": "result/optimization_runs/vaewc_round5_t2s_infonce_appendix/pretrain/exp_001",
     "exp_005": "result/optimization_runs/vaewc_round5_control_centered/pretrain/exp_005",
+    "exp_010": "result/optimization_runs/vaewc_round6E_tumor_vicreg_stabilizer/pretrain/exp_010",
+    "exp_012": "result/optimization_runs/vaewc_round6E_tumor_vicreg_stabilizer/pretrain/exp_012",
 }
 
 
@@ -153,6 +162,10 @@ def apply_structure_first_stage1_filter(all_df: pd.DataFrame, selection_mode: st
 
         return apply_round5_stage1_filter(all_df)
     if selection_mode == "round6_sweetspot":
+        from tools.collapse_detection import apply_round6_stage1_filter
+
+        return apply_round6_stage1_filter(all_df)
+    if selection_mode == "round7_diverse_downstream_probe":
         from tools.collapse_detection import apply_round6_stage1_filter
 
         return apply_round6_stage1_filter(all_df)
@@ -341,6 +354,25 @@ def apply_selection_ranking(df: pd.DataFrame, selection_mode: str = "score_total
         from tools.round6_selection import rank_round6_sweetspot
 
         return rank_round6_sweetspot(out)
+    elif selection_mode == "round7_diverse_downstream_probe":
+        from tools.round7_selection import annotate_round7_scores
+
+        annotated = annotate_round7_scores(out)
+        sort_cols = [
+            ("round7_downstream_probe_priority", False),
+            ("round7_exp010_similarity_score", False),
+            ("round7_sweetspot_score", False),
+            ("kmeans_ari", False),
+        ]
+        by = []
+        ascending = []
+        for col, direction in sort_cols:
+            if col in annotated.columns:
+                by.append(col)
+                ascending.append(direction)
+        if not by:
+            by, ascending = ["round7_downstream_probe_priority"], [False]
+        return annotated.sort_values(by=by, ascending=ascending, na_position="last").reset_index(drop=True)
     else:
         sort_cols = [("score_total", False)]
 
@@ -581,9 +613,10 @@ def write_selection_outputs(
         filter_report_path = ""
 
     aggregated_path = os.path.join(selection_dir, "aggregated_vaewc_results.csv")
-    if selection_mode in STRUCTURE_FIRST_MODES:
+    if selection_mode in STRUCTURE_FIRST_MODES or selection_mode in ROUND7_SELECTION_MODES:
         # all_df already enriched per branch; do not re-enrich with primary result_dir only.
-        aggregated_df = apply_structure_first_stage1_filter(all_df, selection_mode)
+        stage_mode = "round6_sweetspot" if selection_mode == "round7_diverse_downstream_probe" else selection_mode
+        aggregated_df = apply_structure_first_stage1_filter(all_df, stage_mode)
         aggregated_df.to_csv(aggregated_path, index=False)
     else:
         run_visualize(result_dir, selection_dir, filter_config, select_top_k=20, no_filter=no_filter)
@@ -624,7 +657,16 @@ def write_selection_outputs(
                 f" Only {controls_in_pool} control(s) passed filter (need >= {require_controls})."
             )
 
-    if selection_mode in STRUCTURE_FIRST_MODES:
+    if selection_mode == "round7_diverse_downstream_probe":
+        from tools.round7_selection import select_round7_diverse_downstream_probe
+
+        top10_df, info = select_round7_diverse_downstream_probe(
+            aggregated_df,
+            all_df,
+            top_k=top_k,
+            force_baseline_models=force_baseline_models or [],
+        )
+    elif selection_mode in STRUCTURE_FIRST_MODES:
         top10_df, info = select_top_k_with_baselines(
             aggregated_df,
             all_df,
@@ -646,7 +688,7 @@ def write_selection_outputs(
     info["top_k"] = top_k
     info["force_baseline_models"] = force_baseline_models or []
     if info.get("warnings"):
-        report_warnings = info["warnings"]
+        report_warnings = list(info["warnings"])
     else:
         report_warnings = []
 
@@ -684,13 +726,17 @@ def write_selection_outputs(
         report_lines.append(f"- Threshold report: `selection/filter_threshold_report.csv`")
     report_lines.extend(
         [
-            f"- Controls available (lambda_proto=0): {info['controls_available']}",
-            f"- Controls selected: {info['controls_selected']}",
-            f"- Ranked non-control slots filled: {info['ranked_selected']}",
-            f"- Final Top-10 size: {info['total_selected']}",
+            f"- Controls available (lambda_proto=0): {info.get('controls_available', 'NA')}",
+            f"- Controls selected: {info.get('controls_selected', 'NA')}",
+            f"- Ranked non-control slots filled: {info.get('ranked_selected', 'NA')}",
+            f"- Final Top-10 size: {info.get('total_selected', len(top10_df))}",
         ]
     )
-    if info["shortage"]:
+    if info.get("group_counts"):
+        report_lines.extend(["", "## Round 7 selection groups", ""])
+        for group, count in info["group_counts"].items():
+            report_lines.append(f"- {group}: {count}")
+    if info.get("shortage"):
         report_lines.append(
             "- Warning: fewer than two valid lambda_proto=0 controls were available after filtering."
         )

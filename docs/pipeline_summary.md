@@ -1493,3 +1493,55 @@ Finetune 仍用 `config/params_finetune_mini.json`（不變 grid）。首輪 `ma
 | Tumor loss 主線？ | **否** — 最佳仍 λ=0；VICReg 可作 ablation |
 | Subspace（6C）？ | **否** |
 | 主線 checkpoint？ | **exp_010**（R6 6E）；Integrated 最佳可看 **exp_012** |
+
+---
+
+## 15. Round 7 exp_010 neighborhood refinement and VICReg ablation（2026-06-10）
+
+> 操作手冊：`docs/round7_optimization_manual.md`
+
+### 15.1 Motivation from Round 6
+
+Round 6 定案：**exp_010** Avg TCGA **0.5569**（λ=0 control-like）；**exp_012** Integrated Avg 突出但 Avg TCGA 未超 exp_010。topology / class-gap / SupCon / subspace 未穩定超越 control；selection 與 downstream 仍有錯位。
+
+Round 7 主軸：**7A** exp_010 鄰域 control refinement；**7B** VICReg-only ablation；**7C** downstream-aware diverse selection；**7D** 小範圍 finetune sensitivity。
+
+### 15.2 Round 7A control refinement
+
+- Sweep：`vaewc_round7A_exp010_control_refinement.json`（**108 jobs**）
+- 固定 latent=64、encoder `[512,256,128]`；active tumor loss 全 0
+- 掃描：`lambda_cls`、cls schedule、GAN patience / gen interval
+
+### 15.3 Round 7B VICReg focused ablation
+
+- Sweep：`vaewc_round7B_vicreg_focused_ablation.json`（**56 jobs**）
+- 僅 VICReg（paired / asymmetric var·cov）；其餘 tumor loss = 0
+
+### 15.4 Round 7C downstream-aware selection
+
+- Mode：`round7_diverse_downstream_probe`（`tools/round7_selection.py`）
+- Diverse groups G1–G7 + forced baselines **exp_010, exp_012, exp_001, exp_005, exp_746**
+- Combined run：`result/optimization_runs/round7_combined`
+
+### 15.5 Round 7D finetune sensitivity
+
+- Config：`config/finetune_sweeps/round7_finetune_sensitivity.json`（8 combos/checkpoint）
+- 第二輪：少數 checkpoint 上測 classifier loss / hidden_dims / dropout
+- 平行度：pretrain `max-parallel=20`；finetune `max-parallel=42`、`batch=12288`（同 R6 重跑設定，目標 ~80%+ GPU）
+
+### 15.6 Results and interpretation
+
+_（pretrain / finetune 完成後填寫）_
+
+| 階段 | 結果 |
+|------|------|
+| Pretrain 7A | _pending_ |
+| Pretrain 7B | _pending_ |
+| Selection | _pending_ |
+| Finetune 首輪 | _pending_ |
+| Finetune sensitivity | _pending_ |
+| 下游最佳 | _pending_（目標 > 0.5569） |
+
+### 15.7 Final recommendation
+
+_（待 aggregate 後更新：繼續 pretrain / selection 或轉向下游 classifier tuning）_

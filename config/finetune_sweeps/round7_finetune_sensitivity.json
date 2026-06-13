@@ -1,0 +1,21 @@
+{
+  "_metadata": {
+    "description": "Round 7D finetune sensitivity: 2 loss × 2 hidden_dims × 2 dropout = 8 combos per checkpoint.",
+    "total_combinations": 8
+  },
+  "finetune_params": {
+    "ftlr": [0.001],
+    "scheduler_flag": [true],
+    "loss_type": ["bce", "focal"],
+    "focal_loss_gamma": [2.0]
+  },
+  "classifier_params": {
+    "hidden_dims": [[256, 128], [512, 256, 128]],
+    "dropout_rate": [0.0, 0.05],
+    "use_batch_norm": [true],
+    "activation": ["relu"]
+  },
+  "model_params": {
+    "gin_type": ["dapl"]
+  }
+}
