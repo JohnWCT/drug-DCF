@@ -1602,3 +1602,54 @@ docker exec -w /workspace/DAPL DAPL python3 tools/optimization_runner.py report 
 | R6 exp_010 地位 | 仍為 R6 定案基準；R7 7A 重訓 exp_010 未復現 0.5569 |
 | 7D finetune sensitivity | 可選：對 exp_048 / exp_021 跑 8 combos/checkpoint，驗證 finetune 是否還有 headroom |
 | Pretrain 結論 | 7A 鄰域掃描未穩定提升 downstream；**VICReg-only 7B** 為 R7 主要增益來源 |
+
+---
+
+## 16. Round 8 broad architecture and hyperparameter confirmation（2026-06-10）
+
+> 操作手冊：`docs/round8_optimization_manual.md`
+
+### 16.1 Motivation from Round 7
+
+Round 7 定案：**exp_048** Avg TCGA **0.5918**（7B VICReg）；**exp_021** **0.5723**。7A control refinement 未穩定超越 R6 exp_010。Round 8 **不新增 loss / 方法**，在 VAEwC + VICReg-only / control-like 架構內廣泛確認 latent、encoder、GAN schedule、VICReg strength 與 two-stage finetune。
+
+### 16.2 Round 8A control architecture broad sweep
+
+- Sweep：`vaewc_round8A_control_arch_broad.json`（**288 jobs**）
+- Baseline：`params_proto_base_exp048_context_broad_control.json`
+- 掃描：latent 32/48/64/96/128、encoder 多 family、dropout、lambda_cls、GAN schedule
+- 無 active tumor loss
+
+### 16.3 Round 8B VICReg architecture broad sweep
+
+- Sweep：`vaewc_round8B_vicreg_arch_broad.json`（**224 jobs**）
+- Baseline：`params_proto_base_exp048_exp021_vicreg_broad.json`
+- 主線：VICReg var/cov + architecture + schedule
+- 無 topology / class-gap / SupCon / subspace
+
+### 16.4 Round 8C architecture-diverse selection
+
+- Mode：`round8_architecture_broad_probe`（`tools/round8_selection.py`）
+- Groups：G1–G8 diversity + G9 forced baseline + G10 fill
+- Forced baselines：**exp_048, exp_021, exp_010, exp_012, exp_005, exp_746**
+- Combined run：`result/optimization_runs/round8_combined`
+- Top-K：**50**（first-pass finetune **200 jobs** = 50×4 mini）
+
+### 16.5 Round 8D two-stage finetune
+
+| 階段 | Config | Jobs |
+|------|--------|------|
+| First-pass | `config/params_finetune_mini.json` | 50×4 = **200** |
+| Second-pass sensitivity | `config/finetune_sweeps/round8_finetune_sensitivity_broad.json` | 12×24 = **288** |
+| 選模工具 | `tools/build_round8_finetune_sensitivity_select.py` | |
+| Run dir | `result/optimization_runs/round8_finetune_sensitivity` | |
+
+GPU：`pretrain parallel=33`、`finetune parallel=26`（見 `config/gpu_parallel_profile.json`）。
+
+### 16.6 Results and interpretation
+
+_（待 `bash tools/run_round8_full_pipeline.sh` 完成後更新）_
+
+### 16.7 Final recommendation
+
+_（待 §16.6 aggregate 後更新；主成功標準：Avg TCGA **> 0.5918**）_

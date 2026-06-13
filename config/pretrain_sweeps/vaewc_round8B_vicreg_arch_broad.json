@@ -1,0 +1,49 @@
+{
+  "_metadata": {
+    "description": "Round 8B VICReg-only architecture broad sweep. No topology/class-gap/SupCon/subspace.",
+    "reference_baseline": "exp_048 / exp_021",
+    "expected_jobs": 224
+  },
+  "base_config": "config/params_proto_base_exp048_exp021_vicreg_broad.json",
+  "output_config_dir": "config/generated/vaewc_round8B_vicreg_arch_broad",
+  "run_id": "vaewc_round8B_vicreg_arch_broad",
+  "sweep": {
+    "paired_params": [
+      {"latent_size": 48, "encoder_dims": [384, 192], "dropout_rate": 0.05, "lambda_tumor_var": 0.0001, "lambda_tumor_cov": 0.0001},
+      {"latent_size": 48, "encoder_dims": [384, 192], "dropout_rate": 0.10, "lambda_tumor_var": 0.0003, "lambda_tumor_cov": 0.0003},
+      {"latent_size": 64, "encoder_dims": [512, 256, 128], "dropout_rate": 0.05, "lambda_tumor_var": 0.0001, "lambda_tumor_cov": 0.0001},
+      {"latent_size": 64, "encoder_dims": [512, 256, 128], "dropout_rate": 0.10, "lambda_tumor_var": 0.0002, "lambda_tumor_cov": 0.0002},
+      {"latent_size": 64, "encoder_dims": [512, 256, 128], "dropout_rate": 0.10, "lambda_tumor_var": 0.0003, "lambda_tumor_cov": 0.0003},
+      {"latent_size": 64, "encoder_dims": [512, 256, 128], "dropout_rate": 0.10, "lambda_tumor_var": 0.0005, "lambda_tumor_cov": 0.0005},
+      {"latent_size": 64, "encoder_dims": [512, 256, 128], "dropout_rate": 0.10, "lambda_tumor_var": 0.0003, "lambda_tumor_cov": 0.0001},
+      {"latent_size": 64, "encoder_dims": [512, 256, 128], "dropout_rate": 0.10, "lambda_tumor_var": 0.0001, "lambda_tumor_cov": 0.0003},
+      {"latent_size": 64, "encoder_dims": [768, 384, 192], "dropout_rate": 0.05, "lambda_tumor_var": 0.0002, "lambda_tumor_cov": 0.0002},
+      {"latent_size": 64, "encoder_dims": [768, 384, 192], "dropout_rate": 0.10, "lambda_tumor_var": 0.0003, "lambda_tumor_cov": 0.0003},
+      {"latent_size": 96, "encoder_dims": [768, 384, 192], "dropout_rate": 0.05, "lambda_tumor_var": 0.0002, "lambda_tumor_cov": 0.0002},
+      {"latent_size": 96, "encoder_dims": [768, 384, 192], "dropout_rate": 0.10, "lambda_tumor_var": 0.0003, "lambda_tumor_cov": 0.0003},
+      {"latent_size": 128, "encoder_dims": [1024, 512, 256], "dropout_rate": 0.05, "lambda_tumor_var": 0.0002, "lambda_tumor_cov": 0.0002},
+      {"latent_size": 128, "encoder_dims": [1024, 512, 256], "dropout_rate": 0.10, "lambda_tumor_var": 0.0003, "lambda_tumor_cov": 0.0003}
+    ],
+    "lambda_proto": [0],
+    "lambda_class_gap": [0],
+    "lambda_cmmd": [0],
+    "lambda_tumor_topology": [0],
+    "lambda_tumor_supcon": [0],
+    "lambda_subspace_ortho": [0],
+    "use_tumor_subspace": [false],
+    "tumor_vicreg_latent_view": ["shared"],
+    "tumor_vicreg_start_epoch": [5, 10],
+    "tumor_vicreg_full_epoch": [30, 50],
+    "lambda_cls": [20, 25],
+    "use_class_weight": [true],
+    "cls_start_epoch": [40],
+    "cls_full_epoch": [90],
+    "gan_gen_update_interval": [5, 10],
+    "gan_cls_update_every_step": [true],
+    "gan_cls_learning_rate": [0.0005],
+    "gan_gp_weight": [10.0],
+    "gan_patience": [50],
+    "gan_early_stop_metric": ["loss"],
+    "gan_early_stop_start_epoch": [30]
+  }
+}

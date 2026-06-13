@@ -1,0 +1,25 @@
+{
+  "_metadata": {
+    "description": "Round 8 second-pass finetune sensitivity: broader classifier head sweep for selected high-potential checkpoints.",
+    "total_combinations": 24
+  },
+  "finetune_params": {
+    "ftlr": [0.001, 0.0005],
+    "scheduler_flag": [true],
+    "loss_type": ["bce", "focal"],
+    "focal_loss_gamma": [2.0]
+  },
+  "classifier_params": {
+    "hidden_dims": [
+      [256, 128],
+      [512, 256, 128],
+      [1024, 512, 256]
+    ],
+    "dropout_rate": [0.0, 0.05],
+    "use_batch_norm": [true],
+    "activation": ["relu"]
+  },
+  "model_params": {
+    "gin_type": ["dapl"]
+  }
+}

@@ -21,11 +21,14 @@ SELECTION_MODES = (
     "round5_structure_first",
     "round6_sweetspot",
     "round7_diverse_downstream_probe",
+    "round8_architecture_broad_probe",
 )
 STRUCTURE_FIRST_MODES = frozenset(
     {"round4_1_structure_first", "round5_structure_first", "round6_sweetspot"}
 )
 ROUND7_SELECTION_MODES = frozenset({"round7_diverse_downstream_probe"})
+ROUND8_SELECTION_MODES = frozenset({"round8_architecture_broad_probe"})
+MULTI_BRANCH_SELECTION_MODES = ROUND7_SELECTION_MODES | ROUND8_SELECTION_MODES
 RANKING_PRIMARY_BY_MODE = {
     "score_total": "score_total",
     "round4_kmeans_first": "score_kmeans",
@@ -34,6 +37,7 @@ RANKING_PRIMARY_BY_MODE = {
     "round5_structure_first": "wasserstein",
     "round6_sweetspot": "sweetspot_score",
     "round7_diverse_downstream_probe": "round7_downstream_probe_priority",
+    "round8_architecture_broad_probe": "round8_downstream_probe_score",
 }
 RANKING_SECONDARY_BY_MODE = {
     "score_total": ["score_total"],
@@ -47,6 +51,11 @@ RANKING_SECONDARY_BY_MODE = {
         "round7_exp010_similarity_score",
         "round7_sweetspot_score",
     ],
+    "round8_architecture_broad_probe": [
+        "round8_downstream_probe_score",
+        "round8_vicreg_active",
+        "round8_latent_size",
+    ],
 }
 
 DEFAULT_FORCE_BASELINE_PATHS = {
@@ -56,6 +65,8 @@ DEFAULT_FORCE_BASELINE_PATHS = {
     "exp_005": "result/optimization_runs/vaewc_round5_control_centered/pretrain/exp_005",
     "exp_010": "result/optimization_runs/vaewc_round6E_tumor_vicreg_stabilizer/pretrain/exp_010",
     "exp_012": "result/optimization_runs/vaewc_round6E_tumor_vicreg_stabilizer/pretrain/exp_012",
+    "exp_048": "result/optimization_runs/vaewc_round7B_vicreg_focused_ablation/pretrain/exp_048",
+    "exp_021": "result/optimization_runs/vaewc_round7B_vicreg_focused_ablation/pretrain/exp_021",
 }
 
 
@@ -166,7 +177,7 @@ def apply_structure_first_stage1_filter(all_df: pd.DataFrame, selection_mode: st
         from tools.collapse_detection import apply_round6_stage1_filter
 
         return apply_round6_stage1_filter(all_df)
-    if selection_mode == "round7_diverse_downstream_probe":
+    if selection_mode in ROUND7_SELECTION_MODES | ROUND8_SELECTION_MODES:
         from tools.collapse_detection import apply_round6_stage1_filter
 
         return apply_round6_stage1_filter(all_df)
@@ -373,6 +384,24 @@ def apply_selection_ranking(df: pd.DataFrame, selection_mode: str = "score_total
                 ascending.append(direction)
         if not by:
             by, ascending = ["round7_downstream_probe_priority"], [False]
+        return annotated.sort_values(by=by, ascending=ascending, na_position="last").reset_index(drop=True)
+    elif selection_mode == "round8_architecture_broad_probe":
+        from tools.round8_selection import annotate_round8_scores
+
+        annotated = annotate_round8_scores(out)
+        sort_cols = [
+            ("round8_downstream_probe_score", False),
+            ("round8_vicreg_active", False),
+            ("kmeans_ari", False),
+        ]
+        by = []
+        ascending = []
+        for col, direction in sort_cols:
+            if col in annotated.columns:
+                by.append(col)
+                ascending.append(direction)
+        if not by:
+            by, ascending = ["round8_downstream_probe_score"], [False]
         return annotated.sort_values(by=by, ascending=ascending, na_position="last").reset_index(drop=True)
     else:
         sort_cols = [("score_total", False)]
@@ -615,11 +644,15 @@ def write_selection_outputs(
 
     aggregated_path = os.path.join(selection_dir, "aggregated_vaewc_results.csv")
     already_enriched_per_branch = (
-        selection_mode in STRUCTURE_FIRST_MODES or selection_mode in ROUND7_SELECTION_MODES
+        selection_mode in STRUCTURE_FIRST_MODES or selection_mode in MULTI_BRANCH_SELECTION_MODES
     )
     if already_enriched_per_branch:
         # all_df already enriched per branch; do not re-enrich with primary result_dir only.
-        stage_mode = "round6_sweetspot" if selection_mode == "round7_diverse_downstream_probe" else selection_mode
+        stage_mode = (
+            "round6_sweetspot"
+            if selection_mode in MULTI_BRANCH_SELECTION_MODES
+            else selection_mode
+        )
         aggregated_df = apply_structure_first_stage1_filter(all_df, stage_mode)
         aggregated_df.to_csv(aggregated_path, index=False)
     else:
@@ -667,6 +700,15 @@ def write_selection_outputs(
         from tools.round7_selection import select_round7_diverse_downstream_probe
 
         top10_df, info = select_round7_diverse_downstream_probe(
+            aggregated_df,
+            all_df,
+            top_k=top_k,
+            force_baseline_models=force_baseline_models or [],
+        )
+    elif selection_mode == "round8_architecture_broad_probe":
+        from tools.round8_selection import select_round8_architecture_broad_probe
+
+        top10_df, info = select_round8_architecture_broad_probe(
             aggregated_df,
             all_df,
             top_k=top_k,
