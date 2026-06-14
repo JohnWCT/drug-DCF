@@ -1584,9 +1584,15 @@ def _load_full_feature_frames(ccle_path, tcga_path):
 def _append_model_select(outfolder, row: Dict):
     model_select_path = os.path.join(outfolder, PRETRAIN_MODEL_SELECT_FILENAME)
     df_new = pd.DataFrame([row])
-    if os.path.exists(model_select_path):
-        df_old = pd.read_csv(model_select_path)
-        df = pd.concat([df_old, df_new], ignore_index=True)
+    if os.path.exists(model_select_path) and os.path.getsize(model_select_path) > 0:
+        try:
+            df_old = pd.read_csv(model_select_path)
+        except pd.errors.EmptyDataError:
+            df_old = pd.DataFrame()
+        if df_old.empty:
+            df = df_new
+        else:
+            df = pd.concat([df_old, df_new], ignore_index=True)
     else:
         df = df_new
     df.to_csv(model_select_path, index=False)

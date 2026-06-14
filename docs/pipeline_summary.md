@@ -1646,19 +1646,29 @@ Round 7 定案：**exp_048** Avg TCGA **0.5918**（7B VICReg）；**exp_021** **
 
 GPU：`pretrain parallel=33`、`finetune parallel=26`（見 `config/gpu_parallel_profile.json`）。
 
-### 16.6 Results and interpretation（2026-06-14 完成）
+### 16.6 Results and interpretation（2026-06-14 完成；pretrain retry 2026-06-14 補完）
 
 | 階段 | 結果 |
 |------|------|
-| Pretrain 8A | **284/288 success**（4 failed，`exp_proto_274/277/284/285`） |
-| Pretrain 8B | **222/224 success**（2 failed，`exp_proto_015/223`） |
-| Pretrain 合計 | **506/512 success**（98.8%） |
-| Selection（8C） | **50 模型**（`round8_architecture_broad_probe`） |
+| Pretrain 8A | **288/288 success**（初跑 284/288；4 failed 已 retry 成功） |
+| Pretrain 8B | **224/224 success**（初跑 222/224；2 failed 已 repair/retry 成功） |
+| Pretrain 合計 | **512/512 success**（100%） |
+| Selection（8C） | **50 模型**（`round8_architecture_broad_probe`；基於初跑 **506** checkpoint） |
 | First-pass finetune | **200/200 success** |
 | Second-pass sensitivity | **216/216 success**（**9 模型** × 24 combos） |
-| 執行時間 | ~**18.4 h**（2026-06-13 16:37 → 2026-06-14 11:02 UTC） |
+| 執行時間 | ~**18.4 h**（2026-06-13 16:37 → 2026-06-14 11:02 UTC）；pretrain retry 另 ~**3 min** |
 | 主成功標準（> 0.5918） | **0 / 50** 未達成 |
 | 次標準（> 0.5569 R6 exp_010） | **5 / 50** |
+
+**初跑失敗與補跑（pretrain retry）：**
+
+| Branch | job_id | 原因 | 處理 |
+|--------|--------|------|------|
+| 8A | exp_proto_274/277/284/285 | CUBLAS / CUDA OOM（parallel=33） | `tools/run_round8_pretrain_retry.sh`（parallel=12）→ **exp_289–292** |
+| 8B | exp_proto_015 | 訓練完成但 `pretrain_model_select.csv` 並行空檔 | 直接標記 success（**exp_029** 已完整） |
+| 8B | exp_proto_223 | CUDA OOM | retry → **exp_224** |
+
+修復：`pretrain_VAEwC.py` 空 CSV append、`optimization_runner.py` 從 log 解析 `result_dir`、`repair_pretrain_manifest.py --force-from-logs`。下游 finetune / selection **未重跑**（6 個新 checkpoint 未納入 50-model selection）。
 
 **First-pass Downstream Top-10（Average_TCGA_AUC_mean）：**
 
@@ -1679,13 +1689,13 @@ GPU：`pretrain parallel=33`、`finetune parallel=26`（見 `config/gpu_parallel
 
 **Second-pass sensitivity：** 最佳仍為 exp_188 **0.5479**（低於 first-pass **0.5777**，Δ ≈ **−0.030**）；broad classifier grid **未帶來提升**。
 
-**Pretrain 診斷（combined 507 loaded）：**
+**Pretrain 診斷（combined 512 loaded）：**
 
 | Branch | n | mean kmeans_ari | mean wasserstein | collapse rate | vicreg rate | best model |
 |--------|---|-----------------|------------------|---------------|-------------|------------|
-| 8A | 284 | 0.363 | 0.462 | 50% | 0% | control **exp_164** |
-| 8B | 223 | 0.207 | 0.549 | 51% | 100% | VICReg **exp_049** |
-| combined | 507 | 0.295 | 0.501 | 50% | 44% | — |
+| 8A | 288 | 0.362 | 0.461 | 50% | 0% | control **exp_171** |
+| 8B | 224 | 0.206 | 0.547 | 51% | 100% | VICReg **exp_123** |
+| combined | 512 | 0.294 | 0.498 | 51% | 44% | — |
 
 **架構掃描觀察（50 模型 finetune 子集）：**
 

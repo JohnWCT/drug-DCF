@@ -40,6 +40,7 @@ tools/round8_selection.py
 tools/analyze_round8_pretrain.py
 tools/build_round8_finetune_sensitivity_select.py
 tools/run_round8_full_pipeline.sh
+tools/run_round8_pretrain_retry.sh
 ```
 
 ## 一鍵全流程
@@ -49,6 +50,9 @@ bash tools/run_round8_full_pipeline.sh
 # OOM 調整：
 PRETRAIN_PARALLEL=28 bash tools/run_round8_full_pipeline.sh
 FINETUNE_PARALLEL=20 bash tools/run_round8_full_pipeline.sh
+# 僅補跑 failed pretrain（建議 parallel=12；含 manifest repair）
+bash tools/run_round8_pretrain_retry.sh
+PRETRAIN_RETRY_PARALLEL=8 bash tools/run_round8_pretrain_retry.sh
 ```
 
 ## Generate + Pretrain（分段）
@@ -154,19 +158,22 @@ pytest tests/test_round8_config_generation.py \
 | Sensitivity 提升 ≥ 0.005 | 下一輪固定 pretrain，優化 classifier head |
 | 全未超越 exp_048 | pretrain 可能近上限；檢視 finetune / 資料協議 |
 
-## 執行結果摘要（2026-06-14 完成）
+## 執行結果摘要（2026-06-14 完成；pretrain 512/512 於同日補完）
 
 | 階段 | 結果 |
 |------|------|
-| **Pretrain 8A** | **284/288 success** |
-| **Pretrain 8B** | **222/224 success** |
-| **Selection（8C）** | **50 模型** |
+| **Pretrain 8A** | **288/288 success** |
+| **Pretrain 8B** | **224/224 success** |
+| **Pretrain 合計** | **512/512 success** |
+| **Selection（8C）** | **50 模型**（基於初跑 506 checkpoint） |
 | **First-pass finetune** | **200/200 success** |
 | **Second-pass sensitivity** | **216/216 success**（9 模型 × 24） |
-| **執行時間** | ~18.4 h |
+| **執行時間** | ~18.4 h（pipeline）+ ~3 min（pretrain retry） |
 | **下游最佳** | **exp_188** Avg TCGA **0.5777**（8A control，latent64，wide_768） |
 | vs R7 exp_048（0.5918） | **0/50 超越**；R7 定案仍有效 |
 | vs R6 exp_010（0.5569） | **5/50 超越** |
+
+**Pretrain retry：** 初跑 6 failed（8A×4 OOM/CUBLAS、8B×2 OOM/EmptyDataError）→ `tools/run_round8_pretrain_retry.sh` 全數補完；下游 finetune 未重跑。
 
 **First-pass Top-5：** exp_188（0.5777）> exp_021（0.5723）> exp_010（0.5644）> exp_048（0.5630）> exp_155（0.5610）。
 

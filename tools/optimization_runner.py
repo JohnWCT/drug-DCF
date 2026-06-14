@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -139,6 +140,22 @@ def _latest_exp_dir(pretrain_dir: str, before: Optional[List[str]] = None) -> Op
     return None
 
 
+def _exp_dir_from_log(log_path: str, pretrain_dir: str) -> Optional[str]:
+    """Resolve the experiment directory created by a pretrain job from its log."""
+    if not os.path.exists(log_path):
+        return None
+    exp_name = None
+    with open(log_path, "r", errors="replace") as log_file:
+        for line in log_file:
+            match = re.search(r"start experiment (exp_\d+)", line)
+            if match:
+                exp_name = match.group(1)
+    if not exp_name:
+        return None
+    exp_dir = os.path.join(pretrain_dir, exp_name)
+    return exp_dir if os.path.isdir(exp_dir) else None
+
+
 def _build_pretrain_cmd(
     config_path: str,
     pretrain_dir: str,
@@ -217,7 +234,9 @@ def _run_one_pretrain_job(
             _write_status_json(status_dir, job_id, status_payload)
             return
 
-        result_dir = _latest_exp_dir(pretrain_dir, before=list(existing_exps))
+        result_dir = _exp_dir_from_log(log_path, pretrain_dir)
+        if result_dir is None:
+            result_dir = _latest_exp_dir(pretrain_dir, before=list(existing_exps))
         if result_dir is None:
             manager.update_job(
                 job_id,
