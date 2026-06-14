@@ -154,6 +154,26 @@ pytest tests/test_round8_config_generation.py \
 | Sensitivity 提升 ≥ 0.005 | 下一輪固定 pretrain，優化 classifier head |
 | 全未超越 exp_048 | pretrain 可能近上限；檢視 finetune / 資料協議 |
 
-## 執行結果摘要
+## 執行結果摘要（2026-06-14 完成）
 
-_（待 pipeline 完成後更新）_
+| 階段 | 結果 |
+|------|------|
+| **Pretrain 8A** | **284/288 success** |
+| **Pretrain 8B** | **222/224 success** |
+| **Selection（8C）** | **50 模型** |
+| **First-pass finetune** | **200/200 success** |
+| **Second-pass sensitivity** | **216/216 success**（9 模型 × 24） |
+| **執行時間** | ~18.4 h |
+| **下游最佳** | **exp_188** Avg TCGA **0.5777**（8A control，latent64，wide_768） |
+| vs R7 exp_048（0.5918） | **0/50 超越**；R7 定案仍有效 |
+| vs R6 exp_010（0.5569） | **5/50 超越** |
+
+**First-pass Top-5：** exp_188（0.5777）> exp_021（0.5723）> exp_010（0.5644）> exp_048（0.5630）> exp_155（0.5610）。
+
+**Second-pass：** 最佳 exp_188 **0.5479**（低於 first-pass，sensitivity grid 無增益）。
+
+**Aggregate 路徑：**
+- `result/optimization_runs/round8_combined/aggregate/aggregate_scores.csv`
+- `result/optimization_runs/round8_finetune_sensitivity/aggregate/aggregate_scores.csv`
+
+**定案：** 全專案主線仍為 **R7 exp_048**；R8 **exp_188** 為架構掃描最佳候選。詳見 `docs/pipeline_summary.md` §16.6–16.7。

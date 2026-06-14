@@ -1640,16 +1640,73 @@ Round 7 定案：**exp_048** Avg TCGA **0.5918**（7B VICReg）；**exp_021** **
 | 階段 | Config | Jobs |
 |------|--------|------|
 | First-pass | `config/params_finetune_mini.json` | 50×4 = **200** |
-| Second-pass sensitivity | `config/finetune_sweeps/round8_finetune_sensitivity_broad.json` | 12×24 = **288** |
+| Second-pass sensitivity | `config/finetune_sweeps/round8_finetune_sensitivity_broad.json` | **9×24 = 216**（實際選 9 模型） |
 | 選模工具 | `tools/build_round8_finetune_sensitivity_select.py` | |
 | Run dir | `result/optimization_runs/round8_finetune_sensitivity` | |
 
 GPU：`pretrain parallel=33`、`finetune parallel=26`（見 `config/gpu_parallel_profile.json`）。
 
-### 16.6 Results and interpretation
+### 16.6 Results and interpretation（2026-06-14 完成）
 
-_（待 `bash tools/run_round8_full_pipeline.sh` 完成後更新）_
+| 階段 | 結果 |
+|------|------|
+| Pretrain 8A | **284/288 success**（4 failed，`exp_proto_274/277/284/285`） |
+| Pretrain 8B | **222/224 success**（2 failed，`exp_proto_015/223`） |
+| Pretrain 合計 | **506/512 success**（98.8%） |
+| Selection（8C） | **50 模型**（`round8_architecture_broad_probe`） |
+| First-pass finetune | **200/200 success** |
+| Second-pass sensitivity | **216/216 success**（**9 模型** × 24 combos） |
+| 執行時間 | ~**18.4 h**（2026-06-13 16:37 → 2026-06-14 11:02 UTC） |
+| 主成功標準（> 0.5918） | **0 / 50** 未達成 |
+| 次標準（> 0.5569 R6 exp_010） | **5 / 50** |
+
+**First-pass Downstream Top-10（Average_TCGA_AUC_mean）：**
+
+| Rank | Model | Avg TCGA | Global TCGA | Branch | 備註 |
+|------|-------|----------|-------------|--------|------|
+| 1 | **exp_188** | **0.5777** | 0.6147 | 8A control | latent=64, encoder wide_768 |
+| 2 | exp_021 | 0.5723 | 0.6041 | forced（R7 7B） | historical baseline |
+| 3 | exp_010 | 0.5644 | 0.6236 | forced | historical baseline |
+| 4 | exp_048 | 0.5630 | 0.5813 | forced（R7 最佳） | 未復現 R7 **0.5918** |
+| 5 | exp_155 | 0.5610 | 0.5726 | 8A control | low dropout probe |
+| 6 | exp_080 | 0.5543 | 0.6154 | 8B VICReg | latent64 vicreg |
+| 7 | exp_012 | 0.5514 | 0.6120 | forced | |
+| 8 | exp_217 | 0.5438 | 0.5977 | 8A control | latent=96 |
+| 9 | exp_129 | 0.5405 | 0.5871 | — | |
+| 10 | exp_177 | 0.5403 | 0.5721 | — | |
+
+**Forced baseline 對照（first-pass）：** exp_048 **0.5630**、exp_021 **0.5723**、exp_010 **0.5644**、exp_012 **0.5514**、exp_005 **0.5371**、exp_746 **0.5225**。
+
+**Second-pass sensitivity：** 最佳仍為 exp_188 **0.5479**（低於 first-pass **0.5777**，Δ ≈ **−0.030**）；broad classifier grid **未帶來提升**。
+
+**Pretrain 診斷（combined 507 loaded）：**
+
+| Branch | n | mean kmeans_ari | mean wasserstein | collapse rate | vicreg rate | best model |
+|--------|---|-----------------|------------------|---------------|-------------|------------|
+| 8A | 284 | 0.363 | 0.462 | 50% | 0% | control **exp_164** |
+| 8B | 223 | 0.207 | 0.549 | 51% | 100% | VICReg **exp_049** |
+| combined | 507 | 0.295 | 0.501 | 50% | 44% | — |
+
+**架構掃描觀察（50 模型 finetune 子集）：**
+
+| 維度 | 觀察 |
+|------|------|
+| latent_size | 32 mean 最高（n=4）；**64 出現全局最佳** exp_188 |
+| encoder | **wide_768** max 最佳（0.5777）；standard_512 樣本最多 |
+| dropout | 0.10 max 略優於 0.05 |
+| lambda_cls | 25 mean 略優於 20/15 |
+| VICReg vs control | 在 selected 50 內 mean 接近（0.514 vs 0.514） |
+| sensitivity | first-pass **優於** second-pass（無 ≥0.005 提升） |
+
+**結論：** Round 8 廣泛架構掃描**未超越 Round 7 exp_048（0.5918）**。R8 最佳 **exp_188**（8A control、latent64、wide encoder）為新候選但仍低 **0.014**。R7 forced baseline 在 R8 finetune 下亦未復現 R7 水準，暗示 sweep 內 checkpoint 與 R7 選模 checkpoint 不完全可比，或 downstream 對 architecture 變化敏感。
 
 ### 16.7 Final recommendation
 
-_（待 §16.6 aggregate 後更新；主成功標準：Avg TCGA **> 0.5918**）_
+| 決策 | 建議 |
+|------|------|
+| **全專案主線 checkpoint** | 仍採 **R7 exp_048**（Avg TCGA **0.5918**） |
+| Round 8 最佳 | **exp_188**（8A control，Avg TCGA **0.5777**）作次選 / ablation reference |
+| 主成功標準 | **未達成**（0/50 > 0.5918） |
+| 架構結論 | latent64 + wide_768 encoder 在 R8 略優，但未穩定超越 R7 VICReg 定案 |
+| Finetune sensitivity | second-pass **無增益**；不宜再放大 classifier grid |
+| 下一輪方向 | 固定 **R7 exp_048** pretrain；若繼續優化，優先 **finetune / 資料協議** 而非再擴 pretrain architecture grid |
