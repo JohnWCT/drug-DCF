@@ -22,3 +22,13 @@ def test_build_three_seed_configs(tmp_path):
     assert cfg["source_exp_id"] == "exp_048"
     assert cfg["pretrain_param_combinations"][0]["latent_size"] == 64
     assert cfg["pretrain_param_combinations"][0]["random_seed"] == 101
+
+def test_read_baseline_params_from_run_summary(tmp_path):
+    exp_dir = write_minimal_checkpoint(str(tmp_path), "exp_048")
+    import os, json
+    os.remove(os.path.join(exp_dir, "params.json"))
+    with open(os.path.join(exp_dir, "run_summary.json"), "w", encoding="utf-8") as f:
+        json.dump({"params": {"latent_size": 64, "encoder_dims": [8, 4]}}, f)
+    from tools.build_round9_reproduction_manifest import _read_baseline_params
+    params = _read_baseline_params(exp_dir)
+    assert params["latent_size"] == 64

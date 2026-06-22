@@ -73,8 +73,11 @@ def build_round9_finetune_select(
                 "pretrain_result_dir": os.path.relpath(checkpoint_dir, PROJECT_ROOT),
             }
         )
-    if not rows and not include_all_reproductions:
-        raise ValueError("No reproduction models available for finetune select")
+    if not rows:
+        raise RuntimeError(
+            "No successful Round 9 reproduction checkpoints found; "
+            "cannot build finetune model_select."
+        )
     return pd.DataFrame(rows)
 
 

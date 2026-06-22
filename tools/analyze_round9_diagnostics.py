@@ -21,7 +21,12 @@ from tools.round9_diagnostics_common import find_existing_tsne_path, resolve_pat
 
 def _read_csv(path: str) -> pd.DataFrame:
     path = resolve_path(path)
-    return pd.read_csv(path) if os.path.exists(path) else pd.DataFrame()
+    if not os.path.exists(path) or os.path.getsize(path) == 0:
+        return pd.DataFrame()
+    try:
+        return pd.read_csv(path)
+    except pd.errors.EmptyDataError:
+        return pd.DataFrame()
 
 
 def _safe_spearman(x, y) -> tuple[float, float, int]:

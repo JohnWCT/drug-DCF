@@ -21,14 +21,25 @@ from tools.round9_diagnostics_common import load_json, resolve_path
 
 
 def _read_baseline_params(checkpoint_dir: str) -> dict:
-    params_path = os.path.join(resolve_path(checkpoint_dir), "params.json")
-    if not os.path.exists(params_path):
-        raise FileNotFoundError(f"Missing params.json for reproduction: {params_path}")
-    payload = load_json(params_path)
-    params = copy.deepcopy(payload.get("params", payload))
-    if not params:
-        raise ValueError(f"Empty params in {params_path}")
-    return params
+    checkpoint_dir = resolve_path(checkpoint_dir)
+
+    params_path = os.path.join(checkpoint_dir, "params.json")
+    if os.path.exists(params_path):
+        payload = load_json(params_path)
+        params = copy.deepcopy(payload.get("params", payload))
+        if params:
+            return params
+
+    summary_path = os.path.join(checkpoint_dir, "run_summary.json")
+    if os.path.exists(summary_path):
+        payload = load_json(summary_path)
+        params = copy.deepcopy(payload.get("params", {}))
+        if params:
+            return params
+
+    raise FileNotFoundError(
+        f"Missing params.json and run_summary.params for reproduction: {checkpoint_dir}"
+    )
 
 
 def build_reproduction_manifest(
