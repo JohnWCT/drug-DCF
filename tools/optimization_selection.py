@@ -23,6 +23,7 @@ SELECTION_MODES = (
     "round7_diverse_downstream_probe",
     "round8_architecture_broad_probe",
     "round10_cond_adv_qc",
+    "round11_stability_qc",
 )
 STRUCTURE_FIRST_MODES = frozenset(
     {"round4_1_structure_first", "round5_structure_first", "round6_sweetspot"}
@@ -30,7 +31,10 @@ STRUCTURE_FIRST_MODES = frozenset(
 ROUND7_SELECTION_MODES = frozenset({"round7_diverse_downstream_probe"})
 ROUND8_SELECTION_MODES = frozenset({"round8_architecture_broad_probe"})
 ROUND10_SELECTION_MODES = frozenset({"round10_cond_adv_qc"})
-MULTI_BRANCH_SELECTION_MODES = ROUND7_SELECTION_MODES | ROUND8_SELECTION_MODES | ROUND10_SELECTION_MODES
+ROUND11_SELECTION_MODES = frozenset({"round11_stability_qc"})
+MULTI_BRANCH_SELECTION_MODES = (
+    ROUND7_SELECTION_MODES | ROUND8_SELECTION_MODES | ROUND10_SELECTION_MODES | ROUND11_SELECTION_MODES
+)
 RANKING_PRIMARY_BY_MODE = {
     "score_total": "score_total",
     "round4_kmeans_first": "score_kmeans",
@@ -41,6 +45,7 @@ RANKING_PRIMARY_BY_MODE = {
     "round7_diverse_downstream_probe": "round7_downstream_probe_priority",
     "round8_architecture_broad_probe": "round8_downstream_probe_score",
     "round10_cond_adv_qc": "round10_cond_adv_score",
+    "round11_stability_qc": "round11_stability_score",
 }
 RANKING_SECONDARY_BY_MODE = {
     "score_total": ["score_total"],
@@ -62,6 +67,11 @@ RANKING_SECONDARY_BY_MODE = {
     "round10_cond_adv_qc": [
         "round10_cond_adv_score",
         "mean_conditional_leakage_strength",
+        "kmeans_ari",
+    ],
+    "round11_stability_qc": [
+        "round11_stability_score",
+        "reconstruction_loss_type",
         "kmeans_ari",
     ],
 }
@@ -186,7 +196,7 @@ def apply_structure_first_stage1_filter(all_df: pd.DataFrame, selection_mode: st
         from tools.collapse_detection import apply_round6_stage1_filter
 
         return apply_round6_stage1_filter(all_df)
-    if selection_mode in ROUND7_SELECTION_MODES | ROUND8_SELECTION_MODES | ROUND10_SELECTION_MODES:
+    if selection_mode in ROUND7_SELECTION_MODES | ROUND8_SELECTION_MODES | ROUND10_SELECTION_MODES | ROUND11_SELECTION_MODES:
         from tools.collapse_detection import apply_round6_stage1_filter
 
         return apply_round6_stage1_filter(all_df)
@@ -411,6 +421,24 @@ def apply_selection_ranking(df: pd.DataFrame, selection_mode: str = "score_total
                 ascending.append(direction)
         if not by:
             by, ascending = ["round10_cond_adv_score"], [False]
+        return annotated.sort_values(by=by, ascending=ascending, na_position="last").reset_index(drop=True)
+    elif selection_mode == "round11_stability_qc":
+        from tools.round11_selection import annotate_round11_scores
+
+        annotated = annotate_round11_scores(out)
+        sort_cols = [
+            ("round11_stability_score", False),
+            ("mean_conditional_leakage_strength", True),
+            ("kmeans_ari", False),
+        ]
+        by = []
+        ascending = []
+        for col, direction in sort_cols:
+            if col in annotated.columns:
+                by.append(col)
+                ascending.append(direction)
+        if not by:
+            by, ascending = ["round11_stability_score"], [False]
         return annotated.sort_values(by=by, ascending=ascending, na_position="last").reset_index(drop=True)
     elif selection_mode == "round8_architecture_broad_probe":
         from tools.round8_selection import annotate_round8_scores
@@ -751,6 +779,15 @@ def write_selection_outputs(
             top_k=top_k,
             force_baseline_models=force_baseline_models or [],
         )
+    elif selection_mode == "round11_stability_qc":
+        from tools.round11_selection import select_round11_stability_candidates
+
+        top10_df, info = select_round11_stability_candidates(
+            aggregated_df,
+            all_df,
+            top_k=top_k,
+            force_baseline_models=force_baseline_models or [],
+        )
     elif selection_mode in STRUCTURE_FIRST_MODES:
         top10_df, info = select_top_k_with_baselines(
             aggregated_df,
@@ -819,7 +856,9 @@ def write_selection_outputs(
     )
     if info.get("group_counts"):
         round_label = (
-            "Round 10"
+            "Round 11"
+            if selection_mode == "round11_stability_qc"
+            else "Round 10"
             if selection_mode == "round10_cond_adv_qc"
             else "Round 8"
             if selection_mode == "round8_architecture_broad_probe"

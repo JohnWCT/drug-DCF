@@ -157,6 +157,21 @@ def load_experiment_data(exp_dir):
     row["cond_gp_pairing_mode"] = merged_metrics.get("cond_gp_pairing_mode")
     row["effective_lambda_cond_adv_final"] = merged_metrics.get("effective_lambda_cond_adv_final")
 
+    row["round11_branch"] = p.get("round11_branch") or merged_metrics.get("round11_branch")
+    row["reconstruction_loss_type"] = p.get("reconstruction_loss_type") or merged_metrics.get(
+        "reconstruction_loss_type"
+    )
+    row["reconstruction_loss_scale"] = p.get("reconstruction_loss_scale", merged_metrics.get(
+        "reconstruction_loss_scale"
+    ))
+    row["reconstruction_loss_reduction"] = p.get("reconstruction_loss_reduction") or merged_metrics.get(
+        "reconstruction_loss_reduction"
+    )
+    row["hybrid_reconstruction_alpha"] = p.get("hybrid_reconstruction_alpha", merged_metrics.get(
+        "hybrid_reconstruction_alpha"
+    ))
+    row["smooth_l1_beta"] = p.get("smooth_l1_beta", merged_metrics.get("smooth_l1_beta"))
+
     pretrain_train_last = _read_last_csv_row(os.path.join(exp_dir, "pretrain_loss.csv"))
     pretrain_eval_last = _read_last_csv_row(os.path.join(exp_dir, "pretrain_eval_loss.csv"))
     gan_d_last = _read_last_csv_row(os.path.join(exp_dir, "d_loss.csv"))

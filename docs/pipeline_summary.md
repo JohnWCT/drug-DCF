@@ -1945,14 +1945,89 @@ Conditional ADV 已實際訓練（`gan_metrics.json` 含 `conditional_adv_enable
 分析工具：`tools/analyze_round10_cond_adv.py`。  
 完整報告：`docs/round10_final_report.md`（runtime 副本：`result/optimization_runs/round10_cond_adv/final_report/round10_final_report.md`）
 
-### 18.9 Round 11 decision
+### 18.9 Round 11 decision（規劃時）
 
-**暫緩進入 Round 11。** 理由：Round 10 雖 downstream 略優於 R9 reproduction，但 `round10_success_status=no_conditional_improvement`，且未量測 macro conditional domain AUC / leakage strength。
-
-**建議下一步（優先序）：**
-
-1. 對 Top-24（至少 `exp_111`）跑 Round 9 式 conditional leakage diagnostics。
-2. 重試 8 個失敗 pretrain（尤其 `λ=0.001`）。
-3. 若 diagnostics 顯示 leakage 下降且 kmeans_ari 維持 → 再評估 Round 11（Conditional ADV + Source-anchor EMA Prototype Alignment）。
+Round 10 完成時暫緩進入 Prototype Alignment；**Round 11 工具鏈已實作**（見 §19），先補 conditional leakage diagnostics，再穩定化 10C 與 SmoothL1 reconstruction ablation。
 
 **手冊：** `docs/round10_conditional_adv_manual.md`
+
+---
+
+## 19. Round 11 Stabilized Conditional ADV and SmoothL1 Reconstruction Ablation
+
+### 19.1 Motivation from Round 10
+
+Round 10 最佳 `exp_111`（10C weak global guard）Average_TCGA_AUC_mean = **0.5749**，略高於 Round 9 reproduction **0.5671**，但 `round10_success_status=no_conditional_improvement`——尚未重跑 Round 9 式 conditional leakage diagnostics。Round 11 **不**直接進入 Prototype Alignment，而是：
+
+```text
+Round 11 = Round 10 post-hoc conditional QC
+         + 10C weak global guard stabilization
+         + SmoothL1 reconstruction loss ablation
+```
+
+### 19.2 Round 11A post-hoc conditional QC
+
+對 Round 10 Top-24（含 `exp_111`）重跑 Round 9 式 diagnostics：
+
+```bash
+python tools/run_round11a_round10_qc.py \
+  --round10-root result/optimization_runs/round10_cond_adv \
+  --round9-diagnostics result/optimization_runs/round9_diagnostics/final_report \
+  --outdir result/optimization_runs/round11_stability_recon/round11a_qc
+```
+
+輸出：`round11a_round10_conditional_qc.csv`、`round11a_go_no_go.md` 等。
+
+### 19.3 Round 11B 10C stabilization
+
+主掃 `global_adv_mode=conditional_plus_weak_global`，`λ_global_mult ∈ {0.25, 0.5}`，`λ_cond_adv` 五檔，四種 schedule，3 seeds → **120** jobs；另 **12** 個 10B 小型對照。
+
+### 19.4 Round 11C SmoothL1 reconstruction ablation
+
+`reconstruction_loss_type ∈ {mse, smooth_l1, hybrid_mse_smooth_l1}` 僅用於 **VAE/AE reconstruction**，不替換 classification / domain / response loss。
+
+- **11C-1** global control：27 jobs  
+- **11C-2** 10C + reconstruction：36 jobs  
+
+實作：`tools/reconstruction_losses.py` → `tools/model_opt.vaeloss` → `pretrain_VAEwC.py`。
+
+### 19.5 Round 11D small combination
+
+Optional；`config/round11_settings.json` 預設 `round11d_combination.enabled=false`。僅在 11C 無 reconstruction collapse 時啟用。
+
+### 19.6 Selection and finetune
+
+```bash
+bash tools/run_round11_pipeline.sh
+```
+
+或分步：
+
+```bash
+python tools/round11_config_builder.py \
+  --settings config/round11_settings.json \
+  --outdir result/optimization_runs/round11_stability_recon \
+  --force
+
+python tools/optimization_runner.py select \
+  --selection-mode round11_stability_qc \
+  --top-k 30 \
+  --force-baseline-models exp_111
+```
+
+Selection mode `round11_stability_qc`（`tools/round11_selection.py`）：保留 10C 穩定化、SmoothL1、MSE control、`exp_111` forced reference。
+
+預期 pretrain jobs：**195**（11B 132 + 11C 63）；finetune 30×4 = 120。
+
+### 19.7 Results and Round 12 decision
+
+分析：`tools/analyze_round11_qc.py` → `round11_final_report.md`。
+
+**Round 12 Go**（Prototype Alignment）需同時滿足：
+
+1. conditional leakage 實際下降（11A 量測）  
+2. cancer retention（kmeans_ari）不 collapse  
+3. downstream ≥ Round 10 `exp_111` = 0.5749  
+
+**手冊：** `docs/round11_optimization_manual.md`
+

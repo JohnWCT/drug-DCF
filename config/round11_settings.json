@@ -1,0 +1,70 @@
+{
+  "round": "round11",
+  "purpose": "Post-Round10 QC, Conditional ADV stabilization, and SmoothL1 reconstruction ablation",
+  "round10_root": "result/optimization_runs/round10_cond_adv",
+  "round9_diagnostics": "result/optimization_runs/round9_diagnostics/final_report",
+  "round9_summary": "result/optimization_runs/round9_diagnostics/final_report/round9_seed_reproducibility_summary.csv",
+  "round9_model_summary": "result/optimization_runs/round9_diagnostics/final_report/round9_model_level_summary.csv",
+  "resolved_baselines": "result/optimization_runs/round9_diagnostics/baselines/resolved_baselines.csv",
+  "primary_baseline_exp_id": "exp_048",
+  "primary_round10_model": "exp_111",
+  "primary_round10_branch": "10C_conditional_plus_weak_global",
+  "references": {
+    "round10_best_avg_tcga": 0.5749,
+    "round9_reproduction_best": 0.5671,
+    "r7_original_exp048": 0.5918
+  },
+  "high_priority_cancers": ["Brain", "Esophageal", "Liver", "Lung", "Ovarian"],
+  "seeds": [101, 202, 303],
+  "conditional_adv": {
+    "mode": "cancer_embedding",
+    "hidden_dims": [128, 64],
+    "dropout": 0.1
+  },
+  "round11a_qc": {
+    "enabled": true,
+    "include_round10_top_k": 24,
+    "force_models": ["exp_111"],
+    "force_include_10a_control": true
+  },
+  "round11b_condadv_stabilization": {
+    "enabled": true,
+    "global_adv_mode": "conditional_plus_weak_global",
+    "condition_dims": [16],
+    "lambda_cond_adv": [0.00003, 0.0001, 0.0003, 0.0005, 0.001],
+    "schedules": [
+      {"start": 10, "full": 60},
+      {"start": 20, "full": 60},
+      {"start": 20, "full": 90},
+      {"start": 40, "full": 90}
+    ],
+    "lambda_global_adv_multiplier": [0.25, 0.5],
+    "include_small_10b_control": true
+  },
+  "round11c_reconstruction_ablation": {
+    "enabled": true,
+    "reconstruction_loss_types": ["mse", "smooth_l1", "hybrid_mse_smooth_l1"],
+    "smooth_l1_beta": [0.25, 0.5, 1.0, 2.0],
+    "hybrid_reconstruction_alpha": [0.5],
+    "apply_to": ["global_control", "best_10c_weak_global"]
+  },
+  "round11d_combination": {
+    "enabled": false
+  },
+  "selection": {
+    "mode": "round11_stability_qc",
+    "top_k": 30,
+    "force_baseline_models": ["exp_111"],
+    "require_10c": true,
+    "require_smooth_l1": true,
+    "require_mse_control": true
+  },
+  "finetune": {
+    "enabled": true,
+    "config": "config/params_finetune_mini.json",
+    "epochs": 1000,
+    "batch_size": 12288,
+    "mini_batch_size": 3072,
+    "max_parallel": 26
+  }
+}

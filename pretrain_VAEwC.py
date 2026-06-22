@@ -50,6 +50,7 @@ from tools.pretrain_common import (
     prepare_training_target_csv as _prepare_training_target_csv,
     compute_class_weights as _compute_class_weights,
 )
+from tools.reconstruction_losses import reconstruction_loss_kwargs
 from tools.proto_infonce import compute_prototype_infonce, default_proto_metrics
 from tools.classwise_alignment import compute_classwise_mmd, compute_classwise_prototype_gap
 from tools.tumor_geometry import compute_tumor_topology_loss
@@ -797,6 +798,7 @@ def train_d_ae(
     lambda_cond_eff: float = 0.0,
     global_adv_mode: str = "baseline_global_only",
     lambda_global_adv_multiplier: float = 1.0,
+    reconstruction_loss_kwargs: dict | None = None,
 ):
     subspace_cfg = subspace_cfg or resolve_subspace_training_params({})
     cls_view = subspace_cfg.get("classifier_latent_view", "shared")
@@ -813,14 +815,15 @@ def train_d_ae(
     discrim.eval()
     classifier.train()
     optimizer.zero_grad()
+    _recon_kw = reconstruction_loss_kwargs or {}
     pccle_re_x, pccle_z, pccle_mu, pccle_sigma = sencoder(s_batch)
-    pccle_vae_loss = vaeloss(pccle_mu, pccle_sigma, pccle_re_x, s_batch)
+    pccle_vae_loss = vaeloss(pccle_mu, pccle_sigma, pccle_re_x, s_batch, **_recon_kw)
     ptcga_re_x, ptcga_z, ptcga_mu, ptcga_sigma = tencoder(t_batch)
-    ptcga_vae_loss = vaeloss(ptcga_mu, ptcga_sigma, ptcga_re_x, t_batch)
+    ptcga_vae_loss = vaeloss(ptcga_mu, ptcga_sigma, ptcga_re_x, t_batch, **_recon_kw)
     ccle_re_x, ccle_z, ccle_mu, ccle_sigma = shared_encoder(s_batch)
-    ccle_vae_loss = vaeloss(ccle_mu, ccle_sigma, ccle_re_x, s_batch)
+    ccle_vae_loss = vaeloss(ccle_mu, ccle_sigma, ccle_re_x, s_batch, **_recon_kw)
     tcga_re_x, tcga_z, tcga_mu, tcga_sigma = shared_encoder(t_batch)
-    tcga_vae_loss = vaeloss(tcga_mu, tcga_sigma, tcga_re_x, t_batch)
+    tcga_vae_loss = vaeloss(tcga_mu, tcga_sigma, tcga_re_x, t_batch, **_recon_kw)
     ccle_cls_z = select_latent_view(ccle_z, cls_view, subspace_cfg)
     tcga_cls_z = select_latent_view(tcga_z, cls_view, subspace_cfg)
     if use_class_weight and source_weights is not None and target_weights is not None:
@@ -1115,6 +1118,7 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
         json.dump(config_payload, f, indent=2, ensure_ascii=False)
     num_classes = len(mapping_int2str)
     cond_cfg = resolve_conditional_adv_training_params(param)
+    recon_kw = reconstruction_loss_kwargs(param)
     if cond_cfg["conditional_adv_enabled"]:
         metadata_dir = os.path.join(exp_dir, "metadata")
         os.makedirs(metadata_dir, exist_ok=True)
@@ -1165,8 +1169,8 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
             ptcga_re_x, ptcga_z, ptcga_mu, ptcga_sigma = target_private_vae(tcgadata)
             ccle_re_x, ccle_z, ccle_mu, ccle_sigma = shared_vae(ccledata)
             tcga_re_x, tcga_z, tcga_mu, tcga_sigma = shared_vae(tcgadata)
-            p_vae_loss = vaeloss(pccle_mu, pccle_sigma, pccle_re_x, ccledata) + vaeloss(ptcga_mu, ptcga_sigma, ptcga_re_x, tcgadata)
-            vae_loss = vaeloss(ccle_mu, ccle_sigma, ccle_re_x, ccledata) + vaeloss(tcga_mu, tcga_sigma, tcga_re_x, tcgadata)
+            p_vae_loss = vaeloss(pccle_mu, pccle_sigma, pccle_re_x, ccledata, **recon_kw) + vaeloss(ptcga_mu, ptcga_sigma, ptcga_re_x, tcgadata, **recon_kw)
+            vae_loss = vaeloss(ccle_mu, ccle_sigma, ccle_re_x, ccledata, **recon_kw) + vaeloss(tcga_mu, tcga_sigma, tcga_re_x, tcgadata, **recon_kw)
             o_loss = ortho_loss(ccle_z, pccle_z) + ortho_loss(tcga_z, ptcga_z)
             cls_view = subspace_cfg.get("classifier_latent_view", "shared")
             ccle_cls_z = select_latent_view(ccle_z, cls_view, subspace_cfg)
@@ -1198,8 +1202,8 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
             ptcga_re_x, ptcga_z, ptcga_mu, ptcga_sigma = target_private_vae(targettest)
             ccle_re_x, ccle_z, ccle_mu, ccle_sigma = shared_vae(sourcetest)
             tcga_re_x, tcga_z, tcga_mu, tcga_sigma = shared_vae(targettest)
-            eval_p = vaeloss(pccle_mu, pccle_sigma, pccle_re_x, sourcetest) + vaeloss(ptcga_mu, ptcga_sigma, ptcga_re_x, targettest)
-            eval_v = vaeloss(ccle_mu, ccle_sigma, ccle_re_x, sourcetest) + vaeloss(tcga_mu, tcga_sigma, tcga_re_x, targettest)
+            eval_p = vaeloss(pccle_mu, pccle_sigma, pccle_re_x, sourcetest, **recon_kw) + vaeloss(ptcga_mu, ptcga_sigma, ptcga_re_x, targettest, **recon_kw)
+            eval_v = vaeloss(ccle_mu, ccle_sigma, ccle_re_x, sourcetest, **recon_kw) + vaeloss(tcga_mu, tcga_sigma, tcga_re_x, targettest, **recon_kw)
             eval_o = ortho_loss(ccle_z, pccle_z) + ortho_loss(tcga_z, ptcga_z)
             ccle_cls_z = select_latent_view(ccle_z, subspace_cfg.get("classifier_latent_view", "shared"), subspace_cfg)
             tcga_cls_z = select_latent_view(tcga_z, subspace_cfg.get("classifier_latent_view", "shared"), subspace_cfg)
@@ -1452,6 +1456,7 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
                         lambda_cond_eff=lambda_cond_eff,
                         global_adv_mode=cond_cfg["global_adv_mode"],
                         lambda_global_adv_multiplier=cond_cfg["lambda_global_adv_multiplier"],
+                        reconstruction_loss_kwargs=recon_kw,
                     )
                 )
         if not dloss_list and not cond_dloss_list:
@@ -1665,6 +1670,12 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
         "wasserstein": _calculate_wasserstein(source_latent, target_latent),
         "tcga_raw_sample_count_for_latent": int(len(tcga_latent_raw_dict)),
         "tcga_patient_count_for_latent": int(len(tcga_latent_dict)),
+        "reconstruction_loss_type": param.get("reconstruction_loss_type", "mse"),
+        "smooth_l1_beta": float(param.get("smooth_l1_beta", 1.0)),
+        "reconstruction_loss_reduction": param.get("reconstruction_loss_reduction", "mean"),
+        "reconstruction_loss_scale": float(param.get("reconstruction_loss_scale", 1.0)),
+        "hybrid_reconstruction_alpha": float(param.get("hybrid_reconstruction_alpha", 0.5)),
+        "round11_branch": param.get("round11_branch", ""),
     }
     cond_gan_logs = {
         "lambda_cond_eff": lambda_cond_eff_final,

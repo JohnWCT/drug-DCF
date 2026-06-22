@@ -464,26 +464,37 @@ def compute_gradient_penalty(critic, real_samples, fake_samples, device):
     gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean()
     return gradient_penalty
 
-def vaeloss(mu: torch.Tensor, sigma: torch.Tensor, re_x: torch.Tensor, x: torch.Tensor, alpha: float = 0.1) -> torch.Tensor:
+def vaeloss(
+    mu: torch.Tensor,
+    sigma: torch.Tensor,
+    re_x: torch.Tensor,
+    x: torch.Tensor,
+    alpha: float = 0.1,
+    reconstruction_loss_type: str = "mse",
+    smooth_l1_beta: float = 1.0,
+    reconstruction_loss_reduction: str = "mean",
+    reconstruction_loss_scale: float = 1.0,
+    hybrid_reconstruction_alpha: float = 0.5,
+) -> torch.Tensor:
     """
-    Compute VAE loss with reconstruction and KL divergence terms
-    
-    Args:
-        mu: Mean of the latent distribution
-        sigma: Log standard deviation of the latent distribution 
-        re_x: Reconstructed input
-        x: Original input
-        alpha: Weight of the KL divergence term
-    
-    Returns:
-        Total VAE loss
+    Compute VAE loss with reconstruction and KL divergence terms.
+
+    Default reconstruction is MSE (backward compatible with legacy runs).
     """
-    # Reconstruction loss
-    recon_loss = F.mse_loss(re_x, x, reduction='mean')
-    
-    # KL divergence
+    from tools.reconstruction_losses import compute_reconstruction_loss
+
+    recon_loss = compute_reconstruction_loss(
+        re_x,
+        x,
+        loss_type=reconstruction_loss_type,
+        smooth_l1_beta=smooth_l1_beta,
+        reduction=reconstruction_loss_reduction,
+        hybrid_alpha=hybrid_reconstruction_alpha,
+    )
+    recon_loss = float(reconstruction_loss_scale) * recon_loss
+
     kl_div = -0.5 * torch.mean(1 + 2 * sigma - mu.pow(2) - (2 * sigma).exp())
-    
+
     return recon_loss + alpha * kl_div
 
 # Calculate metrics for latent space evaluation
