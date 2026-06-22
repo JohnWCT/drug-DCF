@@ -135,6 +135,28 @@ def load_experiment_data(exp_dir):
     if row["kmeans_davies_bouldin"] is None:
         row["kmeans_davies_bouldin"] = merged_metrics.get("source_kmeans_davies_bouldin")
 
+    # Round 10 conditional ADV metadata (params + gan_metrics).
+    row["round"] = p.get("round")
+    row["round10_branch"] = p.get("round10_branch") or merged_metrics.get("round10_branch")
+    row["source_baseline_exp_id"] = p.get("source_baseline_exp_id") or merged_metrics.get(
+        "source_baseline_exp_id"
+    )
+    row["conditional_adv_enabled"] = p.get("conditional_adv_enabled", merged_metrics.get("conditional_adv_enabled"))
+    row["conditional_adv_mode"] = p.get("conditional_adv_mode") or merged_metrics.get("conditional_adv_mode")
+    row["cancer_condition_dim"] = p.get("cancer_condition_dim", merged_metrics.get("cancer_condition_dim"))
+    row["lambda_cond_adv"] = p.get("lambda_cond_adv", merged_metrics.get("lambda_cond_adv"))
+    row["cond_adv_start_epoch"] = p.get("cond_adv_start_epoch", merged_metrics.get("cond_adv_start_epoch"))
+    row["cond_adv_full_epoch"] = p.get("cond_adv_full_epoch", merged_metrics.get("cond_adv_full_epoch"))
+    row["global_adv_mode"] = p.get("global_adv_mode") or merged_metrics.get("global_adv_mode")
+    row["lambda_global_adv_multiplier"] = p.get(
+        "lambda_global_adv_multiplier", merged_metrics.get("lambda_global_adv_multiplier")
+    )
+    row["cond_critic_loss_mean"] = merged_metrics.get("cond_critic_loss_mean")
+    row["cond_encoder_adv_loss_mean"] = merged_metrics.get("cond_encoder_adv_loss_mean")
+    row["cond_gp_mean"] = merged_metrics.get("cond_gp_mean")
+    row["cond_gp_pairing_mode"] = merged_metrics.get("cond_gp_pairing_mode")
+    row["effective_lambda_cond_adv_final"] = merged_metrics.get("effective_lambda_cond_adv_final")
+
     pretrain_train_last = _read_last_csv_row(os.path.join(exp_dir, "pretrain_loss.csv"))
     pretrain_eval_last = _read_last_csv_row(os.path.join(exp_dir, "pretrain_eval_loss.csv"))
     gan_d_last = _read_last_csv_row(os.path.join(exp_dir, "d_loss.csv"))

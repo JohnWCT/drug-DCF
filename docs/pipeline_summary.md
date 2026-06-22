@@ -1907,10 +1907,52 @@ bash tools/run_round10_cond_adv_pipeline.sh
 
 ### 18.8 Results and interpretation
 
-分析工具：`tools/analyze_round10_cond_adv.py`。成功不只看得 downstream AUC，還需 conditional leakage 下降且無 biology collapse。
+**執行日期：** 2026-06-22（Docker `dapl:5.1`）。輸出：`result/optimization_runs/round10_cond_adv/`。
+
+| 階段 | 結果 |
+|------|------|
+| Pretrain | **115/123** 成功（8 失敗，皆 10B；7× `λ=0.001`，2× `λ=0.0003 dim=16`） |
+| Selection | **24** 模型（20×10B，4×10C；10A 未進 Top-24） |
+| Finetune | **96/96** 成功 |
+| `round10_success_status` | **`no_conditional_improvement`** |
+
+**Pretrain 分支（成功模型）：**
+
+| Branch | n | mean wasserstein | mean kmeans_ari |
+|--------|---|------------------|-----------------|
+| 10A | 3 | 0.51 | 0.16 |
+| 10B | 100 | 1.63 | 0.58 |
+| 10C | 12 | 1.30 | 0.61 |
+
+Conditional ADV 已實際訓練（`gan_metrics.json` 含 `conditional_adv_enabled`、`cond_critic_loss_mean` 等）。**但未重跑 Round 9 式 conditional leakage diagnostics**；pretrain summary 中 `mean_conditional_leakage_strength` 為 NaN，QC 狀態依 wasserstein / structure 代理判定。
+
+**Downstream（24 模型 × 4 finetune combos）：**
+
+| 參考 | Avg TCGA |
+|------|----------|
+| **Round 10 最佳 `exp_111`**（10C，`λ=0.001`，dim=16） | **0.5749** |
+| Round 9 exp_048 reproduction 最佳 | 0.5671 |
+| R7 原始 exp_048 | 0.5918 |
+| Round 10 Top-24 mean | 0.5193 |
+
+**結論：**
+
+1. Downstream **優於 Round 9 reproduction**（+0.0078），但仍 **低於 R7 原始 0.5918**。
+2. 最佳單模型為 **10C weak global guard**（非純 10B replacement）。
+3. **無法宣稱 conditional leakage 已改善** — 需補跑 Round 9 diagnostics 後再定案。
+4. `λ=0.001` 在 10B 上 pretrain 失敗率高，後續 sweep 應避開或加穩定化。
+
+分析工具：`tools/analyze_round10_cond_adv.py`。  
+完整報告：`result/optimization_runs/round10_cond_adv/final_report/round10_final_report.md`
 
 ### 18.9 Round 11 decision
 
-若 10B/10C 降低 conditional leakage、保留 cancer biology、downstream 不惡化 → 可進入 Round 11（Conditional ADV + Source-anchor EMA Prototype Alignment）。
+**暫緩進入 Round 11。** 理由：Round 10 雖 downstream 略優於 R9 reproduction，但 `round10_success_status=no_conditional_improvement`，且未量測 macro conditional domain AUC / leakage strength。
+
+**建議下一步（優先序）：**
+
+1. 對 Top-24（至少 `exp_111`）跑 Round 9 式 conditional leakage diagnostics。
+2. 重試 8 個失敗 pretrain（尤其 `λ=0.001`）。
+3. 若 diagnostics 顯示 leakage 下降且 kmeans_ari 維持 → 再評估 Round 11（Conditional ADV + Source-anchor EMA Prototype Alignment）。
 
 **手冊：** `docs/round10_conditional_adv_manual.md`

@@ -51,32 +51,42 @@ def _collect_pretrain_summaries(run_dir: str) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def _safe_series(df: pd.DataFrame, col: str, default=np.nan) -> pd.Series:
+    if col in df.columns:
+        return pd.to_numeric(df[col], errors="coerce")
+    return pd.Series(default, index=df.index, dtype=float)
+
+
 def _compute_success_status(summary: pd.DataFrame, downstream: pd.DataFrame) -> str:
     if summary.empty:
         return "inconclusive"
-    mask_10a = summary.get("round10_branch", "").astype(str).str.contains("10A", na=False)
-    mask_cond = summary.get("round10_branch", "").astype(str).str.contains("10B|10C", na=False, regex=True)
+    branch = summary.get("round10_branch", pd.Series("", index=summary.index)).astype(str)
+    mask_10a = branch.str.contains("10A", na=False)
+    mask_cond = branch.str.contains("10B|10C", na=False, regex=True)
     if not mask_10a.any() or not mask_cond.any():
         return "inconclusive"
 
-    leakage_10a = pd.to_numeric(
-        summary.loc[mask_10a, "mean_conditional_leakage_strength"], errors="coerce"
-    ).mean()
-    leakage_cond = pd.to_numeric(
-        summary.loc[mask_cond, "mean_conditional_leakage_strength"], errors="coerce"
-    ).mean()
+    leak_col = "mean_conditional_leakage_strength"
+    auc_col = "macro_conditional_domain_auc"
+    leakage_10a = _safe_series(summary, leak_col).loc[mask_10a].mean()
+    leakage_cond = _safe_series(summary, leak_col).loc[mask_cond].mean()
     if pd.isna(leakage_10a) or pd.isna(leakage_cond):
-        leakage_10a = pd.to_numeric(
-            summary.loc[mask_10a, "macro_conditional_domain_auc"], errors="coerce"
-        ).mean()
-        leakage_cond = pd.to_numeric(
-            summary.loc[mask_cond, "macro_conditional_domain_auc"], errors="coerce"
-        ).mean()
-        improved = leakage_cond < leakage_10a
+        leakage_10a = _safe_series(summary, auc_col).loc[mask_10a].mean()
+        leakage_cond = _safe_series(summary, auc_col).loc[mask_cond].mean()
+        if pd.isna(leakage_10a) or pd.isna(leakage_cond):
+            # Pretrain-only: proxy via global alignment (lower wasserstein => better)
+            wass_10a = _safe_series(summary, "wasserstein").loc[mask_10a].mean()
+            wass_cond = _safe_series(summary, "wasserstein").loc[mask_cond].mean()
+            if pd.notna(wass_10a) and pd.notna(wass_cond):
+                improved = wass_cond <= wass_10a
+            else:
+                return "inconclusive"
+        else:
+            improved = leakage_cond < leakage_10a
     else:
         improved = leakage_cond < leakage_10a
 
-    kmeans_cond = pd.to_numeric(summary.loc[mask_cond, "kmeans_ari"], errors="coerce").mean()
+    kmeans_cond = _safe_series(summary, "kmeans_ari").loc[mask_cond].mean()
     collapse = kmeans_cond < 0.30 if pd.notna(kmeans_cond) else False
 
     avg_tcga = np.nan
@@ -131,27 +141,24 @@ def analyze_round10(
         branch_series = summary.get("round10_branch", pd.Series(dtype=str))
         for branch in branch_series.dropna().unique():
             sub = summary[summary["round10_branch"] == branch]
+            sub_leak = _safe_series(sub, "mean_conditional_leakage_strength").mean()
+            sub_auc = _safe_series(sub, "macro_conditional_domain_auc").mean()
             vs_baseline_rows.append(
                 {
                     "round10_branch": branch,
                     "n_models": len(sub),
-                    "mean_conditional_leakage": pd.to_numeric(
-                        sub.get("mean_conditional_leakage_strength"), errors="coerce"
-                    ).mean(),
-                    "macro_conditional_domain_auc": pd.to_numeric(
-                        sub.get("macro_conditional_domain_auc"), errors="coerce"
-                    ).mean(),
-                    "delta_leakage_vs_r9_exp048": pd.to_numeric(
-                        sub.get("mean_conditional_leakage_strength"), errors="coerce"
-                    ).mean()
-                    - baseline_leakage,
-                    "delta_auc_vs_r9_exp048": pd.to_numeric(
-                        sub.get("macro_conditional_domain_auc"), errors="coerce"
-                    ).mean()
-                    - baseline_auc,
-                    "mean_kmeans_ari": pd.to_numeric(sub.get("kmeans_ari"), errors="coerce").mean(),
-                    "mean_wasserstein": pd.to_numeric(sub.get("wasserstein"), errors="coerce").mean(),
-                    "mean_fid": pd.to_numeric(sub.get("fid"), errors="coerce").mean(),
+                    "mean_conditional_leakage": sub_leak,
+                    "macro_conditional_domain_auc": sub_auc,
+                    "delta_leakage_vs_r9_exp048": sub_leak - baseline_leakage
+                    if pd.notna(sub_leak) and pd.notna(baseline_leakage)
+                    else np.nan,
+                    "delta_auc_vs_r9_exp048": sub_auc - baseline_auc
+                    if pd.notna(sub_auc) and pd.notna(baseline_auc)
+                    else np.nan,
+                    "mean_kmeans_ari": _safe_series(sub, "kmeans_ari").mean(),
+                    "mean_wasserstein": _safe_series(sub, "wasserstein").mean(),
+                    "mean_fid": _safe_series(sub, "fid").mean(),
+                    "mean_lambda_cond_adv": _safe_series(sub, "lambda_cond_adv").mean(),
                 }
             )
     vs_df = pd.DataFrame(vs_baseline_rows)

@@ -128,7 +128,7 @@ def annotate_round10_scores(df: pd.DataFrame, baseline_10a: Optional[pd.DataFram
 
 
 def _model_id_col(df: pd.DataFrame) -> str:
-    for col in ("model_id", "exp_id", "experiment_id"):
+    for col in ("ID", "model_id", "exp_id", "experiment_id"):
         if col in df.columns:
             return col
     raise ValueError("No model id column found")
