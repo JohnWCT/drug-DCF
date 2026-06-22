@@ -269,6 +269,7 @@ def _load_labeled_data_patient_aware(
     target_domain="tcga",
     target_cancer_reference_path=None,
     ccle_info_path=None,
+    random_seed=42,
 ):
     """Load labeled data; expects pre-cleaned expression CSVs (see tools/clean_pretrain_inputs_by_cancer_type.py)."""
     ccle_df = pd.read_csv(ccle_path, index_col=0)
@@ -373,10 +374,10 @@ def _load_labeled_data_patient_aware(
         raise ValueError("No valid labeled samples after filtering. Please verify sample IDs and disease mapping.")
     from sklearn.model_selection import train_test_split
     ccle_train, ccle_test, ccle_train_y, ccle_test_y = train_test_split(
-        ccle_df, ccle_labels, test_size=0.2, stratify=ccle_labels, random_state=42
+        ccle_df, ccle_labels, test_size=0.2, stratify=ccle_labels, random_state=random_seed
     )
     xena_train, xena_test, xena_train_y, xena_test_y = train_test_split(
-        xena_df, xena_labels, test_size=0.2, stratify=xena_labels, random_state=42
+        xena_df, xena_labels, test_size=0.2, stratify=xena_labels, random_state=random_seed
     )
     label_map = {d: i for i, d in enumerate(common_labels)}
     mapping_int2str = {i: d for d, i in label_map.items()}
@@ -521,6 +522,7 @@ def _kmeans_combined_metrics(
     source_labels: np.ndarray,
     target_labels: np.ndarray,
     n_clusters: int,
+    random_seed: int = 42,
 ):
     metrics = {
         "kmeans_k": np.nan,
@@ -544,7 +546,7 @@ def _kmeans_combined_metrics(
     k = int(max(2, min(n_clusters, len(np.unique(labels)), len(latent) - 1)))
     if k < 2:
         return metrics
-    km = KMeans(n_clusters=k, random_state=42, n_init=10)
+    km = KMeans(n_clusters=k, random_state=random_seed, n_init=10)
     cluster_labels = km.fit_predict(latent)
     ari_raw = float(adjusted_rand_score(labels, cluster_labels))
     nmi = float(normalized_mutual_info_score(labels, cluster_labels))
@@ -1463,6 +1465,7 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
         source_true,
         target_true,
         len(mapping_int2str),
+        random_seed=int(param.get("random_seed", 42)),
     )
     proto_guard = compute_proto_checkpoint_guard(
         param,
@@ -1679,6 +1682,11 @@ def main():
                 min(len(ccle_df_full), len(tcga_df_full)),
             )
             param_dict["batch_size"] = effective_batch
+            random_seed = int(param_dict.get("random_seed", 42))
+            np.random.seed(random_seed)
+            torch.manual_seed(random_seed)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed_all(random_seed)
             sourcedata, targetdata = _load_labeled_data_patient_aware(
                 ccle_path=source_path,
                 xena_path=training_target_path,
@@ -1687,6 +1695,7 @@ def main():
                 target_domain=args.target_domain,
                 target_cancer_reference_path=resolved_target_cancer_ref,
                 ccle_info_path=args.ccle_info,
+                random_seed=random_seed,
             )
             exp_name, exp_dir = _next_experiment_dir(args.outfolder)
             metrics = run_single_experiment(

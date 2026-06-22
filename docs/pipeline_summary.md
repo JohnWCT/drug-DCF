@@ -1720,3 +1720,80 @@ GPU：`pretrain parallel=33`、`finetune parallel=26`（見 `config/gpu_parallel
 | 架構結論 | latent64 + wide_768 encoder 在 R8 略優，但未穩定超越 R7 VICReg 定案 |
 | Finetune sensitivity | second-pass **無增益**；不宜再放大 classifier grid |
 | 下一輪方向 | 固定 **R7 exp_048** pretrain；若繼續優化，優先 **finetune / 資料協議** 而非再擴 pretrain architecture grid |
+
+---
+
+## 17. Round 9 deconfounding QC and baseline reproduction
+
+> 操作手冊：`docs/round9_diagnostics_manual.md`
+
+### 17.1 Motivation
+
+Round 8 定案：全專案主線仍為 **R7 exp_048**（0.5918）；R8 廣泛架構掃描未超越主線。Round 9 **不新增 training loss**，改為對既有 deconfounding / domain adaptation 做 **quality control**：驗證 global source/target 對齊是否代表 **cancer-type conditional** 對齊，並保留 cancer biology 與 response-relevant heterogeneity。
+
+### 17.2 Baseline resolution
+
+- Config：`config/round9_baselines.json`
+- Tool：`tools/round9_baseline_resolver.py`
+- Required baseline：**exp_048**（找不到則 fail fast）
+- Optional baselines：**exp_021, exp_188, exp_010, exp_012, exp_746**
+- 輸出：`result/optimization_runs/round9_diagnostics/baselines/resolved_baselines.csv`
+
+### 17.3 Reproduction setup
+
+- Tool：`tools/build_round9_reproduction_manifest.py`
+- 每個 resolved baseline × **3 seeds**（101 / 202 / 303）
+- Hyperparameters 從 checkpoint `params.json` 還原（不手動猜測）
+- Run dir：`result/optimization_runs/round9_reproduction`
+- `pretrain_VAEwC.py` 支援 `random_seed` 參數
+
+### 17.4 Global alignment diagnostics
+
+- Tool：`tools/analyze_deconfounding_qc.py`
+- 指標：FID、Wasserstein、global domain AUC、kmeans_ari/nmi、silhouette、Davies-Bouldin
+- 整合既有 pretrain 輸出（不重新產生 t-SNE / UMAP）
+
+### 17.5 Conditional domain leakage diagnostics
+
+- Tool：`tools/analyze_conditional_domain_leakage.py`
+- 固定 cancer type 後評估 source/target domain classifier AUC
+- `leakage_strength = abs(AUC - 0.5)`（含 AUC < 0.5 反轉情形）
+- 輸出：`conditional_domain_auc_by_cancer.csv`、`conditional_domain_auc_summary.csv`
+
+### 17.6 Cancer prototype diagnostics
+
+- Tool：`tools/analyze_cancer_prototypes.py`
+- 同癌別 source/target prototype 距離 + inter-cancer margin
+- 區分 good deconfounding vs biology collapse
+
+### 17.7 Latent stability diagnostics
+
+- Tool：`tools/analyze_latent_stability.py`
+- active dimensions、effective rank、off-diagonal covariance、collapse / redundancy flags
+
+### 17.8 Finetune and aggregate
+
+- Tool：`tools/build_round9_finetune_select.py`
+- 選入規則：每個 reproduction checkpoint 全選（預期 **6×3 = 18** models；missing baseline 則更少）
+- Finetune：`config/params_finetune_mini.json`（4 combos / model）
+- Run dir：`result/optimization_runs/round9_diagnostics`
+- Pipeline：`tools/run_round9_diagnostics_pipeline.sh`
+
+### 17.9 Deconfounding QC interpretation
+
+QC 狀態（`deconfounding_qc_status`）：
+
+| 狀態 | 意義 |
+|------|------|
+| `good_conditional_deconfounding` | global + conditional 對齊良好，cancer retention 佳 |
+| `global_only_alignment` | global 佳但 conditional leakage 高 |
+| `biology_collapse_risk` | global 佳但 cancer retention / margin 差 |
+| `insufficient_evidence` | 樣本不足或 latent 缺失 |
+
+Final report：`tools/analyze_round9_diagnostics.py` → `round9_final_report.md`
+
+### 17.10 Round 10 recommendations
+
+- Template only：`config/pretrain_sweeps/vaewc_round10_cond_adv_template.json`（**Round 9 不執行**）
+- Round 10 Conditional ADV 起點由 Round 9 `round9_per_cancer_problem_list.csv` 與 seed reproducibility 報告決定
+- Go 條件：exp_048 可重現、conditional leakage 報告可用、finetune aggregate 完成

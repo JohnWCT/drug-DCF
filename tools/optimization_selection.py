@@ -67,6 +67,7 @@ DEFAULT_FORCE_BASELINE_PATHS = {
     "exp_012": "result/optimization_runs/vaewc_round6E_tumor_vicreg_stabilizer/pretrain/exp_012",
     "exp_048": "result/optimization_runs/vaewc_round7B_vicreg_focused_ablation/pretrain/exp_048",
     "exp_021": "result/optimization_runs/vaewc_round7B_vicreg_focused_ablation/pretrain/exp_021",
+    "exp_188": "result/optimization_runs/vaewc_round8A_control_arch_broad/pretrain/exp_188",
 }
 
 

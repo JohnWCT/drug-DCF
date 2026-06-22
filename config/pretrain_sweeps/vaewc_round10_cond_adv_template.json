@@ -1,0 +1,22 @@
+{
+  "_metadata": {
+    "round": "round10_template",
+    "description": "Template only. Do not execute in Round 9. Conditional adversarial deconfounding will be tested in Round 10.",
+    "status": "template_only"
+  },
+  "model_type": "VAEwC",
+  "base_from": "round9_best_reproducible_baseline",
+  "conditional_adv_enabled": [true],
+  "conditional_adv_mode": ["cancer_embedding"],
+  "cancer_condition_dim": [8, 16, 32],
+  "lambda_cond_adv": [0.0001, 0.0003, 0.001],
+  "cond_adv_start_epoch": [10, 20],
+  "cond_adv_full_epoch": [40, 60],
+  "latent_size": [64],
+  "encoder_dims": [[512, 256, 128], [768, 384, 192]],
+  "notes": [
+    "Do not run this config in Round 9.",
+    "Use Round 9 deconfounding QC, conditional leakage, and per-cancer prototype reports to choose starting points.",
+    "The lambda range assumes WGAN-GP scale may be large; adjust after inspecting loss scale."
+  ]
+}

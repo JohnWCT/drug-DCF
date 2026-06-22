@@ -1,0 +1,65 @@
+{
+  "round": "round9",
+  "purpose": "Deconfounding QC, baseline reproduction, and conditional diagnostics infrastructure",
+  "seed_count": 3,
+  "seeds": [101, 202, 303],
+  "baselines": [
+    {
+      "exp_id": "exp_048",
+      "role": "primary_best_vicreg",
+      "required": true,
+      "explicit_path": null
+    },
+    {
+      "exp_id": "exp_021",
+      "role": "secondary_vicreg",
+      "required": false,
+      "explicit_path": null
+    },
+    {
+      "exp_id": "exp_188",
+      "role": "round8_best_control_wide_encoder",
+      "required": false,
+      "explicit_path": null
+    },
+    {
+      "exp_id": "exp_010",
+      "role": "round6_control_like_winner",
+      "required": false,
+      "explicit_path": null
+    },
+    {
+      "exp_id": "exp_012",
+      "role": "round6_active_vicreg_integrated_reference",
+      "required": false,
+      "explicit_path": null
+    },
+    {
+      "exp_id": "exp_746",
+      "role": "historical_baseline",
+      "required": false,
+      "explicit_path": null
+    }
+  ],
+  "diagnostics": {
+    "latent_view": "shared",
+    "min_source_per_cancer": 10,
+    "min_target_per_cancer": 10,
+    "domain_classifiers": ["logistic_regression", "small_mlp"],
+    "primary_domain_classifier": "logistic_regression",
+    "include_fid_metrics": true,
+    "include_wasserstein_metrics": true,
+    "include_clustering_metrics": true,
+    "include_existing_tsne_outputs": true,
+    "generate_new_umap": false,
+    "generate_new_tsne": false
+  },
+  "finetune": {
+    "enabled": true,
+    "config": "config/params_finetune_mini.json",
+    "epochs": 1000,
+    "batch_size": 12288,
+    "mini_batch_size": 3072,
+    "max_parallel": 26
+  }
+}
