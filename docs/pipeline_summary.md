@@ -1797,3 +1797,62 @@ Final report：`tools/analyze_round9_diagnostics.py` → `round9_final_report.md
 - Template only：`config/pretrain_sweeps/vaewc_round10_cond_adv_template.json`（**Round 9 不執行**）
 - Round 10 Conditional ADV 起點由 Round 9 `round9_per_cancer_problem_list.csv` 與 seed reproducibility 報告決定
 - Go 條件：exp_048 可重現、conditional leakage 報告可用、finetune aggregate 完成
+
+### 17.11 Results and interpretation（2026-06-22 完成）
+
+| 階段 | 結果 |
+|------|------|
+| Baseline 解析 | **6/6** resolved（exp_048 required 成功） |
+| Pretrain reproduction | **18/18 success**（6 baselines × 3 seeds） |
+| Finetune mini | **72/72 success**（18 models × 4 combos） |
+| GPU 設定 | pretrain **parallel=33**、finetune **parallel=26** |
+| 執行時間 | ~**2.9 h**（2026-06-22 02:18 → 05:09 UTC） |
+| Post-hoc 修復 | TCGA patient-key 對應修正後重跑 diagnostics |
+
+**3-seed 下游重現（Avg TCGA mean ± std）：**
+
+| source_exp_id | Avg TCGA mean | std | macro_cond AUC mean | leakage mean | repro flag |
+|---------------|---------------|-----|---------------------|--------------|------------|
+| **exp_048** | **0.5349** | 0.026 | 0.866 | 0.366 | variable |
+| exp_021 | 0.5059 | 0.034 | 0.875 | 0.375 | variable |
+| exp_188 | 0.5117 | 0.013 | 0.873 | 0.376 | variable |
+| exp_010 | 0.4991 | 0.022 | 0.875 | 0.375 | variable |
+| exp_012 | 0.5034 | 0.010 | 0.879 | 0.379 | variable |
+| exp_746 | 0.4928 | 0.044 | 0.881 | 0.381 | variable |
+
+**各 baseline 最佳 reproduction（finetune 後）：**
+
+| source | best model | Avg TCGA | seed |
+|--------|------------|----------|------|
+| **exp_048** | exp_010 | **0.5671** | 303 |
+| exp_746 | exp_012 | 0.5524 | 101 |
+| exp_021 | exp_011 | 0.5344 | 202 |
+| exp_188 | exp_018 | 0.5291 | 101 |
+| exp_010 | exp_014 | 0.5188 | 202 |
+| exp_012 | exp_002 | 0.5182 | 303 |
+
+**Deconfounding QC（18 models）：**
+
+| 狀態 | count | 解讀 |
+|------|-------|------|
+| `global_only_alignment` | **8** | global domain 可分性中等，但 conditional leakage 偏高 |
+| `insufficient_evidence` | **10** | 部分模型 cancer retention / margin 證據不足 |
+| `good_conditional_deconfounding` | **0** | 無模型通過完整 conditional QC |
+
+**exp_048 診斷（3 seeds）：** global domain AUC **0.65–0.71**；macro conditional domain AUC **0.84–0.88**（leakage strength **0.34–0.38**）→ 屬 **global_only_alignment** 或 **insufficient_evidence**，**非** good conditional deconfounding。
+
+**Diagnostics ↔ downstream（exploratory, n=18）：** conditional leakage 與 Avg TCGA 呈負相關（spearman **−0.49**）；macro conditional domain AUC 與 Avg TCGA **−0.47**。global FID/Wasserstein 與 downstream 相關弱。
+
+**Round 10 高優先癌別（conditional leakage + prototype distance）：** Brain、Esophageal、Liver、Lung、Ovarian。
+
+**結論：**
+
+1. **exp_048 可重現但下游未復現 R7 0.5918**（reproduction 最佳 **0.5671**，mean **0.5349**）。
+2. 現有 deconfounding 呈現 **global 改善、conditional leakage 仍高**（多數模型 `global_only_alignment`）。
+3. Round 9 **達成** pipeline / diagnostics 基礎建設；**支持** Round 10 Conditional ADV 從 **exp_048** 出發，優先改善上述高 leakage 癌別。
+4. 全專案主線仍建議 **R7 exp_048 原始 checkpoint**（0.5918），reproduction 變異需進一步調查。
+
+**報告路徑：**
+- `result/optimization_runs/round9_diagnostics/final_report/round9_final_report.md`
+- `result/optimization_runs/round9_diagnostics/aggregate/aggregate_scores.csv`
+- `result/optimization_runs/round9_diagnostics/reports/deconfounding_qc_model_summary.csv`

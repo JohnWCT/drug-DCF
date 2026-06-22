@@ -225,7 +225,10 @@ def _load_cancer_maps() -> Tuple[pd.Series, pd.Series]:
     xena_info = pd.read_csv(tcga_ref, index_col=0)
     xena_info.index = xena_info.index.astype(str)
     cancer_col = "cancer_type" if "cancer_type" in xena_info.columns else "cancerType"
-    tcga_map = xena_info[cancer_col].astype(str).str.strip()
+    patient_cancer: Dict[str, str] = {}
+    for idx, cancer in xena_info[cancer_col].astype(str).str.strip().items():
+        patient_cancer[tcga_three_segment_key(str(idx))] = cancer
+    tcga_map = pd.Series(patient_cancer)
     return ccle_map, tcga_map
 
 
@@ -248,12 +251,10 @@ def load_latent_domain_frame(checkpoint_dir: str) -> pd.DataFrame:
             row[f"z{i}"] = float(val)
         rows.append(row)
     for sid, vec in target_latent.items():
-        key = sid
-        if key not in tcga_map.index:
-            key = tcga_three_segment_key(sid)
-        if key not in tcga_map.index:
+        patient = tcga_three_segment_key(sid)
+        if patient not in tcga_map.index:
             continue
-        row = {"sample_id": sid, "domain": "target", "cancer_type": str(tcga_map.loc[key])}
+        row = {"sample_id": sid, "domain": "target", "cancer_type": str(tcga_map.loc[patient])}
         for i, val in enumerate(vec):
             row[f"z{i}"] = float(val)
         rows.append(row)

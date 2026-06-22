@@ -147,14 +147,21 @@ def build_per_cancer_problem_list(by_cancer_df: pd.DataFrame) -> pd.DataFrame:
     leak_col = "logistic_leakage_strength" if "logistic_leakage_strength" in by_cancer_df.columns else f"logistic_regression_leakage_strength"
     if primary_auc not in by_cancer_df.columns:
         return pd.DataFrame()
-    grouped = by_cancer_df.groupby("cancer_type").agg(
-        n_source=("n_source", "mean"),
-        n_target=("n_target", "mean"),
-        sufficient_samples=("sufficient_samples", "max"),
-        mean_conditional_domain_auc=(primary_auc, "mean"),
-        conditional_leakage_strength=(leak_col, "mean"),
-        mean_source_target_proto_distance=("source_target_cosine_distance", "mean"),
-    ).reset_index()
+    proto_col = "source_target_cosine_distance"
+    if proto_col not in by_cancer_df.columns:
+        proto_col = "source_target_euclidean_distance" if "source_target_euclidean_distance" in by_cancer_df.columns else None
+    agg_spec = {
+        "n_source": ("n_source", "mean"),
+        "n_target": ("n_target", "mean"),
+        "sufficient_samples": ("sufficient_samples", "max"),
+        "mean_conditional_domain_auc": (primary_auc, "mean"),
+        "conditional_leakage_strength": (leak_col, "mean"),
+    }
+    if proto_col:
+        agg_spec["mean_source_target_proto_distance"] = (proto_col, "mean")
+    grouped = by_cancer_df.groupby("cancer_type").agg(**agg_spec).reset_index()
+    if "mean_source_target_proto_distance" not in grouped.columns:
+        grouped["mean_source_target_proto_distance"] = float("nan")
     grouped["rank_by_leakage"] = grouped["conditional_leakage_strength"].rank(ascending=False, method="dense")
     grouped["rank_by_proto_distance"] = grouped["mean_source_target_proto_distance"].rank(ascending=False, method="dense")
     grouped["inter_cancer_margin"] = float("nan")
@@ -195,13 +202,16 @@ def main() -> None:
     resolved_df = _read_csv(args.resolved_baselines)
 
     if not proto_by_cancer.empty and not cond_by_cancer.empty:
-        cond_by_cancer = cond_by_cancer.merge(
-            proto_by_cancer[
-                ["model_id", "cancer_type", "source_target_cosine_distance"]
-            ],
-            on=["model_id", "cancer_type"],
-            how="left",
-        )
+        proto_cols = ["model_id", "cancer_type"]
+        for col in ("source_target_cosine_distance", "source_target_euclidean_distance"):
+            if col in proto_by_cancer.columns:
+                proto_cols.append(col)
+        if len(proto_cols) > 2:
+            cond_by_cancer = cond_by_cancer.merge(
+                proto_by_cancer[proto_cols],
+                on=["model_id", "cancer_type"],
+                how="left",
+            )
 
     model_df = build_model_level_summary(aggregate_df, qc_df, cond_summary, proto_summary, stability_df, resolved_df)
     seed_df = build_seed_reproducibility(model_df)

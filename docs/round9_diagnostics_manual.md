@@ -112,7 +112,23 @@ pytest tests/test_round9_baseline_resolver.py \
 
 **理想：** 6 baselines × 3 seeds 全完成；Spearman correlation 可計算；Round 10 優先癌別清單可產出。
 
-## 8. Round 10
+## 8. 執行結果摘要（2026-06-22 完成）
+
+| 階段 | 結果 |
+|------|------|
+| Baseline 解析 | **6/6** |
+| Pretrain reproduction | **18/18** |
+| Finetune | **72/72** |
+| GPU | pretrain **33** / finetune **26** parallel |
+| 執行時間 | ~**2.9 h** |
+| QC | `global_only_alignment` **8**、`insufficient_evidence` **10** |
+| exp_048 最佳 reproduction | **0.5671** Avg TCGA（seed 303） |
+| vs R7 exp_048（0.5918） | **未復現** |
+| Round 10 高優先癌別 | Brain、Esophageal、Liver、Lung、Ovarian |
+
+**備註：** 初跑 final report 因 prototype 欄位與 TCGA patient-key 對應問題失敗；已修復 `round9_diagnostics_common.py` / `analyze_round9_diagnostics.py` 後重跑 diagnostics。
+
+## 9. Round 10
 
 - `vaewc_round10_cond_adv_template.json` 僅 template，**Round 9 不執行**
 - Go 條件見 `docs/pipeline_summary.md` §17.10
