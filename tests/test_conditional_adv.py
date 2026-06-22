@@ -71,3 +71,25 @@ def test_resolve_disabled_backward_compat():
     assert cfg["conditional_adv_enabled"] is False
     assert cfg["global_adv_mode"] == "baseline_global_only"
     assert cfg["lambda_cond_adv"] == 0.0
+
+def test_build_conditional_adv_components_round10_10b():
+    from tools.conditional_adv import build_conditional_adv_components
+
+    bundle = build_conditional_adv_components(
+        {
+            "conditional_adv_enabled": True,
+            "conditional_adv_mode": "cancer_embedding",
+            "global_adv_mode": "conditional_replacement",
+            "cancer_condition_dim": 16,
+            "lambda_cond_adv": 0.001,
+            "cond_adv_start_epoch": 10,
+            "cond_adv_full_epoch": 60,
+        },
+        latent_size=64,
+        num_cancer_types=18,
+        gan_learning_rate=5e-4,
+        gan_epoch=20,
+        device=torch.device("cpu"),
+    )
+    assert bundle["cond_critic"] is not None
+    assert bundle["cond_cfg"]["global_adv_mode"] == "conditional_replacement"

@@ -232,6 +232,52 @@ def resolve_conditional_adv_training_params(param: dict) -> dict:
     }
 
 
+def build_conditional_adv_components(
+    param: dict,
+    latent_size: int,
+    num_cancer_types: int,
+    gan_learning_rate: float,
+    gan_epoch: int,
+    device: torch.device,
+    init_weights_fn=None,
+) -> dict:
+    """
+    Build conditional ADV critic + optimizer for pretrain GAN stage.
+
+    Returns cond_cfg and optional (cond_critic, cond_critic_optimizer, cond_critic_scheduler).
+    When conditional_adv_enabled=false, critic/optimizer/scheduler are None.
+    """
+    cond_cfg = resolve_conditional_adv_training_params(param)
+    cond_critic = None
+    cond_critic_optimizer = None
+    cond_critic_scheduler = None
+    if cond_cfg["conditional_adv_enabled"]:
+        cond_critic = ConditionalDomainCritic(
+            latent_size=int(latent_size),
+            num_cancer_types=int(num_cancer_types),
+            condition_dim=cond_cfg["cancer_condition_dim"],
+            hidden_dims=cond_cfg["cond_critic_hidden_dims"],
+            dropout=cond_cfg["cond_critic_dropout"],
+        ).to(device)
+        if init_weights_fn is not None:
+            cond_critic.apply(init_weights_fn)
+        cond_critic_optimizer = torch.optim.Adam(
+            cond_critic.parameters(),
+            lr=float(gan_learning_rate),
+            betas=(0.5, 0.9),
+        )
+        cond_critic_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            cond_critic_optimizer,
+            max(1, int(gan_epoch)),
+        )
+    return {
+        "cond_cfg": cond_cfg,
+        "cond_critic": cond_critic,
+        "cond_critic_optimizer": cond_critic_optimizer,
+        "cond_critic_scheduler": cond_critic_scheduler,
+    }
+
+
 def conditional_adv_metrics_payload(cond_cfg: dict, gan_logs: dict | None = None) -> dict:
     gan_logs = gan_logs or {}
     payload = {

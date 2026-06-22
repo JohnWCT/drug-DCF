@@ -84,8 +84,8 @@ from tools.pretrain_proto_schedule import (
 )
 from tools.proto_structure_metrics import compute_proto_structure_metrics
 from tools.conditional_adv import (
-    ConditionalDomainCritic,
     build_cancer_type_mapping,
+    build_conditional_adv_components,
     compute_conditional_gp_by_cancer,
     conditional_adv_metrics_payload,
     get_cond_adv_lambda_eff,
@@ -1268,26 +1268,18 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
 
     discrim_optimizer = torch.optim.RMSprop(discrim.parameters(), lr=gan_lr)
     discrim_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(discrim_optimizer, max(1, gan_epoch))
-    cond_critic = None
-    cond_critic_optimizer = None
-    cond_critic_scheduler = None
-    if cond_cfg["conditional_adv_enabled"]:
-        cond_critic = ConditionalDomainCritic(
-            latent_size=latent_size,
-            num_cancer_types=num_classes,
-            condition_dim=cond_cfg["cancer_condition_dim"],
-            hidden_dims=cond_cfg["cond_critic_hidden_dims"],
-            dropout=cond_cfg["cond_critic_dropout"],
-        ).to(device)
-        cond_critic.apply(init_weights)
-        cond_critic_optimizer = torch.optim.Adam(
-            cond_critic.parameters(),
-            lr=gan_lr,
-            betas=(0.5, 0.9),
-        )
-        cond_critic_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-            cond_critic_optimizer, max(1, gan_epoch)
-        )
+    cond_adv_bundle = build_conditional_adv_components(
+        param,
+        latent_size=latent_size,
+        num_cancer_types=num_classes,
+        gan_learning_rate=gan_lr,
+        gan_epoch=gan_epoch,
+        device=device,
+        init_weights_fn=init_weights,
+    )
+    cond_critic = cond_adv_bundle["cond_critic"]
+    cond_critic_optimizer = cond_adv_bundle["cond_critic_optimizer"]
+    cond_critic_scheduler = cond_adv_bundle["cond_critic_scheduler"]
     classifier_optimizer = torch.optim.RMSprop(cancer_classifier.parameters(), lr=gan_cls_lr)
     classifier_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(classifier_optimizer, max(1, gan_epoch))
     d_ae_optimizer = torch.optim.RMSprop(
