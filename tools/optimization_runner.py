@@ -586,11 +586,13 @@ def build_parser() -> argparse.ArgumentParser:
             "round6_sweetspot",
             "round7_diverse_downstream_probe",
             "round8_architecture_broad_probe",
+            "round10_cond_adv_qc",
         ],
         help=(
             "Top-K ranking "
             "(Round 7: round7_diverse_downstream_probe; "
-            "Round 8: round8_architecture_broad_probe)"
+            "Round 8: round8_architecture_broad_probe; "
+            "Round 10: round10_cond_adv_qc)"
         ),
     )
     sel.add_argument(

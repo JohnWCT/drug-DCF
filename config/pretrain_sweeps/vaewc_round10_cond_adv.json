@@ -1,0 +1,8 @@
+{
+  "round": "round10",
+  "purpose": "Conditional ADV only: cancer-type-conditioned adversarial deconfounding",
+  "generated_at": "2026-06-22T06:47:48.024622+00:00",
+  "job_count": 123,
+  "manifest_path": "../../tmp/pytest-of-root/pytest-35/test_10b_disables_proto_and_vi0/round10/manifests/pretrain_sweep_manifest.csv",
+  "settings_path": "config/round10_cond_adv_settings.json"
+}

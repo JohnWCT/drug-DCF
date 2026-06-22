@@ -1,0 +1,54 @@
+{
+  "round": "round10",
+  "purpose": "Conditional ADV only: cancer-type-conditioned adversarial deconfounding",
+  "round9_summary": "result/optimization_runs/round9_diagnostics/final_report/round9_seed_reproducibility_summary.csv",
+  "round9_model_summary": "result/optimization_runs/round9_diagnostics/final_report/round9_model_level_summary.csv",
+  "round9_problem_cancers": "result/optimization_runs/round9_diagnostics/final_report/round9_per_cancer_problem_list.csv",
+  "resolved_baselines": "result/optimization_runs/round9_diagnostics/baselines/resolved_baselines.csv",
+  "primary_baseline_exp_id": "exp_048",
+  "forced_reference_exp_ids": ["exp_048", "exp_188", "exp_021", "exp_010", "exp_012", "exp_746"],
+  "high_priority_cancers": ["Brain", "Esophageal", "Liver", "Lung", "Ovarian"],
+  "seeds": [101, 202, 303],
+  "branch_design": {
+    "include_10A_global_repro": true,
+    "include_10B_conditional_replacement": true,
+    "include_10C_conditional_plus_weak_global": true
+  },
+  "conditional_adv": {
+    "mode": "cancer_embedding",
+    "condition_dims": [8, 16, 32],
+    "lambdas": [0.0001, 0.0003, 0.001, 0.003],
+    "schedules": [
+      {"start": 10, "full": 40},
+      {"start": 10, "full": 60},
+      {"start": 20, "full": 60}
+    ],
+    "hidden_dims": [128, 64],
+    "dropout": 0.1
+  },
+  "weak_global_guard": {
+    "enabled": true,
+    "lambda_global_adv_multiplier": 0.25,
+    "condition_dims": [16],
+    "lambdas": [0.0003, 0.001],
+    "schedules": [
+      {"start": 10, "full": 60},
+      {"start": 20, "full": 60}
+    ]
+  },
+  "selection": {
+    "mode": "round10_cond_adv_qc",
+    "top_k": 24,
+    "force_baseline_models": ["exp_048"],
+    "min_passing": 1,
+    "require_controls": 0
+  },
+  "finetune": {
+    "enabled": true,
+    "config": "config/params_finetune_mini.json",
+    "epochs": 1000,
+    "batch_size": 12288,
+    "mini_batch_size": 3072,
+    "max_parallel": 26
+  }
+}

@@ -83,6 +83,14 @@ from tools.pretrain_proto_schedule import (
     post_proto_checkpoint_min_epoch,
 )
 from tools.proto_structure_metrics import compute_proto_structure_metrics
+from tools.conditional_adv import (
+    ConditionalDomainCritic,
+    build_cancer_type_mapping,
+    compute_conditional_gp_by_cancer,
+    conditional_adv_metrics_payload,
+    get_cond_adv_lambda_eff,
+    resolve_conditional_adv_training_params,
+)
 
 
 if not torch.cuda.is_available():
@@ -643,6 +651,57 @@ def train_discrim(
     return loss_log
 
 
+def train_cond_discrim(
+    s_batch,
+    t_batch,
+    s_labels,
+    t_labels,
+    shared_encoder,
+    cond_critic,
+    optimizer,
+    scheduler,
+    gan_gp_weight: float = 10.0,
+):
+    """WGAN-GP conditional discriminator step on shared latent z."""
+    loss_log = defaultdict(float)
+    cond_critic.zero_grad()
+    shared_encoder.eval()
+    cond_critic.train()
+    optimizer.zero_grad()
+    with torch.no_grad():
+        _, zs, _, _ = shared_encoder(s_batch)
+        _, zt, _, _ = shared_encoder(t_batch)
+    cond_real_score = cond_critic(zs.detach(), s_labels)
+    cond_fake_score = cond_critic(zt.detach(), t_labels)
+    cond_d_loss = cond_fake_score.mean() - cond_real_score.mean()
+    cond_gp, gp_skip, gp_mode = compute_conditional_gp_by_cancer(
+        cond_critic,
+        zs.detach(),
+        zt.detach(),
+        s_labels,
+        t_labels,
+        device=device,
+        gp_weight=gan_gp_weight,
+    )
+    cond_critic_loss = cond_d_loss + cond_gp
+    loss_log.update(
+        {
+            "cond_critic_loss": cond_critic_loss,
+            "cond_d_loss": cond_d_loss,
+            "cond_gp": cond_gp,
+            "cond_gp_skip_count": float(gp_skip),
+            "cond_gp_pairing_mode": gp_mode,
+            "cond_real_score": cond_real_score.mean(),
+            "cond_fake_score": cond_fake_score.mean(),
+        }
+    )
+    cond_critic_loss.backward()
+    optimizer.step()
+    scheduler.step()
+    cond_critic.eval()
+    return loss_log
+
+
 def train_classifier_step(
     s_batch,
     t_batch,
@@ -734,6 +793,10 @@ def train_d_ae(
     source_weights=None,
     target_weights=None,
     use_class_weight: bool = False,
+    cond_critic=None,
+    lambda_cond_eff: float = 0.0,
+    global_adv_mode: str = "baseline_global_only",
+    lambda_global_adv_multiplier: float = 1.0,
 ):
     subspace_cfg = subspace_cfg or resolve_subspace_training_params({})
     cls_view = subspace_cfg.get("classifier_latent_view", "shared")
@@ -772,6 +835,15 @@ def train_d_ae(
     o_loss = ortho_loss(ccle_z, pccle_z) + ortho_loss(tcga_z, ptcga_z)
     g_in = alignment_discriminator_input(tcga_z, ptcga_z, subspace_cfg)
     g_loss = -torch.mean(discrim(g_in))
+    cond_encoder_adv_loss = tcga_z.sum() * 0.0
+    if cond_critic is not None and lambda_cond_eff > 0:
+        cond_critic.eval()
+        cond_encoder_adv_loss = -torch.mean(cond_critic(tcga_z, t_labels))
+    global_adv_term = float(lambda_adv_eff) * g_loss
+    if global_adv_mode == "conditional_replacement":
+        global_adv_term = tcga_z.sum() * 0.0
+    elif global_adv_mode == "conditional_plus_weak_global":
+        global_adv_term = float(lambda_global_adv_multiplier) * float(lambda_adv_eff) * g_loss
     proto_metrics = default_proto_metrics(mode=proto_mode, direction=proto_direction, detach=proto_detach)
     proto_loss = ccle_z.sum() * 0.0
     if lambda_proto_eff > 0:
@@ -888,7 +960,8 @@ def train_d_ae(
     combined_proto_cmmd = bool(lambda_proto_eff > 0 and lambda_cmmd_eff > 0)
     loss = (
         o_loss
-        + float(lambda_adv_eff) * g_loss
+        + global_adv_term
+        + float(lambda_cond_eff) * cond_encoder_adv_loss
         + vae_loss
         + pvae_loss
         + gan_lambda_cls * cls_loss
@@ -905,6 +978,10 @@ def train_d_ae(
         "ortho_loss": o_loss,
         "pvae_loss": pvae_loss,
         "gen_loss": g_loss,
+        "global_adv_term": float(global_adv_term.detach().item()) if torch.is_tensor(global_adv_term) else float(global_adv_term),
+        "cond_encoder_adv_loss": float(cond_encoder_adv_loss.detach().item()),
+        "lambda_cond_eff": float(lambda_cond_eff),
+        "global_adv_mode": global_adv_mode,
         "vae_loss": vae_loss,
         "cls_loss": cls_loss,
         "lambda_cls_eff": gan_lambda_cls,
@@ -1037,6 +1114,12 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
     with open(os.path.join(exp_dir, "params.json"), "w") as f:
         json.dump(config_payload, f, indent=2, ensure_ascii=False)
     num_classes = len(mapping_int2str)
+    cond_cfg = resolve_conditional_adv_training_params(param)
+    if cond_cfg["conditional_adv_enabled"]:
+        metadata_dir = os.path.join(exp_dir, "metadata")
+        os.makedirs(metadata_dir, exist_ok=True)
+        with open(os.path.join(metadata_dir, "cancer_type_mapping.json"), "w") as f:
+            json.dump(build_cancer_type_mapping(mapping_int2str), f, indent=2)
     input_size = sourcetest.shape[1]
     latent_size = param.get("latent_size", 32)
     encoder_hidden_dims = param["encoder_dims"]
@@ -1185,6 +1268,26 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
 
     discrim_optimizer = torch.optim.RMSprop(discrim.parameters(), lr=gan_lr)
     discrim_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(discrim_optimizer, max(1, gan_epoch))
+    cond_critic = None
+    cond_critic_optimizer = None
+    cond_critic_scheduler = None
+    if cond_cfg["conditional_adv_enabled"]:
+        cond_critic = ConditionalDomainCritic(
+            latent_size=latent_size,
+            num_cancer_types=num_classes,
+            condition_dim=cond_cfg["cancer_condition_dim"],
+            hidden_dims=cond_cfg["cond_critic_hidden_dims"],
+            dropout=cond_cfg["cond_critic_dropout"],
+        ).to(device)
+        cond_critic.apply(init_weights)
+        cond_critic_optimizer = torch.optim.Adam(
+            cond_critic.parameters(),
+            lr=gan_lr,
+            betas=(0.5, 0.9),
+        )
+        cond_critic_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            cond_critic_optimizer, max(1, gan_epoch)
+        )
     classifier_optimizer = torch.optim.RMSprop(cancer_classifier.parameters(), lr=gan_cls_lr)
     classifier_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(classifier_optimizer, max(1, gan_epoch))
     d_ae_optimizer = torch.optim.RMSprop(
@@ -1225,8 +1328,21 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
     source_vae_post_proto_dict = copy.deepcopy(source_private_vae.state_dict())
     target_vae_post_proto_dict = copy.deepcopy(target_private_vae.state_dict())
     discrim_post_proto_dict = copy.deepcopy(discrim.state_dict())
+    cond_gp_skip_total = 0
+    cond_gp_pairing_mode_last = ""
+    cond_critic_loss_history: List[float] = []
+    cond_encoder_adv_loss_history: List[float] = []
+    cond_gp_history: List[float] = []
+    lambda_cond_eff_final = 0.0
     for epoch in range(gan_epoch):
         gan_epoch_idx = epoch + 1
+        lambda_cond_eff = get_cond_adv_lambda_eff(
+            gan_epoch_idx,
+            cond_cfg["lambda_cond_adv"],
+            cond_cfg["cond_adv_start_epoch"],
+            cond_cfg["cond_adv_full_epoch"],
+        )
+        lambda_cond_eff_final = lambda_cond_eff
         lambda_proto_eff = get_lambda_proto_eff(gan_epoch_idx, param)
         lambda_cmmd_eff = get_lambda_cmmd_eff(gan_epoch_idx, param)
         lambda_class_gap_eff = get_lambda_class_gap_eff(gan_epoch_idx, param)
@@ -1236,25 +1352,42 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
         lambda_tumor_cov_eff = get_lambda_tumor_cov_eff(gan_epoch_idx, param)
         lambda_subspace_ortho_eff = get_lambda_subspace_ortho_eff(gan_epoch_idx, param)
         dloss_list = []
+        cond_dloss_list = []
         genloss_list = []
         cls_only_list = []
         target_cycle = cycle(targettrainloader)
         for step, (ccledata, ccle_labels) in enumerate(sourcetrainloader):
             tcgadata, tcga_labels = next(target_cycle)
-            dloss_list.append(
-                train_discrim(
+            if cond_cfg["global_adv_mode"] != "conditional_replacement":
+                dloss_list.append(
+                    train_discrim(
+                        ccledata,
+                        tcgadata,
+                        shared_vae,
+                        source_private_vae,
+                        target_private_vae,
+                        discrim,
+                        discrim_optimizer,
+                        discrim_scheduler,
+                        gan_gp_weight=gan_gp_weight,
+                        subspace_cfg=subspace_cfg,
+                    )
+                )
+            if cond_critic is not None and cond_critic_optimizer is not None:
+                cond_step_log = train_cond_discrim(
                     ccledata,
                     tcgadata,
+                    ccle_labels,
+                    tcga_labels,
                     shared_vae,
-                    source_private_vae,
-                    target_private_vae,
-                    discrim,
-                    discrim_optimizer,
-                    discrim_scheduler,
+                    cond_critic,
+                    cond_critic_optimizer,
+                    cond_critic_scheduler,
                     gan_gp_weight=gan_gp_weight,
-                    subspace_cfg=subspace_cfg,
                 )
-            )
+                cond_dloss_list.append(cond_step_log)
+                cond_gp_skip_total += int(cond_step_log.get("cond_gp_skip_count", 0))
+                cond_gp_pairing_mode_last = str(cond_step_log.get("cond_gp_pairing_mode", ""))
             if gan_cls_update_every_step:
                 cls_log = train_classifier_step(
                     ccledata,
@@ -1323,16 +1456,30 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
                         source_weights=source_weights,
                         target_weights=target_weights,
                         use_class_weight=use_class_weight,
+                        cond_critic=cond_critic,
+                        lambda_cond_eff=lambda_cond_eff,
+                        global_adv_mode=cond_cfg["global_adv_mode"],
+                        lambda_global_adv_multiplier=cond_cfg["lambda_global_adv_multiplier"],
                     )
                 )
-        if not dloss_list:
+        if not dloss_list and not cond_dloss_list:
             continue
-        dloss_mean = _mean_loss_logs(dloss_list)
+        dloss_mean = _mean_loss_logs(dloss_list) if dloss_list else defaultdict(float)
+        if cond_dloss_list:
+            cond_dloss_mean = _mean_loss_logs(cond_dloss_list)
+            dloss_mean.update(cond_dloss_mean)
+            cond_critic_loss_history.append(float(cond_dloss_mean.get("cond_critic_loss", 0.0)))
+            cond_gp_history.append(float(cond_dloss_mean.get("cond_gp", 0.0)))
         genloss_mean = _mean_loss_logs(genloss_list)
+        if genloss_list:
+            cond_encoder_adv_loss_history.append(
+                float(np.mean([g.get("cond_encoder_adv_loss", 0.0) for g in genloss_list]))
+            )
         if cls_only_list:
             genloss_mean["cls_only_loss"] = float(np.mean(cls_only_list))
         genloss_mean["lambda_cls_eff"] = gan_lambda_cls
         genloss_mean["lambda_adv_eff"] = lambda_adv
+        genloss_mean["lambda_cond_eff"] = lambda_cond_eff
         genloss_mean["lambda_proto_eff"] = lambda_proto_eff
         genloss_mean["lambda_cmmd_eff"] = lambda_cmmd_eff
         genloss_mean["lambda_class_gap"] = class_gap_cfg["lambda_class_gap"]
@@ -1527,6 +1674,18 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
         "tcga_raw_sample_count_for_latent": int(len(tcga_latent_raw_dict)),
         "tcga_patient_count_for_latent": int(len(tcga_latent_dict)),
     }
+    cond_gan_logs = {
+        "lambda_cond_eff": lambda_cond_eff_final,
+        "cond_critic_loss_mean": float(np.mean(cond_critic_loss_history)) if cond_critic_loss_history else None,
+        "cond_encoder_adv_loss_mean": float(np.mean(cond_encoder_adv_loss_history))
+        if cond_encoder_adv_loss_history
+        else None,
+        "cond_gp_mean": float(np.mean(cond_gp_history)) if cond_gp_history else None,
+        "cond_gp_skip_count": int(cond_gp_skip_total),
+        "cond_gp_pairing_mode": cond_gp_pairing_mode_last or None,
+        "num_cancer_types": num_classes,
+    }
+    metrics.update(conditional_adv_metrics_payload(cond_cfg, cond_gan_logs))
     metrics.update(cluster_metrics)
     with open(os.path.join(exp_dir, "gan_metrics.json"), "w") as f:
         json.dump(_json_safe(metrics), f, indent=2)

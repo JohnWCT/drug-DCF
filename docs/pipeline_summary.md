@@ -1856,3 +1856,61 @@ Final report：`tools/analyze_round9_diagnostics.py` → `round9_final_report.md
 - `result/optimization_runs/round9_diagnostics/final_report/round9_final_report.md`
 - `result/optimization_runs/round9_diagnostics/aggregate/aggregate_scores.csv`
 - `result/optimization_runs/round9_diagnostics/reports/deconfounding_qc_model_summary.csv`
+
+---
+
+## 18. Round 10 Conditional Adversarial Deconfounding
+
+### 18.1 Motivation from Round 9
+
+Round 9 證明 global deconfounding 有效，但 **同一 cancer type 內** source/target 仍可分（exp_048 macro conditional domain AUC ~0.84–0.88）。Round 10 將 global discriminator `D(z)` 升級為 conditional critic `D_cond(z, cancer_type)`。
+
+### 18.2 Conditional critic design
+
+- `tools/conditional_adv.py`：`CancerConditionEncoder`、`ConditionalDomainCritic`、conditional WGAN-GP、λ schedule。
+- Cancer type mapping 寫入 `<result_dir>/metadata/cancer_type_mapping.json`。
+
+### 18.3 10A / 10B / 10C branch design
+
+| Branch | global_adv_mode | Jobs |
+|--------|-----------------|------|
+| 10A | `baseline_global_only` | 3 |
+| 10B | `conditional_replacement` | 108 |
+| 10C | `conditional_plus_weak_global` (×0.25) | 12 |
+
+Primary baseline：**exp_048** only。10B/10C 關閉 proto / SupCon / topology / subspace；10B 另清零 tumor VICReg。
+
+### 18.4 Config generation
+
+```bash
+python tools/round10_config_builder.py \
+  --settings config/round10_cond_adv_settings.json \
+  --outdir result/optimization_runs/round10_cond_adv \
+  --force
+```
+
+### 18.5 Training behavior
+
+- `conditional_adv_enabled=false`：與舊版 pretrain 完全一致。
+- `conditional_replacement`：只訓練 conditional critic；generator 使用 conditional adversarial loss。
+- `conditional_plus_weak_global`：conditional + 弱 global guard。
+
+### 18.6 Selection strategy
+
+`round10_cond_adv_qc`：綜合 conditional leakage 改善、cancer retention、global alignment 安全度；Top-K=24。詳見 `tools/round10_selection.py`。
+
+### 18.7 Finetune and aggregate
+
+```bash
+bash tools/run_round10_cond_adv_pipeline.sh
+```
+
+### 18.8 Results and interpretation
+
+分析工具：`tools/analyze_round10_cond_adv.py`。成功不只看得 downstream AUC，還需 conditional leakage 下降且無 biology collapse。
+
+### 18.9 Round 11 decision
+
+若 10B/10C 降低 conditional leakage、保留 cancer biology、downstream 不惡化 → 可進入 Round 11（Conditional ADV + Source-anchor EMA Prototype Alignment）。
+
+**手冊：** `docs/round10_conditional_adv_manual.md`
