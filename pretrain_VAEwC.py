@@ -1118,7 +1118,7 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
         json.dump(config_payload, f, indent=2, ensure_ascii=False)
     num_classes = len(mapping_int2str)
     cond_cfg = resolve_conditional_adv_training_params(param)
-    recon_kw = reconstruction_loss_kwargs(param)
+    recon_loss_kw = reconstruction_loss_kwargs(param)
     if cond_cfg["conditional_adv_enabled"]:
         metadata_dir = os.path.join(exp_dir, "metadata")
         os.makedirs(metadata_dir, exist_ok=True)
@@ -1169,8 +1169,8 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
             ptcga_re_x, ptcga_z, ptcga_mu, ptcga_sigma = target_private_vae(tcgadata)
             ccle_re_x, ccle_z, ccle_mu, ccle_sigma = shared_vae(ccledata)
             tcga_re_x, tcga_z, tcga_mu, tcga_sigma = shared_vae(tcgadata)
-            p_vae_loss = vaeloss(pccle_mu, pccle_sigma, pccle_re_x, ccledata, **recon_kw) + vaeloss(ptcga_mu, ptcga_sigma, ptcga_re_x, tcgadata, **recon_kw)
-            vae_loss = vaeloss(ccle_mu, ccle_sigma, ccle_re_x, ccledata, **recon_kw) + vaeloss(tcga_mu, tcga_sigma, tcga_re_x, tcgadata, **recon_kw)
+            p_vae_loss = vaeloss(pccle_mu, pccle_sigma, pccle_re_x, ccledata, **recon_loss_kw) + vaeloss(ptcga_mu, ptcga_sigma, ptcga_re_x, tcgadata, **recon_loss_kw)
+            vae_loss = vaeloss(ccle_mu, ccle_sigma, ccle_re_x, ccledata, **recon_loss_kw) + vaeloss(tcga_mu, tcga_sigma, tcga_re_x, tcgadata, **recon_loss_kw)
             o_loss = ortho_loss(ccle_z, pccle_z) + ortho_loss(tcga_z, ptcga_z)
             cls_view = subspace_cfg.get("classifier_latent_view", "shared")
             ccle_cls_z = select_latent_view(ccle_z, cls_view, subspace_cfg)
@@ -1202,8 +1202,8 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
             ptcga_re_x, ptcga_z, ptcga_mu, ptcga_sigma = target_private_vae(targettest)
             ccle_re_x, ccle_z, ccle_mu, ccle_sigma = shared_vae(sourcetest)
             tcga_re_x, tcga_z, tcga_mu, tcga_sigma = shared_vae(targettest)
-            eval_p = vaeloss(pccle_mu, pccle_sigma, pccle_re_x, sourcetest, **recon_kw) + vaeloss(ptcga_mu, ptcga_sigma, ptcga_re_x, targettest, **recon_kw)
-            eval_v = vaeloss(ccle_mu, ccle_sigma, ccle_re_x, sourcetest, **recon_kw) + vaeloss(tcga_mu, tcga_sigma, tcga_re_x, targettest, **recon_kw)
+            eval_p = vaeloss(pccle_mu, pccle_sigma, pccle_re_x, sourcetest, **recon_loss_kw) + vaeloss(ptcga_mu, ptcga_sigma, ptcga_re_x, targettest, **recon_loss_kw)
+            eval_v = vaeloss(ccle_mu, ccle_sigma, ccle_re_x, sourcetest, **recon_loss_kw) + vaeloss(tcga_mu, tcga_sigma, tcga_re_x, targettest, **recon_loss_kw)
             eval_o = ortho_loss(ccle_z, pccle_z) + ortho_loss(tcga_z, ptcga_z)
             ccle_cls_z = select_latent_view(ccle_z, subspace_cfg.get("classifier_latent_view", "shared"), subspace_cfg)
             tcga_cls_z = select_latent_view(tcga_z, subspace_cfg.get("classifier_latent_view", "shared"), subspace_cfg)
@@ -1456,7 +1456,7 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
                         lambda_cond_eff=lambda_cond_eff,
                         global_adv_mode=cond_cfg["global_adv_mode"],
                         lambda_global_adv_multiplier=cond_cfg["lambda_global_adv_multiplier"],
-                        reconstruction_loss_kwargs=recon_kw,
+                        reconstruction_loss_kwargs=recon_loss_kw,
                     )
                 )
         if not dloss_list and not cond_dloss_list:
@@ -1677,6 +1677,13 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
         "hybrid_reconstruction_alpha": float(param.get("hybrid_reconstruction_alpha", 0.5)),
         "round11_branch": param.get("round11_branch", ""),
     }
+    reconstruction_loss_payload = {
+        "reconstruction_loss_type": metrics["reconstruction_loss_type"],
+        "smooth_l1_beta": metrics["smooth_l1_beta"],
+        "reconstruction_loss_reduction": metrics["reconstruction_loss_reduction"],
+        "reconstruction_loss_scale": metrics["reconstruction_loss_scale"],
+        "hybrid_reconstruction_alpha": metrics["hybrid_reconstruction_alpha"],
+    }
     cond_gan_logs = {
         "lambda_cond_eff": lambda_cond_eff_final,
         "cond_critic_loss_mean": float(np.mean(cond_critic_loss_history)) if cond_critic_loss_history else None,
@@ -1690,6 +1697,7 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
     }
     metrics.update(conditional_adv_metrics_payload(cond_cfg, cond_gan_logs))
     metrics.update(cluster_metrics)
+    metrics.update(reconstruction_loss_payload)
     with open(os.path.join(exp_dir, "gan_metrics.json"), "w") as f:
         json.dump(_json_safe(metrics), f, indent=2)
     pd.DataFrame([metrics]).to_csv(os.path.join(exp_dir, "gan_metrics.csv"), index=False)
@@ -1706,6 +1714,7 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
             "exp_id": exp_name,
             "params": param,
             "metrics": metrics,
+            "reconstruction_loss": reconstruction_loss_payload,
             "artifacts": {
                 "weights": [
                     "after_traingan_shared_vae.pth",
