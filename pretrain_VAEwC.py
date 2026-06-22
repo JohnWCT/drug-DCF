@@ -798,7 +798,7 @@ def train_d_ae(
     lambda_cond_eff: float = 0.0,
     global_adv_mode: str = "baseline_global_only",
     lambda_global_adv_multiplier: float = 1.0,
-    reconstruction_loss_kwargs: dict | None = None,
+    reconstruction_loss_kwargs=None,
 ):
     subspace_cfg = subspace_cfg or resolve_subspace_training_params({})
     cls_view = subspace_cfg.get("classifier_latent_view", "shared")

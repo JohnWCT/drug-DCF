@@ -1945,11 +1945,11 @@ Conditional ADV 已實際訓練（`gan_metrics.json` 含 `conditional_adv_enable
 分析工具：`tools/analyze_round10_cond_adv.py`。  
 完整報告：`docs/round10_final_report.md`（runtime 副本：`result/optimization_runs/round10_cond_adv/final_report/round10_final_report.md`）
 
-### 18.9 Round 11 decision（規劃時）
+### 18.9 Round 11 decision
 
-Round 10 完成時暫緩進入 Prototype Alignment；**Round 11 工具鏈已實作**（見 §19），先補 conditional leakage diagnostics，再穩定化 10C 與 SmoothL1 reconstruction ablation。
+Round 11 已完成（見 §19.7–19.8）。最佳 downstream **exp_035** Avg TCGA **0.5828**，超越 Round 10 exp_111。
 
-**手冊：** `docs/round10_conditional_adv_manual.md`
+**手冊：** `docs/round10_conditional_adv_manual.md` · `docs/round11_optimization_manual.md`
 
 ---
 
@@ -2019,15 +2019,33 @@ Selection mode `round11_stability_qc`（`tools/round11_selection.py`）：保留
 
 預期 pretrain jobs：**195**（11B 132 + 11C 63）；finetune 30×4 = 120。
 
-### 19.7 Results and Round 12 decision
+### 19.7 Results (2026-06-22)
 
-分析：`tools/analyze_round11_qc.py` → `round11_final_report.md`。
+| Stage | Result |
+|-------|--------|
+| Pretrain | **195/195** success |
+| Finetune | **120/120** success |
+| Best downstream | **exp_035** Avg TCGA **0.5828** (+0.0079 vs Round 10 exp_111) |
+| Round 11A QC | exp_111 leakage 0.400 vs exp_048 0.409 (improved) |
 
-**Round 12 Go**（Prototype Alignment）需同時滿足：
+**Pretrain latent proxy (mean):**
 
-1. conditional leakage 實際下降（11A 量測）  
-2. cancer retention（kmeans_ari）不 collapse  
-3. downstream ≥ Round 10 `exp_111` = 0.5749  
+| reconstruction_loss_type | kmeans_ari | wasserstein |
+|--------------------------|------------|-------------|
+| hybrid_mse_smooth_l1 | 0.770 | 0.635 |
+| smooth_l1 | 0.705 | 0.944 |
+| mse | 0.539 | 1.109 |
+
+Best finetune model **exp_035** is 11B 10C stabilization (MSE recon, `λ_cond_adv=0.0001`, weak global guard). SmoothL1 improved latent stability; best downstream came from stabilized 10C rather than pure SmoothL1 finetune top rank.
+
+完整報告：`docs/round11_final_report.md`（runtime：`result/optimization_runs/round11_stability_recon/final_report/round11_final_report.md`）
+
+### 19.8 Round 12 decision
+
+**Recommendation:** `go_prototype_alignment`
+
+條件已滿足：11A 量測到 conditional leakage 下降、pretrain 無 collapse、downstream 超越 Round 10。下一步：以 Top-10C 穩定化候選（如 exp_035）為基底，進入 Conditional ADV + Source-anchor EMA Prototype Alignment。
 
 **手冊：** `docs/round11_optimization_manual.md`
+
 

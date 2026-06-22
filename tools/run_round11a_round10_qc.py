@@ -72,9 +72,9 @@ def _collect_qc_model_ids(
 def run_round11a_qc(
     round10_root: str,
     outdir: str,
-    force_models: List[str] | None = None,
+    force_models=None,
     top_k: int = 24,
-    classifiers: List[str] | None = None,
+    classifiers=None,
 ) -> str:
     round10_root = resolve_path(round10_root)
     outdir = resolve_path(outdir)

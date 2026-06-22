@@ -745,7 +745,7 @@ def write_selection_outputs(
                 f"Only {len(aggregated_df)} experiments passed filter (need >= {min_passing}). "
                 "Adjust InfoNCE sweep or pretrain_VAEwC.py and rerun pretrain."
             )
-        controls_in_pool = int((aggregated_df["lambda_proto"].fillna(0) == 0).sum())
+        controls_in_pool = int((aggregated_df.get("lambda_proto", pd.Series(0, index=aggregated_df.index)).fillna(0) == 0).sum())
         if controls_in_pool < require_controls:
             sufficient = False
             shortage_reason += (

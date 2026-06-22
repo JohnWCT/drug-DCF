@@ -111,8 +111,8 @@ def build_round11_configs(
     settings_path: str,
     outdir: str,
     force: bool = False,
-    baseline_config: str | None = None,
-    primary_baseline_exp_id: str | None = None,
+    baseline_config=None,
+    primary_baseline_exp_id=None,
 ) -> str:
     settings = load_json(resolve_path(settings_path))
     outdir = resolve_path(outdir)

@@ -192,17 +192,15 @@ def analyze_round11(
     write_csv(per_cancer_delta, os.path.join(outdir, "round11_per_cancer_qc_delta.csv"))
 
     if not summary.empty and "reconstruction_loss_type" in summary.columns:
-        recon = (
-            summary.groupby("reconstruction_loss_type", dropna=False)
-            .agg(
-                n=("model_id", "count"),
-                mean_wasserstein=("wasserstein", "mean"),
-                mean_kmeans_ari=("kmeans_ari", "mean"),
-                mean_fid=("fid", "mean"),
-                mean_conditional_leakage=("mean_conditional_leakage_strength", "mean"),
-            )
-            .reset_index()
-        )
+        recon_agg = {
+            "n": ("model_id", "count"),
+            "mean_wasserstein": ("wasserstein", "mean"),
+            "mean_kmeans_ari": ("kmeans_ari", "mean"),
+            "mean_fid": ("fid", "mean"),
+        }
+        if "mean_conditional_leakage_strength" in summary.columns:
+            recon_agg["mean_conditional_leakage"] = ("mean_conditional_leakage_strength", "mean")
+        recon = summary.groupby("reconstruction_loss_type", dropna=False).agg(**recon_agg).reset_index()
         write_csv(recon, os.path.join(outdir, "round11_reconstruction_ablation_summary.csv"))
 
     if not summary.empty and "round11_branch" in summary.columns:
