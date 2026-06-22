@@ -61,7 +61,7 @@ bash tools/run_round10_cond_adv_pipeline.sh
 
 **Failed pretrain:** 7 jobs at λ=0.001, 2 at λ=0.0003 dim=16 (early exit code 1).
 
-Full report: `result/optimization_runs/round10_cond_adv/final_report/round10_final_report.md`
+Full report: `docs/round10_final_report.md`
 
 ## Round 11 decision
 

@@ -1943,7 +1943,7 @@ Conditional ADV 已實際訓練（`gan_metrics.json` 含 `conditional_adv_enable
 4. `λ=0.001` 在 10B 上 pretrain 失敗率高，後續 sweep 應避開或加穩定化。
 
 分析工具：`tools/analyze_round10_cond_adv.py`。  
-完整報告：`result/optimization_runs/round10_cond_adv/final_report/round10_final_report.md`
+完整報告：`docs/round10_final_report.md`（runtime 副本：`result/optimization_runs/round10_cond_adv/final_report/round10_final_report.md`）
 
 ### 18.9 Round 11 decision
 
