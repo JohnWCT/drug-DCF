@@ -48,7 +48,7 @@ python3 tools/optimization_runner.py select \
   --top-k 30 \
   --min-passing 1 \
   --require-controls 0 \
-  --force-baseline-models exp_035 exp_111 \
+  --force-baseline-models exp_035,exp_111 \
   --run-tag round12_proto_alignment
 
 echo "[Round12] Finetune"

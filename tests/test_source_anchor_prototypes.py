@@ -3,6 +3,7 @@
 import torch
 
 from tools.source_anchor_prototypes import (
+    resolve_source_anchor_proto_training_params,
     SourceAnchorEMAPrototypes,
     compute_batch_prototypes,
     compute_source_anchor_alignment_loss,
@@ -91,3 +92,33 @@ def test_proto_align_lambda_schedule():
     assert get_proto_align_lambda_eff(60, 0.001, 20, 60) == 0.001
     mid = get_proto_align_lambda_eff(40, 0.001, 20, 60)
     assert 0.0 < mid < 0.001
+
+
+def test_invalid_metric_in_resolve_raises():
+    try:
+        resolve_source_anchor_proto_training_params(
+            {"proto_align_metric": "l1"}
+        )
+        raise AssertionError("expected ValueError")
+    except ValueError:
+        pass
+
+
+def test_invalid_momentum_raises():
+    try:
+        resolve_source_anchor_proto_training_params(
+            {"proto_ema_momentum": 1.5}
+        )
+        raise AssertionError("expected ValueError")
+    except ValueError:
+        pass
+
+
+def test_invalid_min_count_raises():
+    try:
+        resolve_source_anchor_proto_training_params(
+            {"proto_align_min_count": 0}
+        )
+        raise AssertionError("expected ValueError")
+    except ValueError:
+        pass

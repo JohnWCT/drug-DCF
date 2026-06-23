@@ -38,8 +38,23 @@ def test_train_d_ae_accepts_proto_align_kwargs():
         assert name in sig.parameters
 
 
-def test_main_uses_source_anchor_imports():
-    src = inspect.getsource(pv)
-    assert "SourceAnchorEMAPrototypes" in src
-    assert "compute_source_anchor_alignment_loss" in src
+def test_pretrain_main_initializes_source_anchor_prototypes():
+    src = inspect.getsource(pv.run_single_experiment)
+    assert "resolve_source_anchor_proto_training_params(param)" in src
+    assert "source_anchor_proto_enabled" in src
+    assert "SourceAnchorEMAPrototypes(" in src
+    assert "get_proto_align_lambda_eff(" in src
+    assert "source_anchor_prototypes=source_anchor_prototypes" in src
+    assert "lambda_proto_align_eff=lambda_proto_align_eff" in src
+
+
+def test_train_d_ae_adds_proto_align_to_total_loss():
+    src = inspect.getsource(pv.train_d_ae)
+    assert "proto_align_loss" in src and "lambda_proto_align_eff" in src
+    assert "* proto_align_loss" in src
+
+
+def test_run_single_experiment_logs_proto_metadata():
+    src = inspect.getsource(pv.run_single_experiment)
     assert "source_anchor_proto_metrics_payload" in src
+    assert "source_anchor_proto" in src

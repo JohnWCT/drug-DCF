@@ -12,14 +12,26 @@ SUPPORTED_PROTO_ALIGN_METRICS = frozenset({"cosine", "euclidean"})
 
 def resolve_source_anchor_proto_training_params(params: dict) -> dict:
     enabled = bool(params.get("source_anchor_proto_enabled", False))
+    metric = str(params.get("proto_align_metric", "cosine")).lower()
+    momentum = float(params.get("proto_ema_momentum", 0.95))
+    min_count = int(params.get("proto_align_min_count", 2))
+    if metric not in SUPPORTED_PROTO_ALIGN_METRICS:
+        raise ValueError(
+            f"Unsupported proto_align_metric={metric!r}; "
+            f"expected one of {sorted(SUPPORTED_PROTO_ALIGN_METRICS)}"
+        )
+    if not (0.0 <= momentum < 1.0):
+        raise ValueError(f"proto_ema_momentum must be in [0, 1), got {momentum}")
+    if min_count < 1:
+        raise ValueError(f"proto_align_min_count must be >= 1, got {min_count}")
     return {
         "source_anchor_proto_enabled": enabled,
         "lambda_proto_align": float(params.get("lambda_proto_align", 0.0)),
-        "proto_align_metric": str(params.get("proto_align_metric", "cosine")).lower(),
+        "proto_align_metric": metric,
         "proto_align_start_epoch": int(params.get("proto_align_start_epoch", 20)),
         "proto_align_full_epoch": int(params.get("proto_align_full_epoch", 90)),
-        "proto_ema_momentum": float(params.get("proto_ema_momentum", 0.95)),
-        "proto_align_min_count": int(params.get("proto_align_min_count", 2)),
+        "proto_ema_momentum": momentum,
+        "proto_align_min_count": min_count,
         "proto_align_normalize": bool(params.get("proto_align_normalize", True)),
         "proto_align_update_source_ema": bool(params.get("proto_align_update_source_ema", True)),
     }

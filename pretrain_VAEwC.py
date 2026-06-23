@@ -1165,6 +1165,15 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
     num_classes = len(mapping_int2str)
     cond_cfg = resolve_conditional_adv_training_params(param)
     proto_align_cfg = resolve_source_anchor_proto_training_params(param)
+    source_anchor_proto_enabled = proto_align_cfg["source_anchor_proto_enabled"]
+    lambda_proto_align = proto_align_cfg["lambda_proto_align"]
+    proto_align_metric = proto_align_cfg["proto_align_metric"]
+    proto_align_start_epoch = proto_align_cfg["proto_align_start_epoch"]
+    proto_align_full_epoch = proto_align_cfg["proto_align_full_epoch"]
+    proto_ema_momentum = proto_align_cfg["proto_ema_momentum"]
+    proto_align_min_count = proto_align_cfg["proto_align_min_count"]
+    proto_align_normalize = proto_align_cfg["proto_align_normalize"]
+    proto_align_update_source_ema = proto_align_cfg["proto_align_update_source_ema"]
     recon_loss_kw = reconstruction_loss_kwargs(param)
     if cond_cfg["conditional_adv_enabled"]:
         metadata_dir = os.path.join(exp_dir, "metadata")
@@ -1383,12 +1392,12 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
     lambda_cond_eff_final = 0.0
     lambda_proto_align_eff_final = 0.0
     source_anchor_prototypes = None
-    if proto_align_cfg["source_anchor_proto_enabled"]:
+    if source_anchor_proto_enabled:
         source_anchor_prototypes = SourceAnchorEMAPrototypes(
             num_cancer_types=num_classes,
             latent_size=latent_size,
-            momentum=proto_align_cfg["proto_ema_momentum"],
-            normalize=proto_align_cfg["proto_align_normalize"],
+            momentum=proto_ema_momentum,
+            normalize=proto_align_normalize,
             device=device,
         )
     for epoch in range(gan_epoch):
@@ -1402,9 +1411,9 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
         lambda_cond_eff_final = lambda_cond_eff
         lambda_proto_align_eff = get_proto_align_lambda_eff(
             gan_epoch_idx,
-            proto_align_cfg["lambda_proto_align"],
-            proto_align_cfg["proto_align_start_epoch"],
-            proto_align_cfg["proto_align_full_epoch"],
+            lambda_proto_align,
+            proto_align_start_epoch,
+            proto_align_full_epoch,
         )
         lambda_proto_align_eff_final = lambda_proto_align_eff
         lambda_proto_eff = get_lambda_proto_eff(gan_epoch_idx, param)
@@ -1527,9 +1536,9 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
                         reconstruction_loss_kwargs=recon_loss_kw,
                         source_anchor_prototypes=source_anchor_prototypes,
                         lambda_proto_align_eff=lambda_proto_align_eff,
-                        proto_align_metric=proto_align_cfg["proto_align_metric"],
-                        proto_align_min_count=proto_align_cfg["proto_align_min_count"],
-                        proto_align_update_source_ema=proto_align_cfg["proto_align_update_source_ema"],
+                        proto_align_metric=proto_align_metric,
+                        proto_align_min_count=proto_align_min_count,
+                        proto_align_update_source_ema=proto_align_update_source_ema,
                     )
                 )
         if not dloss_list and not cond_dloss_list:
