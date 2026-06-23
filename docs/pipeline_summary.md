@@ -2048,4 +2048,54 @@ Best finetune model **exp_035** is 11B 10C stabilization (MSE recon, `λ_cond_ad
 
 **手冊：** `docs/round11_optimization_manual.md`
 
+---
+
+## 20. Round 12 Source-anchor EMA Prototype Alignment
+
+### 20.1 Motivation from Round 11
+
+Round 11 best **exp_035**（Avg TCGA **0.5828**）已穩定 10C weak global guard + conditional ADV。Round 12 在相同架構上加入 **source-anchor EMA prototype alignment**，降低 same-cancer source/target prototype gap，不取代 Conditional ADV。
+
+### 20.2 Source-anchor prototype design
+
+- Source EMA anchor：`P_source_ema[c] ← m·P + (1-m)·mean(z_source|c)`，stop-gradient
+- Alignment loss：只拉 **target per-cancer prototype** 靠近 source anchor（cosine 主線）
+- 保留 `λ_cond_adv=0.0001`、`conditional_plus_weak_global`、`λ_global_mult=0.25`
+
+### 20.3 Round 12A baseline prototype gap diagnostics
+
+```bash
+python tools/analyze_round12_baseline_prototype_gaps.py \
+  --round11-root result/optimization_runs/round11_stability_recon \
+  --outdir result/optimization_runs/round12_proto_alignment/round12a_baseline_qc
+```
+
+### 20.4–20.6 Branches
+
+| Branch | Jobs | 說明 |
+|--------|------|------|
+| 12B main | 36 + 3 no-proto | `λ_proto_align` × schedule × seed；MSE |
+| 12C recon | 24 | hybrid / smooth_l1 + proto |
+| 12D control | 3 | euclidean metric 小型對照 |
+| **Total** | **66** | |
+
+### 20.7 Selection and finetune
+
+- Selection mode：`round12_proto_alignment_qc`
+- 強制保留：`exp_035`、`exp_111` reference
+- Finetune：30×4 = 120 jobs
+
+```bash
+bash tools/run_round12_proto_alignment_pipeline.sh
+```
+
+### 20.8 Results
+
+（執行後填入 `docs/round12_final_report.md`）
+
+### 20.9 Round 13 decision
+
+成功條件：prototype gap 下降、leakage 不惡化、Avg TCGA > 0.5828 → `go_response_features`（prototype-distance Step 2 features）。
+
+**手冊：** `docs/round12_proto_alignment_manual.md`
 

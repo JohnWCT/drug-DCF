@@ -1,0 +1,80 @@
+{
+  "round": "round12",
+  "purpose": "Conditional ADV + Source-anchor EMA Prototype Alignment",
+  "round11_root": "result/optimization_runs/round11_stability_recon",
+  "round11_final_report": "result/optimization_runs/round11_stability_recon/final_report/round11_final_report.md",
+  "round11_selection": "result/optimization_runs/round11_stability_recon/selection/pretrain_top10.csv",
+  "round11_aggregate": "result/optimization_runs/round11_stability_recon/aggregate/aggregate_scores.csv",
+  "primary_baseline_exp_id": "exp_035",
+  "references": {
+    "round11_best_exp035": 0.5828,
+    "round10_best_exp111": 0.5749,
+    "round9_reproduction_best": 0.5671,
+    "r7_original_exp048": 0.5918
+  },
+  "high_priority_cancers": ["Brain", "Esophageal", "Liver", "Lung", "Ovarian"],
+  "seeds": [101, 202, 303],
+  "base_conditional_adv": {
+    "conditional_adv_enabled": true,
+    "conditional_adv_mode": "cancer_embedding",
+    "cancer_condition_dim": 16,
+    "global_adv_mode": "conditional_plus_weak_global",
+    "lambda_cond_adv": 0.0001,
+    "lambda_global_adv_multiplier": 0.25,
+    "cond_adv_start_epoch": 40,
+    "cond_adv_full_epoch": 90,
+    "cond_critic_hidden_dims": [128, 64],
+    "cond_critic_dropout": 0.1
+  },
+  "round12a_baseline_qc": {
+    "enabled": true,
+    "include_top_k_round11": 30,
+    "force_models": ["exp_035", "exp_111"]
+  },
+  "round12b_proto_alignment_main": {
+    "enabled": true,
+    "proto_align_metric": ["cosine"],
+    "lambda_proto_align": [0.0001, 0.0003, 0.001, 0.003],
+    "proto_align_schedules": [
+      {"start": 20, "full": 60},
+      {"start": 40, "full": 90},
+      {"start": 60, "full": 120}
+    ],
+    "proto_ema_momentum": [0.95],
+    "proto_align_min_count": 2,
+    "reconstruction_loss_type": ["mse"]
+  },
+  "round12c_reconstruction_small_branch": {
+    "enabled": true,
+    "reconstruction_loss_type": ["hybrid_mse_smooth_l1", "smooth_l1"],
+    "smooth_l1_beta": [0.5, 1.0],
+    "lambda_proto_align": [0.0003, 0.001],
+    "proto_align_schedules": [
+      {"start": 40, "full": 90}
+    ],
+    "proto_ema_momentum": [0.95]
+  },
+  "round12d_ablation_controls": {
+    "enabled": true,
+    "include_no_proto_control": true,
+    "include_euclidean_metric_small_control": true,
+    "euclidean_lambda_proto_align": [0.0003],
+    "include_no_conditional_adv_proto_only": false
+  },
+  "selection": {
+    "mode": "round12_proto_alignment_qc",
+    "top_k": 30,
+    "force_models": ["exp_035", "exp_111"],
+    "require_proto_alignment": true,
+    "require_mse_control": true,
+    "require_hybrid_or_smoothl1": true
+  },
+  "finetune": {
+    "enabled": true,
+    "config": "config/params_finetune_mini.json",
+    "epochs": 1000,
+    "batch_size": 12288,
+    "mini_batch_size": 3072,
+    "max_parallel": 26
+  }
+}

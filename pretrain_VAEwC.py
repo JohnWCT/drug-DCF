@@ -92,6 +92,13 @@ from tools.conditional_adv import (
     get_cond_adv_lambda_eff,
     resolve_conditional_adv_training_params,
 )
+from tools.source_anchor_prototypes import (
+    SourceAnchorEMAPrototypes,
+    compute_source_anchor_alignment_loss,
+    get_proto_align_lambda_eff,
+    resolve_source_anchor_proto_training_params,
+    source_anchor_proto_metrics_payload,
+)
 
 
 if not torch.cuda.is_available():
@@ -799,6 +806,11 @@ def train_d_ae(
     global_adv_mode: str = "baseline_global_only",
     lambda_global_adv_multiplier: float = 1.0,
     reconstruction_loss_kwargs=None,
+    source_anchor_prototypes=None,
+    lambda_proto_align_eff: float = 0.0,
+    proto_align_metric: str = "cosine",
+    proto_align_min_count: int = 2,
+    proto_align_update_source_ema: bool = True,
 ):
     subspace_cfg = subspace_cfg or resolve_subspace_training_params({})
     cls_view = subspace_cfg.get("classifier_latent_view", "shared")
@@ -960,6 +972,31 @@ def train_d_ae(
             compute_subspace_orthogonality_loss(z_t_s, z_tr_s)
             + compute_subspace_orthogonality_loss(z_t_t, z_tr_t)
         )
+    proto_align_metrics = {
+        "proto_align_loss": 0.0,
+        "proto_align_num_cancers": 0,
+        "proto_align_skip_count": 0,
+        "proto_align_metric": proto_align_metric,
+        "mean_target_to_source_anchor_distance": 0.0,
+    }
+    proto_align_loss = tcga_z.sum() * 0.0
+    if (
+        source_anchor_prototypes is not None
+        and proto_align_update_source_ema
+    ):
+        source_anchor_prototypes.update(
+            ccle_z.detach(),
+            s_labels,
+            min_count=proto_align_min_count,
+        )
+    if source_anchor_prototypes is not None and lambda_proto_align_eff > 0:
+        proto_align_loss, proto_align_metrics = compute_source_anchor_alignment_loss(
+            tcga_z,
+            t_labels,
+            source_anchor_prototypes,
+            metric=proto_align_metric,
+            min_count=proto_align_min_count,
+        )
     combined_proto_cmmd = bool(lambda_proto_eff > 0 and lambda_cmmd_eff > 0)
     loss = (
         o_loss
@@ -976,6 +1013,7 @@ def train_d_ae(
         + float(lambda_tumor_var_eff) * tumor_var_loss
         + float(lambda_tumor_cov_eff) * tumor_cov_loss
         + float(lambda_subspace_ortho_eff) * subspace_ortho_loss
+        + float(lambda_proto_align_eff) * proto_align_loss
     )
     loss_log.update({
         "ortho_loss": o_loss,
@@ -1031,6 +1069,14 @@ def train_d_ae(
         **{k: (float(v) if isinstance(v, (bool, int, float)) else v) for k, v in topo_metrics.items()},
         **{k: (float(v) if isinstance(v, (bool, int, float)) else v) for k, v in supcon_metrics.items()},
         **{k: (float(v) if isinstance(v, (bool, int, float)) else v) for k, v in vicreg_metrics.items()},
+        "lambda_proto_align_eff": float(lambda_proto_align_eff),
+        "proto_align_loss": proto_align_metrics.get("proto_align_loss", 0.0),
+        "proto_align_num_cancers": proto_align_metrics.get("proto_align_num_cancers", 0),
+        "proto_align_skip_count": proto_align_metrics.get("proto_align_skip_count", 0),
+        "proto_align_metric": proto_align_metrics.get("proto_align_metric", proto_align_metric),
+        "mean_target_to_source_anchor_distance": proto_align_metrics.get(
+            "mean_target_to_source_anchor_distance", 0.0
+        ),
     })
     loss.backward()
     optimizer.step()
@@ -1118,6 +1164,7 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
         json.dump(config_payload, f, indent=2, ensure_ascii=False)
     num_classes = len(mapping_int2str)
     cond_cfg = resolve_conditional_adv_training_params(param)
+    proto_align_cfg = resolve_source_anchor_proto_training_params(param)
     recon_loss_kw = reconstruction_loss_kwargs(param)
     if cond_cfg["conditional_adv_enabled"]:
         metadata_dir = os.path.join(exp_dir, "metadata")
@@ -1329,7 +1376,21 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
     cond_critic_loss_history: List[float] = []
     cond_encoder_adv_loss_history: List[float] = []
     cond_gp_history: List[float] = []
+    proto_align_loss_history: List[float] = []
+    proto_align_distance_history: List[float] = []
+    proto_align_num_cancers_history: List[float] = []
+    proto_align_skip_history: List[int] = []
     lambda_cond_eff_final = 0.0
+    lambda_proto_align_eff_final = 0.0
+    source_anchor_prototypes = None
+    if proto_align_cfg["source_anchor_proto_enabled"]:
+        source_anchor_prototypes = SourceAnchorEMAPrototypes(
+            num_cancer_types=num_classes,
+            latent_size=latent_size,
+            momentum=proto_align_cfg["proto_ema_momentum"],
+            normalize=proto_align_cfg["proto_align_normalize"],
+            device=device,
+        )
     for epoch in range(gan_epoch):
         gan_epoch_idx = epoch + 1
         lambda_cond_eff = get_cond_adv_lambda_eff(
@@ -1339,6 +1400,13 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
             cond_cfg["cond_adv_full_epoch"],
         )
         lambda_cond_eff_final = lambda_cond_eff
+        lambda_proto_align_eff = get_proto_align_lambda_eff(
+            gan_epoch_idx,
+            proto_align_cfg["lambda_proto_align"],
+            proto_align_cfg["proto_align_start_epoch"],
+            proto_align_cfg["proto_align_full_epoch"],
+        )
+        lambda_proto_align_eff_final = lambda_proto_align_eff
         lambda_proto_eff = get_lambda_proto_eff(gan_epoch_idx, param)
         lambda_cmmd_eff = get_lambda_cmmd_eff(gan_epoch_idx, param)
         lambda_class_gap_eff = get_lambda_class_gap_eff(gan_epoch_idx, param)
@@ -1457,6 +1525,11 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
                         global_adv_mode=cond_cfg["global_adv_mode"],
                         lambda_global_adv_multiplier=cond_cfg["lambda_global_adv_multiplier"],
                         reconstruction_loss_kwargs=recon_loss_kw,
+                        source_anchor_prototypes=source_anchor_prototypes,
+                        lambda_proto_align_eff=lambda_proto_align_eff,
+                        proto_align_metric=proto_align_cfg["proto_align_metric"],
+                        proto_align_min_count=proto_align_cfg["proto_align_min_count"],
+                        proto_align_update_source_ema=proto_align_cfg["proto_align_update_source_ema"],
                     )
                 )
         if not dloss_list and not cond_dloss_list:
@@ -1471,6 +1544,25 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
         if genloss_list:
             cond_encoder_adv_loss_history.append(
                 float(np.mean([g.get("cond_encoder_adv_loss", 0.0) for g in genloss_list]))
+            )
+            proto_align_loss_history.append(
+                float(np.mean([g.get("proto_align_loss", 0.0) for g in genloss_list]))
+            )
+            proto_align_distance_history.append(
+                float(
+                    np.mean(
+                        [
+                            g.get("mean_target_to_source_anchor_distance", 0.0)
+                            for g in genloss_list
+                        ]
+                    )
+                )
+            )
+            proto_align_num_cancers_history.append(
+                float(np.mean([g.get("proto_align_num_cancers", 0.0) for g in genloss_list]))
+            )
+            proto_align_skip_history.append(
+                int(np.sum([g.get("proto_align_skip_count", 0) for g in genloss_list]))
             )
         if cls_only_list:
             genloss_mean["cls_only_loss"] = float(np.mean(cls_only_list))
@@ -1676,6 +1768,7 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
         "reconstruction_loss_scale": float(param.get("reconstruction_loss_scale", 1.0)),
         "hybrid_reconstruction_alpha": float(param.get("hybrid_reconstruction_alpha", 0.5)),
         "round11_branch": param.get("round11_branch", ""),
+        "round12_branch": param.get("round12_branch", ""),
     }
     reconstruction_loss_payload = {
         "reconstruction_loss_type": metrics["reconstruction_loss_type"],
@@ -1696,8 +1789,26 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
         "num_cancer_types": num_classes,
     }
     metrics.update(conditional_adv_metrics_payload(cond_cfg, cond_gan_logs))
+    proto_gan_logs = {
+        "lambda_proto_align_eff_final": lambda_proto_align_eff_final,
+        "proto_align_loss_mean": float(np.mean(proto_align_loss_history))
+        if proto_align_loss_history
+        else None,
+        "proto_align_num_cancers_mean": float(np.mean(proto_align_num_cancers_history))
+        if proto_align_num_cancers_history
+        else None,
+        "proto_align_skip_count_total": int(sum(proto_align_skip_history)),
+        "mean_target_to_source_anchor_distance": float(np.mean(proto_align_distance_history))
+        if proto_align_distance_history
+        else None,
+        "source_anchor_initialized_count": (
+            source_anchor_prototypes.initialized_count() if source_anchor_prototypes is not None else 0
+        ),
+    }
+    metrics.update(source_anchor_proto_metrics_payload(proto_align_cfg, proto_gan_logs))
     metrics.update(cluster_metrics)
     metrics.update(reconstruction_loss_payload)
+    source_anchor_payload = source_anchor_proto_metrics_payload(proto_align_cfg, proto_gan_logs)
     with open(os.path.join(exp_dir, "gan_metrics.json"), "w") as f:
         json.dump(_json_safe(metrics), f, indent=2)
     pd.DataFrame([metrics]).to_csv(os.path.join(exp_dir, "gan_metrics.csv"), index=False)
@@ -1715,6 +1826,7 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
             "params": param,
             "metrics": metrics,
             "reconstruction_loss": reconstruction_loss_payload,
+            "source_anchor_proto": source_anchor_payload,
             "artifacts": {
                 "weights": [
                     "after_traingan_shared_vae.pth",
