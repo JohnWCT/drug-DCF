@@ -82,3 +82,16 @@ Groups: downstream proxy, low leakage, best 10C, SmoothL1, hybrid, MSE control, 
 Go to Prototype Alignment only if conditional leakage drops, kmeans_ari holds, and downstream ≥ Round 10 best.
 
 See `docs/pipeline_summary.md` §19.
+
+## Results (completed 2026-06-22)
+
+**Run:** `result/optimization_runs/round11_stability_recon`  
+**Status:** ALL_DONE — pretrain **195/195**, finetune **120/120**
+
+| Stage | Result |
+|-------|--------|
+| Round 11A QC | 25 models; exp_111 leakage 0.400 vs exp_048 0.409 |
+| Best downstream | **exp_035** Avg TCGA **0.5828** (vs Round 10 exp_111 **0.5749**) |
+| Round 12 | **go_prototype_alignment** |
+
+Full report: `docs/round11_final_report.md` · runtime CSVs: `result/optimization_runs/round11_stability_recon/final_report/`

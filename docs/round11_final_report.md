@@ -2,7 +2,8 @@
 
 **Run:** `result/optimization_runs/round11_stability_recon`  
 **Completed:** 2026-06-22  
-**Pipeline status:** ALL_DONE (pretrain 195/195, finetune 120/120)
+**Pipeline status:** ALL_DONE (pretrain 195/195, finetune 120/120)  
+**Git:** documented in `docs/pipeline_summary.md` §19.7–19.8; Round 12 toolchain on `main`
 
 ## References
 

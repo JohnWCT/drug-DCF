@@ -65,4 +65,6 @@ Full report: `docs/round10_final_report.md`
 
 ## Round 11 decision
 
-**Deferred.** Run Round 9-style conditional diagnostics on Top-24 before Round 11 (Conditional ADV + Source-anchor EMA Prototype Alignment). Proceed only if leakage drops without biology collapse and downstream holds.
+**Completed (2026-06-22).** Round 11A re-ran Round 9-style conditional diagnostics on Round 10 Top-24; 11B/11C pretrain and downstream finetune finished (**195/195** pretrain, **120/120** finetune). Best downstream **exp_035** Avg TCGA **0.5828** (+0.0079 vs Round 10 exp_111). Round 11A: exp_111 leakage 0.400 vs exp_048 0.409 (improved).
+
+**Next:** `go_prototype_alignment` — see `docs/round11_final_report.md` and `docs/pipeline_summary.md` §19.8.
