@@ -405,7 +405,19 @@ def _run_one_finetune_job(
     job_id = job_row["job_id"]
     model_id = job_row["model_id"]
     combo_id = int(job_row["combo_id"])
-    if model_id not in top10_df.index:
+    manifest_model_select = str(job_row.get("model_select_path", "")).strip()
+    if manifest_model_select:
+        model_select_path = _resolve_path(manifest_model_select)
+        if not os.path.isfile(model_select_path):
+            with lock:
+                manager.update_job(
+                    job_id,
+                    status="failed",
+                    end_time=_utc_now(),
+                    error_message=f"Missing model_select_path: {model_select_path}",
+                )
+            return
+    elif top10_df.empty or model_id not in top10_df.index:
         with lock:
             manager.update_job(
                 job_id,
@@ -414,14 +426,14 @@ def _run_one_finetune_job(
                 error_message=f"Missing pretrain candidate in top10: {model_id}",
             )
         return
+    else:
+        model_row = top10_df.loc[[model_id]].reset_index()
+        model_select_path = os.path.join(_resolve_path(run_dir), f"_ft_{job_id}_model_select.csv")
+        ms_df = build_model_select_from_top10(model_row)
+        ms_df["result_folder"] = _resolve_pretrain_result_folder(model_id, model_row.iloc[0], job_row)
+        ms_df.to_csv(model_select_path, index=False)
 
     combo = combos[combo_id]
-    model_row = top10_df.loc[[model_id]].reset_index()
-    model_select_path = os.path.join(_resolve_path(run_dir), f"_ft_{job_id}_model_select.csv")
-    ms_df = build_model_select_from_top10(model_row)
-    ms_df["result_folder"] = _resolve_pretrain_result_folder(model_id, model_row.iloc[0], job_row)
-    ms_df.to_csv(model_select_path, index=False)
-
     combo_config_path = os.path.join(scratch_dir, f"{job_id}_config.json")
     _single_combo_finetune_config(finetune_config, combo, combo_config_path)
 
@@ -467,7 +479,7 @@ def _run_one_finetune_job(
 def run_finetune_stage(
     manifest_path: str,
     run_dir: str,
-    top10_path: str,
+    top10_path: Optional[str] = None,
     finetune_config: str = "config/params_finetune_mini.json",
     batch_size: int = 2048,
     mini_batch_size: int = 512,
@@ -484,7 +496,10 @@ def run_finetune_stage(
     os.makedirs(finetune_dir, exist_ok=True)
     os.makedirs(scratch_dir, exist_ok=True)
 
-    top10_df = pd.read_csv(_resolve_path(top10_path)).set_index("ID")
+    if top10_path and os.path.isfile(_resolve_path(top10_path)):
+        top10_df = pd.read_csv(_resolve_path(top10_path)).set_index("ID")
+    else:
+        top10_df = pd.DataFrame()
     combos = _expand_finetune_combinations(finetune_config)
     pending = manager.pending_jobs(rerun_completed=rerun_completed)
     max_parallel = max(1, int(max_parallel))
@@ -589,6 +604,7 @@ def build_parser() -> argparse.ArgumentParser:
             "round10_cond_adv_qc",
             "round11_stability_qc",
             "round12_proto_alignment_qc",
+            "round13_proto_response_qc",
         ],
         help=(
             "Top-K ranking "
@@ -596,7 +612,8 @@ def build_parser() -> argparse.ArgumentParser:
             "Round 8: round8_architecture_broad_probe; "
             "Round 10: round10_cond_adv_qc; "
             "Round 11: round11_stability_qc; "
-            "Round 12: round12_proto_alignment_qc)"
+            "Round 12: round12_proto_alignment_qc; "
+            "Round 13: round13_proto_response_qc)"
         ),
     )
     sel.add_argument(
@@ -620,7 +637,7 @@ def build_parser() -> argparse.ArgumentParser:
     ft = sub.add_parser("finetune", help="Dispatch finetune jobs for Top-10")
     ft.add_argument("--manifest", required=True)
     ft.add_argument("--run-dir", required=True)
-    ft.add_argument("--top10", required=True)
+    ft.add_argument("--top10", default=None, help="Top-K selection CSV (not required for --round13-mode)")
     ft.add_argument("--finetune-config", default="config/params_finetune_mini.json")
     ft.add_argument("--batch-size", type=int, default=2048)
     ft.add_argument("--mini-batch-size", type=int, default=512)
@@ -630,6 +647,11 @@ def build_parser() -> argparse.ArgumentParser:
     ft.add_argument("--rerun-completed", action="store_true")
     ft.add_argument("--build-manifest-only", action="store_true")
     ft.add_argument("--force-manifest", action="store_true")
+    ft.add_argument(
+        "--round13-mode",
+        action="store_true",
+        help="Round 13 finetune dispatch using manifest model_select_path (no top10 CSV)",
+    )
 
     agg = sub.add_parser("aggregate", help="Aggregate downstream finetune scores")
     agg.add_argument("--run-dir", required=True)
@@ -710,9 +732,12 @@ def main(argv: Optional[List[str]] = None) -> None:
         return
 
     if args.command == "finetune":
+        top10_path = getattr(args, "top10", None)
         if args.build_manifest_only or not os.path.exists(_resolve_path(args.manifest)):
+            if not top10_path:
+                raise SystemExit("finetune --top10 is required unless using a prebuilt Round 13 manifest")
             manifest_path = build_finetune_manifest(
-                args.top10,
+                top10_path,
                 run_dir,
                 finetune_config=args.finetune_config,
                 force=args.force_manifest,
@@ -721,11 +746,15 @@ def main(argv: Optional[List[str]] = None) -> None:
             if args.build_manifest_only:
                 return
             args.manifest = manifest_path
+        if not top10_path and not getattr(args, "round13_mode", False):
+            manifest_df = pd.read_csv(_resolve_path(args.manifest))
+            if "model_select_path" not in manifest_df.columns or manifest_df["model_select_path"].fillna("").eq("").all():
+                raise SystemExit("finetune requires --top10 or --round13-mode with model_select_path manifest")
         _refresh_running_report(run_dir, note="Finetune stage started.")
         run_finetune_stage(
             args.manifest,
             run_dir,
-            args.top10,
+            top10_path,
             finetune_config=args.finetune_config,
             batch_size=args.batch_size,
             mini_batch_size=args.mini_batch_size,

@@ -25,6 +25,7 @@ SELECTION_MODES = (
     "round10_cond_adv_qc",
     "round11_stability_qc",
     "round12_proto_alignment_qc",
+    "round13_proto_response_qc",
 )
 STRUCTURE_FIRST_MODES = frozenset(
     {"round4_1_structure_first", "round5_structure_first", "round6_sweetspot"}
@@ -34,12 +35,14 @@ ROUND8_SELECTION_MODES = frozenset({"round8_architecture_broad_probe"})
 ROUND10_SELECTION_MODES = frozenset({"round10_cond_adv_qc"})
 ROUND11_SELECTION_MODES = frozenset({"round11_stability_qc"})
 ROUND12_SELECTION_MODES = frozenset({"round12_proto_alignment_qc"})
+ROUND13_SELECTION_MODES = frozenset({"round13_proto_response_qc"})
 MULTI_BRANCH_SELECTION_MODES = (
     ROUND7_SELECTION_MODES
     | ROUND8_SELECTION_MODES
     | ROUND10_SELECTION_MODES
     | ROUND11_SELECTION_MODES
     | ROUND12_SELECTION_MODES
+    | ROUND13_SELECTION_MODES
 )
 RANKING_PRIMARY_BY_MODE = {
     "score_total": "score_total",
@@ -53,6 +56,7 @@ RANKING_PRIMARY_BY_MODE = {
     "round10_cond_adv_qc": "round10_cond_adv_score",
     "round11_stability_qc": "round11_stability_score",
     "round12_proto_alignment_qc": "round12_proto_alignment_score",
+    "round13_proto_response_qc": "round13_proto_feature_score",
 }
 RANKING_SECONDARY_BY_MODE = {
     "score_total": ["score_total"],
@@ -85,6 +89,11 @@ RANKING_SECONDARY_BY_MODE = {
         "round12_proto_alignment_score",
         "lambda_proto_align",
         "mean_same_cancer_proto_distance",
+    ],
+    "round13_proto_response_qc": [
+        "round13_proto_feature_score",
+        "prototype_feature_mode",
+        "Average_TCGA_AUC_mean",
     ],
 }
 
@@ -470,6 +479,24 @@ def apply_selection_ranking(df: pd.DataFrame, selection_mode: str = "score_total
         if not by:
             by, ascending = ["round12_proto_alignment_score"], [False]
         return annotated.sort_values(by=by, ascending=ascending, na_position="last").reset_index(drop=True)
+    elif selection_mode == "round13_proto_response_qc":
+        from tools.round13_selection import annotate_round13_scores
+
+        annotated = annotate_round13_scores(out)
+        sort_cols = [
+            ("round13_proto_feature_score", False),
+            ("Average_TCGA_AUC_mean", False),
+            ("Global_TCGA_AUC_mean", False),
+        ]
+        by = []
+        ascending = []
+        for col, direction in sort_cols:
+            if col in annotated.columns:
+                by.append(col)
+                ascending.append(direction)
+        if not by:
+            by, ascending = ["round13_proto_feature_score"], [False]
+        return annotated.sort_values(by=by, ascending=ascending, na_position="last").reset_index(drop=True)
     elif selection_mode == "round8_architecture_broad_probe":
         from tools.round8_selection import annotate_round8_scores
 
@@ -827,6 +854,15 @@ def write_selection_outputs(
             top_k=top_k,
             force_baseline_models=force_baseline_models or [],
         )
+    elif selection_mode == "round13_proto_response_qc":
+        from tools.round13_selection import select_round13_proto_response_candidates
+
+        top10_df, info = select_round13_proto_response_candidates(
+            aggregated_df,
+            all_df,
+            top_k=top_k,
+            force_baseline_models=force_baseline_models or [],
+        )
     elif selection_mode in STRUCTURE_FIRST_MODES:
         top10_df, info = select_top_k_with_baselines(
             aggregated_df,
@@ -895,7 +931,9 @@ def write_selection_outputs(
     )
     if info.get("group_counts"):
         round_label = (
-            "Round 12"
+            "Round 13"
+            if selection_mode == "round13_proto_response_qc"
+            else "Round 12"
             if selection_mode == "round12_proto_alignment_qc"
             else "Round 11"
             if selection_mode == "round11_stability_qc"

@@ -901,6 +901,25 @@ def step_1_finetune_pipeline_zscore(
         actual_encoder_latent_dim = len(sample_latent) if hasattr(sample_latent, '__len__') else sample_latent.shape[-1]
         if actual_encoder_latent_dim != ENCODER_LATENT_DIM:
             print(f"  Note: Detected latent dim={actual_encoder_latent_dim} (default={ENCODER_LATENT_DIM})")
+
+        proto_meta = {
+            "response_input_dim": int(actual_encoder_latent_dim),
+            "latent_dim": int(actual_encoder_latent_dim),
+        }
+        for col in ("prototype_feature_mode", "response_input_mode", "source_model_id", "source_round"):
+            if col in model_row and pd.notna(model_row[col]):
+                proto_meta[col] = model_row[col]
+        feature_meta_path = os.path.join(model_folder, "feature_metadata.json")
+        if os.path.isfile(feature_meta_path):
+            with open(feature_meta_path, encoding="utf-8") as f:
+                feature_meta = json.load(f)
+            proto_meta["proto_feature_dim"] = feature_meta.get("proto_feature_dim", 0)
+            proto_meta["latent_dim"] = feature_meta.get("latent_dim", proto_meta["latent_dim"])
+            proto_meta["response_input_dim"] = feature_meta.get(
+                "response_input_dim", proto_meta["response_input_dim"]
+            )
+        with open(os.path.join(model_output_root, "run_summary.json"), "w", encoding="utf-8") as f:
+            json.dump(proto_meta, f, indent=2, ensure_ascii=False, default=str)
             
         tcga_latent_dict = None
         if tcga_latent_path:

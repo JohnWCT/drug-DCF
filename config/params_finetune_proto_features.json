@@ -1,0 +1,30 @@
+{
+  "_metadata": {
+    "description": "Round 13 finetune grid for prototype-distance response feature ablation.",
+    "total_combinations": 4,
+    "prototype_feature_mode": [
+      "none",
+      "own_cancer",
+      "all_source_anchors",
+      "all_source_and_target",
+      "own_plus_summary"
+    ],
+    "proto_feature_scaler": ["standard", "robust", "none"],
+    "response_input_mode": ["z_only", "z_plus_proto_features"]
+  },
+  "finetune_params": {
+    "ftlr": [0.001],
+    "scheduler_flag": [true],
+    "loss_type": ["bce", "focal"],
+    "focal_loss_gamma": [2.0]
+  },
+  "classifier_params": {
+    "hidden_dims": [[256, 128]],
+    "dropout_rate": [0.05, 0.1],
+    "use_batch_norm": [true],
+    "activation": ["leaky_relu"]
+  },
+  "model_params": {
+    "gin_type": ["dapl"]
+  }
+}

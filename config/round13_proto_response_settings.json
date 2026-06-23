@@ -1,0 +1,52 @@
+{
+  "round": "round13",
+  "purpose": "Prototype-distance response features in Step 2 predictor",
+  "round12_root": "result/optimization_runs/round12_proto_alignment",
+  "round12_final_report": "docs/round12_final_report.md",
+  "round12_runtime_final_report": "result/optimization_runs/round12_proto_alignment/final_report/round12_final_report.md",
+  "round11_root": "result/optimization_runs/round11_stability_recon",
+  "references": {
+    "round12_best_exp037": 0.5971789386885913,
+    "round11_exp035": 0.5828,
+    "round10_exp111": 0.5749,
+    "r7_exp048": 0.5918
+  },
+  "model_pool": {
+    "primary_best_model": "exp_037",
+    "include_round12_best_downstream": true,
+    "include_round12_best_proto_gap": true,
+    "include_round12_best_no_proto_control": true,
+    "include_round11_exp035": true,
+    "max_models": 8
+  },
+  "feature_modes": [
+    "none",
+    "own_cancer",
+    "all_source_anchors",
+    "all_source_and_target"
+  ],
+  "optional_feature_modes": [
+    "own_plus_summary"
+  ],
+  "prototype_distance_metric": ["cosine"],
+  "include_l2_distance": [false, true],
+  "include_same_cancer_gap": [true],
+  "include_initialized_flag": [true],
+  "proto_feature_scaler": ["standard"],
+  "strict_prototype_loading": true,
+  "finetune": {
+    "config": "config/params_finetune_proto_features.json",
+    "epochs": 1000,
+    "batch_size": 12288,
+    "mini_batch_size": 3072,
+    "max_parallel": 26
+  },
+  "selection": {
+    "mode": "round13_proto_response_qc",
+    "top_k": 30,
+    "force_baselines": [
+      "r13_exp_037_none",
+      "r13_exp_035_none"
+    ]
+  }
+}

@@ -2109,3 +2109,43 @@ Round 12 best `exp_037` 已超越 Round 11 exp_035（0.5828）與 R7 exp_048（0
 
 **手冊：** `docs/round12_proto_alignment_manual.md`
 
+---
+
+## 21. Round 13 Prototype-distance Response Features
+
+### 21.1 Motivation from Round 12
+
+Round 12 best **exp_037**（Avg TCGA **0.5972**）已同時改善 prototype gap 與 downstream。Round 13 **不再改 Step 1 latent learning**，只把 prototype geometry 轉成 Step 2 response predictor 輔助 features：
+
+```text
+response_input = concat(z, prototype_distance_features)
+```
+
+### 21.2 Feature modes
+
+| Mode | 說明 |
+|------|------|
+| `none` | z-only baseline |
+| `own_cancer` | 主分支（own-cancer prototype distances） |
+| `all_source_anchors` | 全 cancer source-anchor distance vector |
+| `all_source_and_target` | 小型 source+target vector 測試 |
+| `own_plus_summary` | 可選 global summary branch |
+
+### 21.3 Pipeline
+
+```bash
+bash tools/run_round13_proto_response_pipeline.sh
+```
+
+流程：config builder → prototype feature extraction → finetune（80–128 jobs）→ aggregate → final report。
+
+### 21.4 Results
+
+（執行後填入 `docs/round13_final_report.md`）
+
+### 21.5 Round 14 decision
+
+成功條件：z+proto > z-only 且 Best Round 13 >= 0.5972 → `go_vicreg_stabilizer`。
+
+**手冊：** `docs/round13_proto_response_manual.md`
+
