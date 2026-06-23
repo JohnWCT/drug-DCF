@@ -2091,11 +2091,21 @@ bash tools/run_round12_proto_alignment_pipeline.sh
 
 ### 20.8 Results
 
-（執行後填入 `docs/round12_final_report.md`）
+| Stage | Result |
+|-------|--------|
+| Pretrain | **66/66** success |
+| Finetune | **120/120** success |
+| Best downstream | **exp_037** Avg TCGA **0.5972** (+0.0144 vs Round 11 exp_035) |
+| Baseline gap | exp_035 distance = 0.06041 |
+| Active proto configs | target→source anchor distance reduced = **True** |
+
+完整報告：`docs/round12_final_report.md`（runtime：`result/optimization_runs/round12_proto_alignment/final_report/round12_final_report.md`）
 
 ### 20.9 Round 13 decision
 
-成功條件：prototype gap 下降、leakage 不惡化、Avg TCGA > 0.5828 → `go_response_features`（prototype-distance Step 2 features）。
+**Recommendation:** `go_response_features`
+
+Round 12 best `exp_037` 已超越 Round 11 exp_035（0.5828）與 R7 exp_048（0.5918），且 active prototype configs 顯示 target→source anchor distance 下降。
 
 **手冊：** `docs/round12_proto_alignment_manual.md`
 
