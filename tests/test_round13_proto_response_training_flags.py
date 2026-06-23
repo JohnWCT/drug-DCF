@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
-import pandas as pd
-from tools.prototype_response_features import concat_latent_and_proto_features
+import inspect
+
 import numpy as np
+
+from tools.optimization_runner import build_parser, run_round13_finetune_stage
+from tools.prototype_response_features import concat_latent_and_proto_features
 
 
 def test_mode_none_preserves_latent_dim():
@@ -16,9 +19,29 @@ def test_mode_increases_input_dim():
     assert out.shape == (4,)
 
 
-def test_manifest_has_round13_columns():
-    path = "result/optimization_runs/round12_proto_alignment/manifests/finetune_dispatch_manifest.csv"
-    if not __import__("os").path.isfile(path):
-        return
-    # Round 12 manifest won't have round13 cols; builder test covers that separately.
-    assert True
+def test_optimization_runner_accepts_round13_mode():
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "finetune",
+            "--manifest",
+            "dummy.csv",
+            "--run-dir",
+            "result/x",
+            "--finetune-config",
+            "config/params_finetune_proto_features.json",
+            "--round13-mode",
+        ]
+    )
+    assert args.round13_mode is True
+    assert args.top10 is None
+
+
+def test_round13_runner_uses_manifest_model_select_path():
+    import tools.optimization_runner as runner
+
+    src = inspect.getsource(runner)
+    assert "run_round13_finetune_stage" in src
+    assert '_run_one_round13_finetune_job' in src
+    assert 'job_row["model_select_path"]' in src
+    assert "build_model_select_from_top10" not in inspect.getsource(runner._run_one_round13_finetune_job)

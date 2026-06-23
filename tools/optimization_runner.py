@@ -76,6 +76,19 @@ FINETUNE_MANIFEST_COLUMNS = [
     "error_message",
 ]
 
+ROUND13_FINETUNE_MANIFEST_COLUMNS = FINETUNE_MANIFEST_COLUMNS + [
+    "source_model_id",
+    "source_round",
+    "feature_mode",
+    "prototype_feature_mode",
+    "response_input_mode",
+    "combined_latent_dir",
+    "model_select_path",
+    "finetune_config_path",
+    "result_dir",
+    "random_seed",
+]
+
 
 class ManifestManager:
     def __init__(self, manifest_path: str, default_columns: Optional[List[str]] = None):
@@ -476,6 +489,170 @@ def _run_one_finetune_job(
     _refresh_running_report(run_dir, note=f"Finetune job `{job_id}` finished (code={return_code})")
 
 
+def _run_one_round13_finetune_job(
+    job_row,
+    manager: ManifestManager,
+    run_dir: str,
+    combos: List[dict],
+    finetune_config: str,
+    logs_dir: str,
+    status_dir: str,
+    scratch_dir: str,
+    batch_size: int,
+    mini_batch_size: int,
+    epochs: int,
+    dry_run: bool,
+    lock: threading.Lock,
+) -> None:
+    job_id = job_row["job_id"]
+    combo_id = int(job_row["combo_id"])
+    model_select_path = _resolve_path(str(job_row["model_select_path"]))
+    if not os.path.isfile(model_select_path):
+        with lock:
+            manager.update_job(
+                job_id,
+                status="failed",
+                end_time=_utc_now(),
+                error_message=f"Missing model_select_path: {model_select_path}",
+            )
+        return
+
+    combo = combos[combo_id]
+    combo_config_path = os.path.join(scratch_dir, f"{job_id}_config.json")
+    _single_combo_finetune_config(finetune_config, combo, combo_config_path)
+
+    log_path = os.path.join(logs_dir, f"{job_id}.log")
+    job_out = _resolve_path(str(job_row["result_dir"]))
+    os.makedirs(job_out, exist_ok=True)
+
+    cmd = [
+        sys.executable,
+        os.path.join(PROJECT_ROOT, "step1_finetune_latent_pipeline_All_split.py"),
+        "--config",
+        combo_config_path,
+        "--model_select_path",
+        model_select_path,
+        "--outfolder",
+        job_out,
+        "--batch_size",
+        str(batch_size),
+        "--mini_batch_size",
+        str(mini_batch_size),
+        "--epochs",
+        str(epochs),
+    ]
+    if dry_run:
+        _run_command(cmd, log_path, dry_run=True)
+        return
+
+    with lock:
+        manager.update_job(job_id, status="running", start_time=_utc_now(), error_message="")
+    return_code = _run_command(cmd, log_path, dry_run=False)
+    with lock:
+        if return_code != 0:
+            manager.update_job(
+                job_id,
+                status="failed",
+                end_time=_utc_now(),
+                error_message=f"finetune failed with code {return_code}",
+            )
+        else:
+            manager.update_job(job_id, status="success", end_time=_utc_now(), error_message="")
+        _write_status_json(
+            status_dir,
+            job_id,
+            {
+                "job_id": job_id,
+                "return_code": return_code,
+                "log_path": log_path,
+                "model_select_path": model_select_path,
+                "combined_latent_dir": str(job_row.get("combined_latent_dir", "")),
+                "prototype_feature_mode": str(job_row.get("prototype_feature_mode", "")),
+            },
+        )
+    _refresh_running_report(run_dir, note=f"Round13 finetune job `{job_id}` finished (code={return_code})")
+
+
+def run_round13_finetune_stage(
+    manifest_path: str,
+    run_dir: str,
+    finetune_config: str = "config/params_finetune_proto_features.json",
+    batch_size: int = 2048,
+    mini_batch_size: int = 512,
+    epochs: int = 1000,
+    dry_run: bool = False,
+    rerun_completed: bool = False,
+    max_parallel: int = 1,
+) -> None:
+    manager = ManifestManager(manifest_path, default_columns=ROUND13_FINETUNE_MANIFEST_COLUMNS)
+    manifest_df = manager.df
+    required = {"job_id", "model_select_path", "result_dir", "combo_id"}
+    missing = required - set(manifest_df.columns)
+    if missing:
+        raise ValueError(f"Round 13 finetune manifest missing columns: {sorted(missing)}")
+    if manifest_df["model_select_path"].fillna("").astype(str).str.strip().eq("").all():
+        raise ValueError("Round 13 finetune manifest has no model_select_path entries")
+
+    logs_dir = _resolve_path(os.path.join(run_dir, "logs", "finetune"))
+    status_dir = _resolve_path(os.path.join(run_dir, "status", "finetune"))
+    scratch_dir = _resolve_path(os.path.join(run_dir, "scratch", "finetune"))
+    os.makedirs(logs_dir, exist_ok=True)
+    os.makedirs(scratch_dir, exist_ok=True)
+
+    combos = _expand_finetune_combinations(finetune_config)
+    pending = manager.pending_jobs(rerun_completed=rerun_completed)
+    max_parallel = max(1, int(max_parallel))
+    lock = threading.Lock()
+
+    jobs = [row for _, row in pending.iterrows()]
+    if max_parallel == 1 or dry_run:
+        for job in jobs:
+            _run_one_round13_finetune_job(
+                job,
+                manager,
+                run_dir,
+                combos,
+                finetune_config,
+                logs_dir,
+                status_dir,
+                scratch_dir,
+                batch_size,
+                mini_batch_size,
+                epochs,
+                dry_run,
+                lock,
+            )
+    else:
+        print(f"[round13 finetune] parallel dispatch: {len(jobs)} jobs, max_parallel={max_parallel}")
+        with ThreadPoolExecutor(max_workers=max_parallel) as pool:
+            futures = [
+                pool.submit(
+                    _run_one_round13_finetune_job,
+                    job,
+                    manager,
+                    run_dir,
+                    combos,
+                    finetune_config,
+                    logs_dir,
+                    status_dir,
+                    scratch_dir,
+                    batch_size,
+                    mini_batch_size,
+                    epochs,
+                    dry_run,
+                    lock,
+                )
+                for job in jobs
+            ]
+            for fut in futures:
+                fut.result()
+
+    _refresh_running_report(
+        run_dir,
+        note=f"Round13 finetune stage finished (max_parallel={max_parallel}, batch_size={batch_size}).",
+    )
+
+
 def run_finetune_stage(
     manifest_path: str,
     run_dir: str,
@@ -751,6 +928,19 @@ def main(argv: Optional[List[str]] = None) -> None:
             if "model_select_path" not in manifest_df.columns or manifest_df["model_select_path"].fillna("").eq("").all():
                 raise SystemExit("finetune requires --top10 or --round13-mode with model_select_path manifest")
         _refresh_running_report(run_dir, note="Finetune stage started.")
+        if getattr(args, "round13_mode", False):
+            run_round13_finetune_stage(
+                args.manifest,
+                run_dir,
+                finetune_config=args.finetune_config,
+                batch_size=args.batch_size,
+                mini_batch_size=args.mini_batch_size,
+                epochs=args.epochs,
+                dry_run=args.dry_run,
+                rerun_completed=args.rerun_completed,
+                max_parallel=args.max_parallel,
+            )
+            return
         run_finetune_stage(
             args.manifest,
             run_dir,

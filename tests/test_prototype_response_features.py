@@ -170,3 +170,16 @@ def test_concat_latent_and_proto():
     proto = np.array([0.5], dtype=np.float32)
     out = concat_latent_and_proto_features(z, {"features": proto})
     assert out.shape == (3,)
+
+
+def test_target_prototypes_without_initialized_no_truth_value_error():
+    source = np.eye(3, 4, dtype=np.float32)
+    target = source + 0.1
+    pack = compute_proto_distance_features(
+        np.ones(4, dtype=np.float32),
+        1,
+        source,
+        target_prototypes=target,
+        mode="own_cancer",
+    )
+    assert np.all(np.isfinite(pack["features"]))

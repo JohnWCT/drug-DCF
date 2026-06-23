@@ -155,12 +155,13 @@ def compute_proto_distance_features(
         if source_initialized is not None
         else np.ones(len(source_anchor_prototypes), dtype=bool)
     )
+    proto_for_len = target_prototypes if target_prototypes is not None else source_anchor_prototypes
     tgt_init = (
         np.asarray(target_initialized, dtype=bool)
         if target_initialized is not None
-        else np.ones(len(target_prototypes or source_anchor_prototypes), dtype=bool)
+        else np.ones(len(proto_for_len), dtype=bool)
     )
-    target_prototypes = target_prototypes if target_prototypes is not None else source_anchor_prototypes
+    target_prototypes = proto_for_len
 
     metadata = {
         "mode": mode,
