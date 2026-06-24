@@ -2195,29 +2195,29 @@ bash tools/run_round14_vicreg_stabilizer_pipeline.sh
 
 ### 22.4 Results
 
-**Status (2026-06-24):** Pretrain **84/84** 完成；初次 pipeline 在 analyze / selection 失敗後已修復並恢復 downstream。
+**Status:** **COMPLETE**（2026-06-24）
 
 | Stage | Planned | Completed | Notes |
 |-------|---------|-----------|-------|
 | Pretrain 14B+14C | 84 | **84/84** | `PRETRAIN_PARALLEL=20` |
-| Selection | Top-16 | **11** | structure filter 後 pool 僅 11 模型 |
-| Feature extract | 33 | in progress | 11 models × 3 compact modes |
-| Finetune | 192 → **132** | in progress | 11×3×4 combos; `FINETUNE_PARALLEL=12` |
-| Aggregate + final report | — | pending | |
+| Selection | Top-16 | **11** | 全為 **exp_035 route**（exp_008 未入選） |
+| Feature extract | 33 | **33/33** | |
+| Finetune | 132 | **132/132** | `FINETUNE_PARALLEL=12` |
+| Aggregate | — | Done | |
 
-**Interim pretrain QC:** mean kmeans_ari **0.569**；exp_035 route 最佳 kmeans_ari ≈ **0.715**（λ=3e-5 paired）。
+**Best Round 14:** `r14_exp_078_own_plus_summary` — Avg TCGA **0.5909**（Global **0.6070**）
 
-**Downstream best Avg TCGA / vs 0.6112:** 待 finetune 完成後更新 `docs/round14_final_report.md`。
+| vs benchmark | Delta |
+|--------------|-------|
+| Round 13 best 0.6112 | **−0.0204** |
+| Round 12 0.5972 | −0.0063 |
+| Stretch 0.6200 | not met |
 
-**Resume / downstream only:**
-
-```bash
-bash tools/run_round14_resume_from_select.sh
-```
+**結論：** VICReg 未超越 Round 13；`own_plus_summary` 仍為 peak mode，但 proto gain 小於 Round 13 `exp_008`。詳見 `docs/round14_final_report.md`。
 
 ### 22.5 Round 15 decision
 
-成功條件：Best Round 14 > **0.6112** 或 seed stability 改善且 AUC 不 regress → `go_importance_weighting`。
+成功條件未達（Best **0.5909** < **0.6112**）→ **`hold`**，不進 `go_importance_weighting`。可考慮 Round 14.1（exp_008 route + 更低 VICReg λ）。
 
 **手冊：** `docs/round14_vicreg_stabilizer_manual.md`
 
