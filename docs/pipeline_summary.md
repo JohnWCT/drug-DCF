@@ -2217,7 +2217,27 @@ bash tools/run_round14_vicreg_stabilizer_pipeline.sh
 
 ### 22.5 Round 15 decision
 
-成功條件未達（Best **0.5909** < **0.6112**）→ **`hold`**，不進 `go_importance_weighting`。可考慮 Round 14.1（exp_008 route + 更低 VICReg λ）。
+成功條件未達（Best **0.5909** < **0.6112**）→ **`hold`**，不進 `go_importance_weighting`。Round 15 改做 Round 13 best 可重現性 + exp_008 route 強制補測。
 
 **手冊：** `docs/round14_vicreg_stabilizer_manual.md`
+
+---
+
+## 23. Round 15 Reproducibility + exp_008 Route Rescue
+
+**目的：** 確認 Round 13 best `r13_exp_008_own_plus_summary`（**0.6112**）可 5-seed 重現；補測 Round 14 未納入 downstream 的 **exp_008 route**；僅保留 compact feature modes（`none` / `own_plus_summary`）。
+
+| 分支 | 內容 | 規模 |
+|------|------|------|
+| **15A** | Round 13 best 5-seed reproducibility（exp_008） | 40 finetune |
+| **15B** | Forced exp_008 route rescue（6 models） | 48 finetune |
+| **15C** | Ultra-low / late VICReg rescue | 24 pretrain + 64 finetune |
+| **15D** | Final compact-stack comparison | 分析報告 |
+
+**建議總量：** 24 pretrain + 152 finetune
+
+**設定：** `config/round15_repro_rescue_settings.json`  
+**執行：** `bash tools/run_round15_repro_rescue_pipeline.sh`（`PRETRAIN_PARALLEL=12 FINETUNE_PARALLEL=12`）
+
+**手冊：** `docs/round15_repro_rescue_manual.md`
 

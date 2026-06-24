@@ -1,0 +1,66 @@
+{
+  "round": "round15",
+  "purpose": "Round 13 best reproducibility and exp_008 route rescue before importance-aware weighting",
+  "round12_root": "result/optimization_runs/round12_proto_alignment",
+  "round11_root": "result/optimization_runs/round11_stability_recon",
+  "round13_root": "result/optimization_runs/round13_proto_response",
+  "round13_final_report": "docs/round13_final_report.md",
+  "round14_root": "result/optimization_runs/round14_vicreg_stabilizer",
+  "round14_final_report": "docs/round14_final_report.md",
+  "references": {
+    "round13_best_r13_exp008_own_plus_summary": 0.6112395039184843,
+    "round13_exp035_z_only": 0.6059,
+    "round14_best_r14_exp078_own_plus_summary": 0.5908654300736795,
+    "round12_exp037": 0.5971789386885913,
+    "r7_exp048": 0.5918
+  },
+  "round15a_repro": {
+    "enabled": true,
+    "source_model": "exp_008",
+    "source_round": "round12",
+    "feature_modes": ["none", "own_plus_summary"],
+    "seeds": [101, 202, 303, 404, 505]
+  },
+  "round15b_forced_exp008_route": {
+    "enabled": true,
+    "force_include_exp008_route": true,
+    "include_round14_14b_candidates": true,
+    "include_round14_best_exp078": true,
+    "include_round13_exp035_zonly": true,
+    "feature_modes": ["none", "own_plus_summary"],
+    "max_models": 6
+  },
+  "round15c_ultra_low_late_vicreg": {
+    "enabled": true,
+    "source_route": "exp_008",
+    "route_id": "exp008_proto_response_route",
+    "source_round": "round12",
+    "round15_branch": "15C",
+    "vicreg_settings": [
+      {"lambda_tumor_var": 0.0, "lambda_tumor_cov": 0.0},
+      {"lambda_tumor_var": 0.000003, "lambda_tumor_cov": 0.000003},
+      {"lambda_tumor_var": 0.00001, "lambda_tumor_cov": 0.00001},
+      {"lambda_tumor_var": 0.00003, "lambda_tumor_cov": 0.00003}
+    ],
+    "schedules": [
+      {"start": 60, "full": 120},
+      {"start": 90, "full": 150}
+    ],
+    "seeds": [101, 202, 303]
+  },
+  "response_feature_modes": ["none", "own_plus_summary"],
+  "finetune": {
+    "config": "config/params_finetune_round15_compact_features.json",
+    "epochs": 1000,
+    "batch_size": 12288,
+    "mini_batch_size": 3072,
+    "max_parallel": 12
+  },
+  "selection": {
+    "mode": "round15_repro_rescue_qc",
+    "top_k": 12,
+    "force_exp008_route": true,
+    "force_round13_best": true,
+    "force_round14_best": true
+  }
+}

@@ -27,6 +27,7 @@ SELECTION_MODES = (
     "round12_proto_alignment_qc",
     "round13_proto_response_qc",
     "round14_vicreg_stabilizer_qc",
+    "round15_repro_rescue_qc",
 )
 STRUCTURE_FIRST_MODES = frozenset(
     {"round4_1_structure_first", "round5_structure_first", "round6_sweetspot"}
@@ -38,6 +39,7 @@ ROUND11_SELECTION_MODES = frozenset({"round11_stability_qc"})
 ROUND12_SELECTION_MODES = frozenset({"round12_proto_alignment_qc"})
 ROUND13_SELECTION_MODES = frozenset({"round13_proto_response_qc"})
 ROUND14_SELECTION_MODES = frozenset({"round14_vicreg_stabilizer_qc"})
+ROUND15_SELECTION_MODES = frozenset({"round15_repro_rescue_qc"})
 MULTI_BRANCH_SELECTION_MODES = (
     ROUND7_SELECTION_MODES
     | ROUND8_SELECTION_MODES
@@ -46,6 +48,7 @@ MULTI_BRANCH_SELECTION_MODES = (
     | ROUND12_SELECTION_MODES
     | ROUND13_SELECTION_MODES
     | ROUND14_SELECTION_MODES
+    | ROUND15_SELECTION_MODES
 )
 RANKING_PRIMARY_BY_MODE = {
     "score_total": "score_total",
@@ -61,6 +64,7 @@ RANKING_PRIMARY_BY_MODE = {
     "round12_proto_alignment_qc": "round12_proto_alignment_score",
     "round13_proto_response_qc": "round13_proto_feature_score",
     "round14_vicreg_stabilizer_qc": "round14_vicreg_stabilizer_score",
+    "round15_repro_rescue_qc": "round15_repro_rescue_score",
 }
 RANKING_SECONDARY_BY_MODE = {
     "score_total": ["score_total"],
@@ -102,6 +106,11 @@ RANKING_SECONDARY_BY_MODE = {
     "round14_vicreg_stabilizer_qc": [
         "round14_vicreg_stabilizer_score",
         "latent_active_dims",
+        "kmeans_ari",
+    ],
+    "round15_repro_rescue_qc": [
+        "round15_repro_rescue_score",
+        "round15_route_id",
         "kmeans_ari",
     ],
 }
@@ -524,6 +533,24 @@ def apply_selection_ranking(df: pd.DataFrame, selection_mode: str = "score_total
         if not by:
             by, ascending = ["round14_vicreg_stabilizer_score"], [False]
         return annotated.sort_values(by=by, ascending=ascending, na_position="last").reset_index(drop=True)
+    elif selection_mode == "round15_repro_rescue_qc":
+        from tools.round15_selection import annotate_round15_scores
+
+        annotated = annotate_round15_scores(out)
+        sort_cols = [
+            ("round15_repro_rescue_score", False),
+            ("round15_route_id", True),
+            ("kmeans_ari", False),
+        ]
+        by = []
+        ascending = []
+        for col, direction in sort_cols:
+            if col in annotated.columns:
+                by.append(col)
+                ascending.append(direction)
+        if not by:
+            by, ascending = ["round15_repro_rescue_score"], [False]
+        return annotated.sort_values(by=by, ascending=ascending, na_position="last").reset_index(drop=True)
     elif selection_mode == "round8_architecture_broad_probe":
         from tools.round8_selection import annotate_round8_scores
 
@@ -899,6 +926,15 @@ def write_selection_outputs(
             top_k=top_k,
             force_baseline_models=force_baseline_models or [],
         )
+    elif selection_mode == "round15_repro_rescue_qc":
+        from tools.round15_selection import select_round15_repro_rescue_candidates
+
+        top10_df, info = select_round15_repro_rescue_candidates(
+            aggregated_df,
+            all_df,
+            top_k=top_k,
+            force_baseline_models=force_baseline_models or [],
+        )
     elif selection_mode in STRUCTURE_FIRST_MODES:
         top10_df, info = select_top_k_with_baselines(
             aggregated_df,
@@ -967,7 +1003,9 @@ def write_selection_outputs(
     )
     if info.get("group_counts"):
         round_label = (
-            "Round 14"
+            "Round 15"
+            if selection_mode == "round15_repro_rescue_qc"
+            else "Round 14"
             if selection_mode == "round14_vicreg_stabilizer_qc"
             else "Round 13"
             if selection_mode == "round13_proto_response_qc"
