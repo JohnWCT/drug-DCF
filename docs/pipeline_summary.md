@@ -2165,3 +2165,41 @@ bash tools/run_round13_proto_response_pipeline.sh
 
 **手冊：** `docs/round13_proto_response_manual.md`
 
+---
+
+## 22. Round 14 VICReg Latent Stabilizer Re-integration
+
+### 22.1 Motivation from Round 13
+
+Round 13 best **r13_exp_008_own_plus_summary**（Avg TCGA **0.6112**）已驗證 prototype-response features 有效，但效益具 model-specific 性（`exp_008` +0.0449 vs `exp_035` z-only 仍強）。Round 14 在 **不改 Conditional ADV / Prototype Alignment / response feature family** 前提下，重新引入低權重 **VICReg var/cov latent stabilizer**。
+
+### 22.2 Branches
+
+| Branch | Route | Pretrain jobs |
+|--------|-------|---------------|
+| 14B | `exp_008` proto-response lineage (R12 12B) | 54 |
+| 14C | `exp_035` strong z-only 10C lineage (R11) | 30 |
+| **Total** | | **84** |
+
+VICReg sweep：paired + asymmetric λ ∈ {0, 1e-5, 3e-5, 1e-4, 3e-4}；schedules 20→60、40→90；seeds 101/202/303。
+
+### 22.3 Downstream (14D)
+
+Selection **Top-16** × feature modes `{none, own_cancer, own_plus_summary}` × 4 finetune combos = **192 jobs**。
+
+```bash
+bash tools/run_round14_vicreg_stabilizer_pipeline.sh
+```
+
+預設：`PRETRAIN_PARALLEL=20`，`FINETUNE_PARALLEL=12`（避免 Round 13 式 OOM）。
+
+### 22.4 Results
+
+（執行後填入 `docs/round14_final_report.md`）
+
+### 22.5 Round 15 decision
+
+成功條件：Best Round 14 > **0.6112** 或 seed stability 改善且 AUC 不 regress → `go_importance_weighting`。
+
+**手冊：** `docs/round14_vicreg_stabilizer_manual.md`
+

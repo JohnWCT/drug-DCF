@@ -782,6 +782,7 @@ def build_parser() -> argparse.ArgumentParser:
             "round11_stability_qc",
             "round12_proto_alignment_qc",
             "round13_proto_response_qc",
+            "round14_vicreg_stabilizer_qc",
         ],
         help=(
             "Top-K ranking "
@@ -790,7 +791,8 @@ def build_parser() -> argparse.ArgumentParser:
             "Round 10: round10_cond_adv_qc; "
             "Round 11: round11_stability_qc; "
             "Round 12: round12_proto_alignment_qc; "
-            "Round 13: round13_proto_response_qc)"
+            "Round 13: round13_proto_response_qc; "
+            "Round 14: round14_vicreg_stabilizer_qc)"
         ),
     )
     sel.add_argument(

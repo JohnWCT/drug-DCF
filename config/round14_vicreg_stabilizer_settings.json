@@ -1,0 +1,84 @@
+{
+  "round": "round14",
+  "purpose": "Low-weight VICReg latent stabilizer on validated conditional-prototype-response stacks",
+  "round13_root": "result/optimization_runs/round13_proto_response",
+  "round13_final_report": "docs/round13_final_report.md",
+  "round12_root": "result/optimization_runs/round12_proto_alignment",
+  "round11_root": "result/optimization_runs/round11_stability_recon",
+  "references": {
+    "round13_best_r13_exp008_own_plus_summary": 0.6112395039184843,
+    "round13_exp035_z_only": 0.6059,
+    "round12_exp037": 0.5971789386885913,
+    "round11_exp035": 0.5828,
+    "r7_exp048": 0.5918
+  },
+  "base_routes": [
+    {
+      "route_id": "exp008_proto_response_route",
+      "source_model": "exp_008",
+      "source_round": "round12",
+      "primary_response_feature_mode": "own_plus_summary",
+      "round14_branch": "14B",
+      "description": "Round 13 best source route (12B proto alignment lineage)"
+    },
+    {
+      "route_id": "exp035_strong_zonly_route",
+      "source_model": "exp_035",
+      "source_round": "round11",
+      "primary_response_feature_mode": "none",
+      "round14_branch": "14C",
+      "description": "Strong z-only 10C stack"
+    }
+  ],
+  "vicreg": {
+    "enabled": true,
+    "settings_main": [
+      {"lambda_tumor_var": 0.0, "lambda_tumor_cov": 0.0},
+      {"lambda_tumor_var": 0.00001, "lambda_tumor_cov": 0.00001},
+      {"lambda_tumor_var": 0.00003, "lambda_tumor_cov": 0.00003},
+      {"lambda_tumor_var": 0.0001, "lambda_tumor_cov": 0.0001},
+      {"lambda_tumor_var": 0.0003, "lambda_tumor_cov": 0.0003},
+      {"lambda_tumor_var": 0.0001, "lambda_tumor_cov": 0.00003},
+      {"lambda_tumor_var": 0.00003, "lambda_tumor_cov": 0.0001},
+      {"lambda_tumor_var": 0.0003, "lambda_tumor_cov": 0.0001},
+      {"lambda_tumor_var": 0.0001, "lambda_tumor_cov": 0.0003}
+    ],
+    "settings_exp035_small": [
+      {"lambda_tumor_var": 0.0, "lambda_tumor_cov": 0.0},
+      {"lambda_tumor_var": 0.00001, "lambda_tumor_cov": 0.00001},
+      {"lambda_tumor_var": 0.00003, "lambda_tumor_cov": 0.00003},
+      {"lambda_tumor_var": 0.0001, "lambda_tumor_cov": 0.0001},
+      {"lambda_tumor_var": 0.0003, "lambda_tumor_cov": 0.0003}
+    ],
+    "schedules": [
+      {"start": 20, "full": 60},
+      {"start": 40, "full": 90}
+    ]
+  },
+  "seeds": [101, 202, 303],
+  "selection": {
+    "mode": "round14_vicreg_stabilizer_qc",
+    "top_k": 16,
+    "force_controls": true,
+    "force_routes": ["exp008_proto_response_route", "exp035_strong_zonly_route"]
+  },
+  "response_feature_modes": [
+    "none",
+    "own_cancer",
+    "own_plus_summary"
+  ],
+  "finetune": {
+    "config": "config/params_finetune_round14_proto_features.json",
+    "epochs": 1000,
+    "batch_size": 12288,
+    "mini_batch_size": 3072,
+    "max_parallel": 20
+  },
+  "reference_controls": [
+    "r13_exp_008_own_plus_summary",
+    "r13_exp_008_none",
+    "r13_exp_035_none",
+    "r13_exp_035_own_cancer",
+    "r13_exp_037_none"
+  ]
+}
