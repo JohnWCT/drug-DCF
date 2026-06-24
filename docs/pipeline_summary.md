@@ -2139,18 +2139,21 @@ bash tools/run_round13_proto_response_pipeline.sh
 
 流程：config builder → prototype feature extraction → finetune（80–128 jobs）→ aggregate → final report。
 
-### 21.4 Results (2026-06-23)
+### 21.4 Results (2026-06-24, 120/120 complete)
 
 | Stage | Result |
 |-------|--------|
 | Prototype feature extraction | **30/30** success |
-| Finetune | **81/120** success（39 failed，多集中在 exp_035 / exp_051） |
-| Best downstream | **r13_exp_035_own_plus_summary** Avg TCGA **0.6127** (+0.0156 vs Round 12 exp_037) |
+| Finetune (initial) | 81/120（39 OOM，`parallel=26` GPU 搶占） |
+| Finetune (retry) | **39/39** → **120/120** total（`FINETUNE_RETRY_PARALLEL=12`） |
+| Best downstream | **r13_exp_008_own_plus_summary** Avg TCGA **0.6112** (+0.0141 vs Round 12 exp_037) |
 | Stretch goal 0.6000 | **met** |
 
-**Feature mode 結論：** `own_plus_summary` > `none` (z-only) > `own_cancer` >> `all_source_*`。精簡 prototype-distance 特徵有效；全 anchor vector 無額外收益。
+**Feature mode 結論：** `own_plus_summary` peak best；`none` (z-only) 對 `exp_035` 仍強（0.6059）。全 anchor vector 仍弱於精簡特徵。
 
-**z-only vs proto：** 5 個 source model 中 **3/5** proto 優於 z-only（exp_035、exp_057、exp_018）；Round 12 冠軍 exp_037 在此 ablation 未受益。
+**z-only vs proto：** 6 個 source model 中 **4/6** proto 優於 z-only（exp_008、exp_051、exp_057、exp_018）；`exp_035` / `exp_037` 未受益。
+
+**Retry：** `bash tools/run_round13_finetune_retry.sh`（見 `logs/round13_finetune_retry.log`）
 
 完整報告：`docs/round13_final_report.md`（runtime：`result/optimization_runs/round13_proto_response/final_report/round13_final_report.md`）
 
@@ -2158,7 +2161,7 @@ bash tools/run_round13_proto_response_pipeline.sh
 
 **Recommendation:** `go_vicreg_stabilizer`
 
-條件已滿足：Best Round 13 **0.6127** > Round 12 **0.5972**，且 prototype-distance features 對多數 source model 有正向增益。下一步：在 exp_035 系譜上低權重 VICReg / latent stabilizer 再整合。
+條件已滿足：Best Round 13 **0.6112** > Round 12 **0.5972**。最大 proto 增益在 `exp_008`；Round 14 應在已驗證 stack（`exp_008` proto-response / `exp_035` z-only）上整合低權重 VICReg stabilizer。
 
 **手冊：** `docs/round13_proto_response_manual.md`
 
