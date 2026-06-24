@@ -39,6 +39,7 @@ def _vicreg_means_from_g_loss(exp_dir: str) -> dict:
     for src_col, dst_col in (
         ("tumor_vicreg_var_loss", "tumor_vicreg_var_loss_mean"),
         ("tumor_vicreg_cov_loss", "tumor_vicreg_cov_loss_mean"),
+        ("tumor_vicreg_cov_offdiag_mean_abs", "latent_cov_offdiag_mean"),
     ):
         if src_col in df.columns:
             series = pd.to_numeric(df[src_col], errors="coerce").dropna()
@@ -123,15 +124,21 @@ def _vicreg_sweep_summary(pretrain_df: pd.DataFrame) -> pd.DataFrame:
     work = pretrain_df.copy()
     work["lambda_tumor_var"] = pd.to_numeric(work.get("lambda_tumor_var"), errors="coerce")
     work["lambda_tumor_cov"] = pd.to_numeric(work.get("lambda_tumor_cov"), errors="coerce")
+    agg_spec: dict = {"n_models": ("model_id", "count")}
+    optional_aggs = {
+        "mean_kmeans_ari": "kmeans_ari",
+        "mean_active_dims": "latent_active_dims",
+        "mean_cov_offdiag": "latent_cov_offdiag_mean",
+        "mean_proto_gap": "mean_target_to_source_anchor_distance",
+        "mean_vicreg_var_loss": "tumor_vicreg_var_loss_mean",
+        "mean_vicreg_cov_loss": "tumor_vicreg_cov_loss_mean",
+    }
+    for out_col, src_col in optional_aggs.items():
+        if src_col in work.columns:
+            agg_spec[out_col] = (src_col, "mean")
     grouped = (
         work.groupby(["lambda_tumor_var", "lambda_tumor_cov", "round14_branch"], dropna=False)
-        .agg(
-            n_models=("model_id", "count"),
-            mean_kmeans_ari=("kmeans_ari", "mean"),
-            mean_active_dims=("latent_active_dims", "mean"),
-            mean_cov_offdiag=("latent_cov_offdiag_mean", "mean"),
-            mean_proto_gap=("mean_target_to_source_anchor_distance", "mean"),
-        )
+        .agg(**agg_spec)
         .reset_index()
     )
     return grouped

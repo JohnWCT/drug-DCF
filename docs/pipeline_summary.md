@@ -2195,7 +2195,25 @@ bash tools/run_round14_vicreg_stabilizer_pipeline.sh
 
 ### 22.4 Results
 
-（執行後填入 `docs/round14_final_report.md`）
+**Status (2026-06-24):** Pretrain **84/84** 完成；初次 pipeline 在 analyze / selection 失敗後已修復並恢復 downstream。
+
+| Stage | Planned | Completed | Notes |
+|-------|---------|-----------|-------|
+| Pretrain 14B+14C | 84 | **84/84** | `PRETRAIN_PARALLEL=20` |
+| Selection | Top-16 | **11** | structure filter 後 pool 僅 11 模型 |
+| Feature extract | 33 | in progress | 11 models × 3 compact modes |
+| Finetune | 192 → **132** | in progress | 11×3×4 combos; `FINETUNE_PARALLEL=12` |
+| Aggregate + final report | — | pending | |
+
+**Interim pretrain QC:** mean kmeans_ari **0.569**；exp_035 route 最佳 kmeans_ari ≈ **0.715**（λ=3e-5 paired）。
+
+**Downstream best Avg TCGA / vs 0.6112:** 待 finetune 完成後更新 `docs/round14_final_report.md`。
+
+**Resume / downstream only:**
+
+```bash
+bash tools/run_round14_resume_from_select.sh
+```
 
 ### 22.5 Round 15 decision
 

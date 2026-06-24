@@ -82,7 +82,8 @@ def _collapse_risk(row: pd.Series) -> bool:
     active = pd.to_numeric(row.get("latent_active_dims"), errors="coerce")
     if pd.notna(ari) and float(ari) < COLLAPSE_KMEANS_FLOOR:
         return True
-    if pd.notna(active) and float(active) < COLLAPSE_ACTIVE_DIMS_FLOOR:
+    # Only apply active-dim floor when the metric was recorded (not missing → NaN).
+    if pd.notna(active) and float(active) > 0 and float(active) < COLLAPSE_ACTIVE_DIMS_FLOOR:
         return True
     return False
 
@@ -97,7 +98,9 @@ def annotate_round14_scores(df: pd.DataFrame) -> pd.DataFrame:
     out["round14_route_id"] = out.apply(_route_id, axis=1)
     out["lambda_tumor_var"] = _safe_numeric(out.get("lambda_tumor_var", 0), default=0.0)
     out["lambda_tumor_cov"] = _safe_numeric(out.get("lambda_tumor_cov", 0), default=0.0)
-    out["latent_active_dims"] = _safe_numeric(out.get("latent_active_dims", out.get("active_dims", 0)), default=0.0)
+    out["latent_active_dims"] = _safe_numeric(
+        out.get("latent_active_dims", out.get("active_dims", np.nan)), default=np.nan
+    )
     out["latent_cov_offdiag_mean"] = _safe_numeric(
         out.get("latent_cov_offdiag_mean", out.get("tumor_vicreg_cov_offdiag_mean_abs", np.nan))
     )

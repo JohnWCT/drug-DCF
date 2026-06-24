@@ -34,3 +34,19 @@ def test_annotate_adds_score_column():
     out = annotate_round14_scores(df)
     assert "round14_vicreg_stabilizer_score" in out.columns
     assert bool(out["round14_vicreg_active"].iloc[0])
+
+
+def test_missing_latent_active_dims_not_treated_as_collapse():
+    from tools.round14_selection import _collapse_risk, select_round14_vicreg_stabilizer_candidates
+    import pandas as pd
+
+    row = pd.Series({"kmeans_ari": 0.6, "latent_active_dims": float("nan")})
+    assert _collapse_risk(row) is False
+    df = pd.DataFrame(
+        [
+            {"ID": "exp_a", "kmeans_ari": 0.6, "lambda_tumor_var": 0.0001, "lambda_tumor_cov": 0.0001},
+            {"ID": "exp_b", "kmeans_ari": 0.5, "lambda_tumor_var": 0.0, "lambda_tumor_cov": 0.0},
+        ]
+    )
+    top, info = select_round14_vicreg_stabilizer_candidates(df, df, top_k=2)
+    assert len(top) == 2
