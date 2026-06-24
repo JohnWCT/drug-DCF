@@ -164,6 +164,37 @@ def _mean_loss_logs(logs):
     return mean
 
 
+def _vicreg_loss_means_from_genloss_csv(genloss_csv: str) -> dict:
+    """Aggregate per-epoch VICReg losses from g_loss.csv when history lists are empty."""
+    if not os.path.isfile(genloss_csv):
+        return {}
+    try:
+        df = pd.read_csv(genloss_csv)
+    except Exception:
+        return {}
+    if df.empty:
+        return {}
+    var_eff = pd.to_numeric(df.get("lambda_tumor_var_eff", 0), errors="coerce").fillna(0)
+    cov_eff = pd.to_numeric(df.get("lambda_tumor_cov_eff", 0), errors="coerce").fillna(0)
+    active_mask = (var_eff > 0) | (cov_eff > 0)
+    sub = df[active_mask] if active_mask.any() else df
+    out: dict = {}
+    for src_col, dst_col in (
+        ("tumor_vicreg_var_loss", "tumor_vicreg_var_loss_mean"),
+        ("tumor_vicreg_cov_loss", "tumor_vicreg_cov_loss_mean"),
+    ):
+        if src_col not in sub.columns:
+            continue
+        series = pd.to_numeric(sub[src_col], errors="coerce").dropna()
+        if not series.empty:
+            out[dst_col] = float(series.mean())
+    if "tumor_vicreg_var_loss_mean" in out and "tumor_vicreg_cov_loss_mean" in out:
+        out["tumor_vicreg_loss_mean"] = (
+            out["tumor_vicreg_var_loss_mean"] + out["tumor_vicreg_cov_loss_mean"]
+        )
+    return out
+
+
 def resolve_gan_training_params(param: dict, gan_lr: float, lambda_cls: float) -> dict:
     """Resolve GAN-stage schedule/config with backward-compatible defaults."""
     return {
@@ -1389,6 +1420,8 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
     proto_align_distance_history: List[float] = []
     proto_align_num_cancers_history: List[float] = []
     proto_align_skip_history: List[int] = []
+    tumor_vicreg_var_loss_history: List[float] = []
+    tumor_vicreg_cov_loss_history: List[float] = []
     lambda_cond_eff_final = 0.0
     lambda_proto_align_eff_final = 0.0
     source_anchor_prototypes = None
@@ -1573,6 +1606,13 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
             proto_align_skip_history.append(
                 int(np.sum([g.get("proto_align_skip_count", 0) for g in genloss_list]))
             )
+        if genloss_list and (lambda_tumor_var_eff > 0 or lambda_tumor_cov_eff > 0):
+            tumor_vicreg_var_loss_history.append(
+                float(genloss_mean.get("tumor_vicreg_var_loss", 0.0))
+            )
+            tumor_vicreg_cov_loss_history.append(
+                float(genloss_mean.get("tumor_vicreg_cov_loss", 0.0))
+            )
         if cls_only_list:
             genloss_mean["cls_only_loss"] = float(np.mean(cls_only_list))
         genloss_mean["lambda_cls_eff"] = gan_lambda_cls
@@ -1756,6 +1796,22 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
         "lambda_tumor_supcon": supcon_cfg["lambda_tumor_supcon"],
         "lambda_tumor_var": vicreg_cfg["lambda_tumor_var"],
         "lambda_tumor_cov": vicreg_cfg["lambda_tumor_cov"],
+        "tumor_vicreg_enabled": bool(
+            vicreg_cfg["lambda_tumor_var"] > 0 or vicreg_cfg["lambda_tumor_cov"] > 0
+        ),
+        "tumor_vicreg_start_epoch": vicreg_cfg["tumor_vicreg_start_epoch"],
+        "tumor_vicreg_full_epoch": vicreg_cfg["tumor_vicreg_full_epoch"],
+        "tumor_vicreg_var_loss_mean": (
+            float(np.mean(tumor_vicreg_var_loss_history)) if tumor_vicreg_var_loss_history else None
+        ),
+        "tumor_vicreg_cov_loss_mean": (
+            float(np.mean(tumor_vicreg_cov_loss_history)) if tumor_vicreg_cov_loss_history else None
+        ),
+        "tumor_vicreg_loss_mean": (
+            float(np.mean(tumor_vicreg_var_loss_history) + np.mean(tumor_vicreg_cov_loss_history))
+            if tumor_vicreg_var_loss_history and tumor_vicreg_cov_loss_history
+            else None
+        ),
         "use_tumor_subspace": subspace_cfg["use_tumor_subspace"],
         "tumor_dim": subspace_cfg["tumor_dim"],
         "lambda_subspace_ortho": subspace_cfg["lambda_subspace_ortho"],
@@ -1817,6 +1873,10 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
     metrics.update(source_anchor_proto_metrics_payload(proto_align_cfg, proto_gan_logs))
     metrics.update(cluster_metrics)
     metrics.update(reconstruction_loss_payload)
+    if metrics.get("tumor_vicreg_var_loss_mean") is None or metrics.get("tumor_vicreg_cov_loss_mean") is None:
+        for key, value in _vicreg_loss_means_from_genloss_csv(genloss_csv).items():
+            if metrics.get(key) is None:
+                metrics[key] = value
     source_anchor_payload = source_anchor_proto_metrics_payload(proto_align_cfg, proto_gan_logs)
     with open(os.path.join(exp_dir, "gan_metrics.json"), "w") as f:
         json.dump(_json_safe(metrics), f, indent=2)
@@ -1963,6 +2023,11 @@ def main():
                 param_dict["train_num_epochs"] = 2
                 param_dict["gan_patience"] = 1
                 param_dict["pretrain_patience"] = 1
+                if float(param_dict.get("lambda_tumor_var", 0)) > 0 or float(
+                    param_dict.get("lambda_tumor_cov", 0)
+                ) > 0:
+                    param_dict["tumor_vicreg_start_epoch"] = 1
+                    param_dict["tumor_vicreg_full_epoch"] = 1
             if args.batch_size is not None and args.batch_size > 0:
                 param_dict["batch_size"] = int(args.batch_size)
             cache_key = f"{source_path}|{resolved_target}"

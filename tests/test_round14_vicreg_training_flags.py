@@ -9,9 +9,18 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 
-def test_pretrain_source_has_vicreg_params():
+def test_pretrain_source_has_vicreg_params_and_mean_metadata():
     text = open(os.path.join(PROJECT_ROOT, "pretrain_VAEwC.py"), encoding="utf-8").read()
-    for token in ("lambda_tumor_var", "lambda_tumor_cov", "resolve_tumor_vicreg_training_params", "compute_vicreg_var_cov_loss"):
+    for token in (
+        "lambda_tumor_var",
+        "lambda_tumor_cov",
+        "resolve_tumor_vicreg_training_params",
+        "compute_vicreg_var_cov_loss",
+        "tumor_vicreg_var_loss_history",
+        "tumor_vicreg_var_loss_mean",
+        "tumor_vicreg_cov_loss_mean",
+        "tumor_vicreg_loss_mean",
+    ):
         assert token in text
 
 

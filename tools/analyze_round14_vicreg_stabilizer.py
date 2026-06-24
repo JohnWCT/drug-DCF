@@ -26,15 +26,64 @@ R7_BEST = 0.5918
 STRONG_SUCCESS = 0.6200
 
 
+def _vicreg_means_from_g_loss(exp_dir: str) -> dict:
+    """Fallback: aggregate per-epoch VICReg losses from g_loss.csv."""
+    g_loss_path = os.path.join(exp_dir, "g_loss.csv")
+    if not os.path.isfile(g_loss_path):
+        return {}
+    try:
+        df = pd.read_csv(g_loss_path)
+    except Exception:
+        return {}
+    out: dict = {}
+    for src_col, dst_col in (
+        ("tumor_vicreg_var_loss", "tumor_vicreg_var_loss_mean"),
+        ("tumor_vicreg_cov_loss", "tumor_vicreg_cov_loss_mean"),
+    ):
+        if src_col in df.columns:
+            series = pd.to_numeric(df[src_col], errors="coerce").dropna()
+            if not series.empty:
+                out[dst_col] = float(series.mean())
+    if "tumor_vicreg_var_loss_mean" in out and "tumor_vicreg_cov_loss_mean" in out:
+        out["tumor_vicreg_loss_mean"] = (
+            out["tumor_vicreg_var_loss_mean"] + out["tumor_vicreg_cov_loss_mean"]
+        )
+    return out
+
+
+def _normalize_vicreg_row(row: dict, exp_dir: str) -> dict:
+    """Map legacy per-step keys and g_loss.csv aggregates onto *_mean fields."""
+    out = dict(row)
+    for src, dst in (
+        ("tumor_vicreg_var_loss", "tumor_vicreg_var_loss_mean"),
+        ("tumor_vicreg_cov_loss", "tumor_vicreg_cov_loss_mean"),
+    ):
+        if pd.isna(out.get(dst)) and out.get(src) is not None:
+            out[dst] = out[src]
+    if pd.isna(out.get("latent_cov_offdiag_mean")) and out.get("tumor_vicreg_cov_offdiag_mean_abs") is not None:
+        out["latent_cov_offdiag_mean"] = out["tumor_vicreg_cov_offdiag_mean_abs"]
+    if pd.isna(out.get("tumor_vicreg_loss_mean")):
+        var_m = out.get("tumor_vicreg_var_loss_mean")
+        cov_m = out.get("tumor_vicreg_cov_loss_mean")
+        if var_m is not None and cov_m is not None and not (pd.isna(var_m) or pd.isna(cov_m)):
+            out["tumor_vicreg_loss_mean"] = float(var_m) + float(cov_m)
+    fallback = _vicreg_means_from_g_loss(exp_dir)
+    for key, value in fallback.items():
+        if pd.isna(out.get(key)):
+            out[key] = value
+    return out
+
+
 def _collect_pretrain_summaries(run_dir: str) -> pd.DataFrame:
     rows = []
     pretrain_dir = os.path.join(resolve_path(run_dir), "pretrain")
     for summary_path in sorted(glob.glob(os.path.join(pretrain_dir, "exp_*", "run_summary.json"))):
+        exp_dir = os.path.dirname(summary_path)
         with open(summary_path, encoding="utf-8") as f:
             payload = json.load(f)
         metrics = payload.get("metrics", {})
         params = payload.get("params", {})
-        exp_id = payload.get("exp_id", os.path.basename(os.path.dirname(summary_path)))
+        exp_id = payload.get("exp_id", os.path.basename(exp_dir))
         row = {"model_id": exp_id, **metrics}
         for key in (
             "round14_branch",
@@ -53,6 +102,9 @@ def _collect_pretrain_summaries(run_dir: str) -> pd.DataFrame:
             "tumor_vicreg_var_loss_mean",
             "tumor_vicreg_cov_loss_mean",
             "tumor_vicreg_loss_mean",
+            "tumor_vicreg_var_loss",
+            "tumor_vicreg_cov_loss",
+            "tumor_vicreg_cov_offdiag_mean_abs",
             "mean_target_to_source_anchor_distance",
             "kmeans_ari",
             "wasserstein",
@@ -61,7 +113,7 @@ def _collect_pretrain_summaries(run_dir: str) -> pd.DataFrame:
         ):
             if key not in row and key in params:
                 row[key] = params[key]
-        rows.append(row)
+        rows.append(_normalize_vicreg_row(row, exp_dir))
     return pd.DataFrame(rows)
 
 
