@@ -2225,19 +2225,25 @@ bash tools/run_round14_vicreg_stabilizer_pipeline.sh
 
 ## 23. Round 15 Reproducibility + exp_008 Route Rescue
 
+**Run:** `result/optimization_runs/round15_repro_rescue`  
+**Completed:** 2026-06-24 18:37Z  
+**Status:** ALL_DONE（pretrain **24/24**；有效 downstream **72/144** z-only only）
+
 **目的：** 確認 Round 13 best `r13_exp_008_own_plus_summary`（**0.6112**）可 5-seed 重現；補測 Round 14 未納入 downstream 的 **exp_008 route**；僅保留 compact feature modes（`none` / `own_plus_summary`）。
 
-| 分支 | 內容 | 規模 |
+| 分支 | 內容 | 結果 |
 |------|------|------|
-| **15A** | Round 13 best 5-seed reproducibility（exp_008） | 40 finetune |
-| **15B** | Forced exp_008 route rescue（6 models） | 48 finetune |
-| **15C** | Ultra-low / late VICReg rescue | 24 pretrain + 64 finetune |
-| **15D** | Final compact-stack comparison | 分析報告 |
+| **15A** | 5-seed exp_008 reproducibility | z-only mean **0.5656±0.013**；`own_plus_summary` 無效 |
+| **15B** | Forced exp_008 route rescue | best `r15b_exp_035_none` **0.5876** |
+| **15C** | Ultra-low / late VICReg | pretrain 24/24；best z-only **0.5745** |
+| **15D** | Final comparison | **NO-GO** Round 16 |
 
-**建議總量：** 24 pretrain + 152 finetune
+**Best Round 15:** `r15b_exp_035_none` — Avg TCGA **0.5876**（vs Round 13 **−0.0236**）
+
+**關鍵問題：** `own_plus_summary` finetune 72/72 因 feature path mismatch 無有效 AUC；Round 15 核心假設未驗證。詳見 `docs/round15_final_report.md`。
+
+**Round 16 decision:** **`NO-GO`** — 先修 path + 重跑 proto downstream，或轉 final validation。
 
 **設定：** `config/round15_repro_rescue_settings.json`  
-**執行：** `bash tools/run_round15_repro_rescue_pipeline.sh`（`PRETRAIN_PARALLEL=12 FINETUNE_PARALLEL=12`）
-
 **手冊：** `docs/round15_repro_rescue_manual.md`
 
