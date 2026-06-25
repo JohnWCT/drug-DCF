@@ -65,6 +65,16 @@ def _feature_mode_from_row(row: pd.Series) -> str:
             return str(val)
     model_id = str(row.get("model_id", row.get("Model_ID", "")))
     for mode in (
+        "own_plus_summary_plus_delta",
+        "own_plus_summary_no_delta_control",
+        "own_proto_delta_projected_32",
+        "own_proto_delta_projected_16",
+        "own_proto_delta_normed",
+        "own_proto_delta_only",
+        "own_proto_context_projected_32",
+        "own_proto_context_projected_16",
+        "own_proto_context",
+        "own_proto_delta",
         "own_plus_summary_robust_scaler",
         "own_plus_summary_no_initialized_flags",
         "own_plus_summary_no_gap",

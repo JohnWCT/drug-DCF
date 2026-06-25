@@ -15,7 +15,7 @@ python3 tools/round16_bruteforce_config_builder.py \
 
 python3 tools/extract_round13_proto_features.py \
   --manifest "${ROUND16_ROOT}/manifests/stage16b_proto_feature_manifest.csv" \
-  --outdir "${ROUND16_ROOT}/features_stage16b"
+  --outdir "${ROUND16_ROOT}/features"
 
 python3 tools/optimization_runner.py finetune \
   --manifest "${ROUND16_ROOT}/manifests/stage16b_finetune_dispatch_manifest.csv" \
