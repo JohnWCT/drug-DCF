@@ -2226,24 +2226,21 @@ bash tools/run_round14_vicreg_stabilizer_pipeline.sh
 ## 23. Round 15 Reproducibility + exp_008 Route Rescue
 
 **Run:** `result/optimization_runs/round15_repro_rescue`  
-**Completed:** 2026-06-24 18:37Z  
-**Status:** ALL_DONE（pretrain **24/24**；有效 downstream **72/144** z-only only）
-
-**目的：** 確認 Round 13 best `r13_exp_008_own_plus_summary`（**0.6112**）可 5-seed 重現；補測 Round 14 未納入 downstream 的 **exp_008 route**；僅保留 compact feature modes（`none` / `own_plus_summary`）。
+**Completed:** 2026-06-25 04:57Z（含 proto resume）  
+**Status:** ALL_DONE（pretrain **24/24**；finetune **144/144**；aggregate **36**）
 
 | 分支 | 內容 | 結果 |
 |------|------|------|
-| **15A** | 5-seed exp_008 reproducibility | z-only mean **0.5656±0.013**；`own_plus_summary` 無效 |
-| **15B** | Forced exp_008 route rescue | best `r15b_exp_035_none` **0.5876** |
-| **15C** | Ultra-low / late VICReg | pretrain 24/24；best z-only **0.5745** |
+| **15A** | 5-seed exp_008 reproducibility | ops mean **0.5746±0.009**；未重現 R13 |
+| **15B** | Forced exp_008 route rescue | `exp_008` ops **0.5889**（+0.0369 vs z-only） |
+| **15C** | Ultra-low / late VICReg | best `r15c_exp_005_own_plus_summary` **0.6083** |
 | **15D** | Final comparison | **NO-GO** Round 16 |
 
-**Best Round 15:** `r15b_exp_035_none` — Avg TCGA **0.5876**（vs Round 13 **−0.0236**）
+**Best Round 15:** `r15c_exp_005_own_plus_summary` — Avg TCGA **0.6083**（vs Round 13 **−0.0029**；vs Round 14 **+0.0174**）
 
-**關鍵問題：** `own_plus_summary` finetune 72/72 因 feature path mismatch 無有效 AUC；Round 15 核心假設未驗證。詳見 `docs/round15_final_report.md`。
+**Proto fix：** feature path mismatch 已修（`3ff2f52`）；resume 後 `own_plus_summary` **13/18** 優於 z-only，mean Δ **+0.0142**。
 
-**Round 16 decision:** **`NO-GO`** — 先修 path + 重跑 proto downstream，或轉 final validation。
+**Round 16 decision:** **`NO-GO`** — 轉 final validation / Round 13 champion 穩定性分析。
 
-**設定：** `config/round15_repro_rescue_settings.json`  
-**手冊：** `docs/round15_repro_rescue_manual.md`
+**詳見：** `docs/round15_final_report.md`
 
