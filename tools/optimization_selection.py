@@ -28,6 +28,7 @@ SELECTION_MODES = (
     "round13_proto_response_qc",
     "round14_vicreg_stabilizer_qc",
     "round15_repro_rescue_qc",
+    "round16_bruteforce_qc",
 )
 STRUCTURE_FIRST_MODES = frozenset(
     {"round4_1_structure_first", "round5_structure_first", "round6_sweetspot"}
@@ -40,6 +41,7 @@ ROUND12_SELECTION_MODES = frozenset({"round12_proto_alignment_qc"})
 ROUND13_SELECTION_MODES = frozenset({"round13_proto_response_qc"})
 ROUND14_SELECTION_MODES = frozenset({"round14_vicreg_stabilizer_qc"})
 ROUND15_SELECTION_MODES = frozenset({"round15_repro_rescue_qc"})
+ROUND16_SELECTION_MODES = frozenset({"round16_bruteforce_qc"})
 MULTI_BRANCH_SELECTION_MODES = (
     ROUND7_SELECTION_MODES
     | ROUND8_SELECTION_MODES
@@ -49,6 +51,7 @@ MULTI_BRANCH_SELECTION_MODES = (
     | ROUND13_SELECTION_MODES
     | ROUND14_SELECTION_MODES
     | ROUND15_SELECTION_MODES
+    | ROUND16_SELECTION_MODES
 )
 RANKING_PRIMARY_BY_MODE = {
     "score_total": "score_total",
@@ -65,6 +68,7 @@ RANKING_PRIMARY_BY_MODE = {
     "round13_proto_response_qc": "round13_proto_feature_score",
     "round14_vicreg_stabilizer_qc": "round14_vicreg_stabilizer_score",
     "round15_repro_rescue_qc": "round15_repro_rescue_score",
+    "round16_bruteforce_qc": "round16_bruteforce_score",
 }
 RANKING_SECONDARY_BY_MODE = {
     "score_total": ["score_total"],
@@ -112,6 +116,11 @@ RANKING_SECONDARY_BY_MODE = {
         "round15_repro_rescue_score",
         "round15_route_id",
         "kmeans_ari",
+    ],
+    "round16_bruteforce_qc": [
+        "round16_bruteforce_score",
+        "mean_auc_across_seeds",
+        "std_auc_across_seeds",
     ],
 }
 
@@ -551,6 +560,24 @@ def apply_selection_ranking(df: pd.DataFrame, selection_mode: str = "score_total
         if not by:
             by, ascending = ["round15_repro_rescue_score"], [False]
         return annotated.sort_values(by=by, ascending=ascending, na_position="last").reset_index(drop=True)
+    elif selection_mode == "round16_bruteforce_qc":
+        from tools.round16_bruteforce_selection import annotate_round16_scores
+
+        annotated = annotate_round16_scores(out)
+        sort_cols = [
+            ("round16_bruteforce_score", False),
+            ("mean_auc_across_seeds", False),
+            ("std_auc_across_seeds", True),
+        ]
+        by = []
+        ascending = []
+        for col, direction in sort_cols:
+            if col in annotated.columns:
+                by.append(col)
+                ascending.append(direction)
+        if not by:
+            by, ascending = ["round16_bruteforce_score"], [False]
+        return annotated.sort_values(by=by, ascending=ascending, na_position="last").reset_index(drop=True)
     elif selection_mode == "round8_architecture_broad_probe":
         from tools.round8_selection import annotate_round8_scores
 
@@ -935,6 +962,15 @@ def write_selection_outputs(
             top_k=top_k,
             force_baseline_models=force_baseline_models or [],
         )
+    elif selection_mode == "round16_bruteforce_qc":
+        from tools.round16_bruteforce_selection import select_round16_bruteforce_candidates
+
+        top10_df, info = select_round16_bruteforce_candidates(
+            aggregated_df,
+            all_df,
+            top_k=top_k,
+            force_baseline_models=force_baseline_models or [],
+        )
     elif selection_mode in STRUCTURE_FIRST_MODES:
         top10_df, info = select_top_k_with_baselines(
             aggregated_df,
@@ -1003,7 +1039,9 @@ def write_selection_outputs(
     )
     if info.get("group_counts"):
         round_label = (
-            "Round 15"
+            "Round 16"
+            if selection_mode == "round16_bruteforce_qc"
+            else "Round 15"
             if selection_mode == "round15_repro_rescue_qc"
             else "Round 14"
             if selection_mode == "round14_vicreg_stabilizer_qc"

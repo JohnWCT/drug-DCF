@@ -642,7 +642,11 @@ def build_and_run_one_combination(
     param_groups = [{'params': classifymodel.parameters()}]
     if drug_gcnmodel is not None:
         param_groups.append({'params': drug_gcnmodel.parameters()})
-    optimizer = optim.AdamW(param_groups, lr=ft_params['ftlr'], weight_decay=1e-5)
+    optimizer = optim.AdamW(
+        param_groups,
+        lr=ft_params['ftlr'],
+        weight_decay=float(ft_params.get('weight_decay', 1e-5)),
+    )
     scheduler = (optim.lr_scheduler.CosineAnnealingLR(optimizer, train_num_epochs)
                  if ft_params['scheduler_flag'] else None)
 
@@ -664,7 +668,7 @@ def build_and_run_one_combination(
         optimizer=optimizer,
         scheduler=scheduler,
         num_finetune_epochs=train_num_epochs,
-        patience_limit=DEFAULT_PATIENCE,
+        patience_limit=int(ft_params.get('patience', DEFAULT_PATIENCE)),
         model_folder=model_exp_folder,
         param_combination_id=f"{model_id}_p{param_combination_id}",
         model_params=model_params,
@@ -780,7 +784,13 @@ def step_1_finetune_pipeline_zscore(
     mini_batch_size=None,
 
     config=None,
-    epochs=1000):
+    epochs=1000,
+    random_seed=42):
+    
+    np.random.seed(int(random_seed))
+    torch.manual_seed(int(random_seed))
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(int(random_seed))
     
     # Load response data
     print(f"Loading response data from {response_data_path}")
@@ -1261,6 +1271,8 @@ if __name__ == "__main__":
                         help='Path to the configuration file with finetune parameter grids.')
     parser.add_argument('--epochs', type=int, default=1000,
                         help='Number of training epochs.')
+    parser.add_argument('--random_seed', type=int, default=42,
+                        help='Random seed for train/val split and model init.')
 
 
     args = parser.parse_args()
@@ -1281,7 +1293,8 @@ if __name__ == "__main__":
         mini_batch_size=args.mini_batch_size,
 
         config=config,
-        epochs=args.epochs
+        epochs=args.epochs,
+        random_seed=args.random_seed,
     )
     
     # Calculate and print execution time

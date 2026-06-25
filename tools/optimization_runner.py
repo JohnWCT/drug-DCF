@@ -320,9 +320,52 @@ def run_pretrain_stage(
     )
 
 
+def _parse_response_head_dims(spec) -> List[int]:
+    if spec is None:
+        return [256, 128]
+    if isinstance(spec, list):
+        return [int(x) for x in spec]
+    text = str(spec).strip().lower()
+    if text in ("", "default"):
+        return [256, 128]
+    return [int(x.strip()) for x in text.split(",") if x.strip()]
+
+
+def _expand_curated_finetune_combos(combos_cfg: List[dict]) -> List[dict]:
+    combos: List[dict] = []
+    for row in combos_cfg:
+        combo_id = int(row["combo_id"])
+        combos.append(
+            {
+                "combo_id": combo_id,
+                "finetune_params": {
+                    "ftlr": float(row.get("learning_rate", row.get("ftlr", 0.001))),
+                    "scheduler_flag": bool(row.get("scheduler_flag", True)),
+                    "loss_type": str(row.get("loss_type", "bce")),
+                    "focal_loss_gamma": float(row.get("focal_loss_gamma", 2.0)),
+                    "weight_decay": float(row.get("weight_decay", 1e-5)),
+                    "patience": int(row.get("early_stop_patience", row.get("patience", 50))),
+                },
+                "classifier_params": {
+                    "hidden_dims": _parse_response_head_dims(row.get("response_head_dims", "default")),
+                    "dropout_rate": float(row.get("dropout", row.get("dropout_rate", 0.1))),
+                    "use_batch_norm": bool(row.get("use_batch_norm", True)),
+                    "activation": str(row.get("activation", "leaky_relu")),
+                },
+                "model_params": {"gin_type": str(row.get("gin_type", "dapl"))},
+                "batch_size": int(row.get("batch_size", 12288)),
+                "mini_batch_size": int(row.get("mini_batch_size", 3072)),
+                "epochs": int(row.get("epochs", 1000)),
+            }
+        )
+    return combos
+
+
 def _expand_finetune_combinations(config_path: str) -> List[dict]:
     with open(_resolve_path(config_path), "r", encoding="utf-8") as f:
         config = json.load(f)
+    if "finetune_combos" in config:
+        return _expand_curated_finetune_combos(config["finetune_combos"])
     ft = [dict(zip(config["finetune_params"].keys(), v)) for v in product(*config["finetune_params"].values())]
     clf = [dict(zip(config["classifier_params"].keys(), v)) for v in product(*config["classifier_params"].values())]
     model = [dict(zip(config["model_params"].keys(), v)) for v in product(*config["model_params"].values())]
@@ -525,6 +568,20 @@ def _run_one_round13_finetune_job(
     job_out = _resolve_path(str(job_row["result_dir"]))
     os.makedirs(job_out, exist_ok=True)
 
+    job_epochs = epochs
+    if "epochs" in job_row and str(job_row.get("epochs", "")).strip() not in ("", "nan"):
+        job_epochs = int(job_row["epochs"])
+    job_batch_size = batch_size
+    if "batch_size" in job_row and str(job_row.get("batch_size", "")).strip() not in ("", "nan"):
+        job_batch_size = int(job_row["batch_size"])
+    elif "batch_size" in combo:
+        job_batch_size = int(combo["batch_size"])
+    job_mini_batch_size = mini_batch_size
+    if "mini_batch_size" in job_row and str(job_row.get("mini_batch_size", "")).strip() not in ("", "nan"):
+        job_mini_batch_size = int(job_row["mini_batch_size"])
+    elif "mini_batch_size" in combo:
+        job_mini_batch_size = int(combo["mini_batch_size"])
+
     cmd = [
         sys.executable,
         os.path.join(PROJECT_ROOT, "step1_finetune_latent_pipeline_All_split.py"),
@@ -535,12 +592,15 @@ def _run_one_round13_finetune_job(
         "--outfolder",
         job_out,
         "--batch_size",
-        str(batch_size),
+        str(job_batch_size),
         "--mini_batch_size",
-        str(mini_batch_size),
+        str(job_mini_batch_size),
         "--epochs",
-        str(epochs),
+        str(job_epochs),
     ]
+    seed_val = job_row.get("seed", job_row.get("random_seed"))
+    if seed_val is not None and str(seed_val).strip() not in ("", "nan"):
+        cmd.extend(["--random_seed", str(int(seed_val))])
     if dry_run:
         _run_command(cmd, log_path, dry_run=True)
         return
@@ -784,6 +844,7 @@ def build_parser() -> argparse.ArgumentParser:
             "round13_proto_response_qc",
             "round14_vicreg_stabilizer_qc",
             "round15_repro_rescue_qc",
+            "round16_bruteforce_qc",
         ],
         help=(
             "Top-K ranking "
@@ -794,7 +855,8 @@ def build_parser() -> argparse.ArgumentParser:
             "Round 12: round12_proto_alignment_qc; "
             "Round 13: round13_proto_response_qc; "
             "Round 14: round14_vicreg_stabilizer_qc; "
-            "Round 15: round15_repro_rescue_qc)"
+            "Round 15: round15_repro_rescue_qc; "
+            "Round 16: round16_bruteforce_qc)"
         ),
     )
     sel.add_argument(

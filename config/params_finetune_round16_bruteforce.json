@@ -1,0 +1,268 @@
+{
+  "finetune_combos": [
+    {
+      "combo_id": 0,
+      "learning_rate": 0.0005,
+      "weight_decay": 0.00001,
+      "dropout": 0.1,
+      "response_head_dims": "default",
+      "batch_size": 12288,
+      "mini_batch_size": 3072,
+      "epochs": 1000,
+      "early_stop_patience": 50
+    },
+    {
+      "combo_id": 1,
+      "learning_rate": 0.0005,
+      "weight_decay": 0.00001,
+      "dropout": 0.1,
+      "response_head_dims": "default",
+      "batch_size": 12288,
+      "mini_batch_size": 3072,
+      "epochs": 1000,
+      "early_stop_patience": 100
+    },
+    {
+      "combo_id": 2,
+      "learning_rate": 0.0003,
+      "weight_decay": 0.000001,
+      "dropout": 0.05,
+      "response_head_dims": "default",
+      "batch_size": 12288,
+      "mini_batch_size": 3072,
+      "epochs": 1000,
+      "early_stop_patience": 100
+    },
+    {
+      "combo_id": 3,
+      "learning_rate": 0.0003,
+      "weight_decay": 0.0,
+      "dropout": 0.05,
+      "response_head_dims": "default",
+      "batch_size": 12288,
+      "mini_batch_size": 3072,
+      "epochs": 1000,
+      "early_stop_patience": 50
+    },
+    {
+      "combo_id": 4,
+      "learning_rate": 0.0005,
+      "weight_decay": 0.0,
+      "dropout": 0.1,
+      "response_head_dims": "default",
+      "batch_size": 12288,
+      "mini_batch_size": 3072,
+      "epochs": 1000,
+      "early_stop_patience": 50
+    },
+    {
+      "combo_id": 5,
+      "learning_rate": 0.0005,
+      "weight_decay": 0.000001,
+      "dropout": 0.05,
+      "response_head_dims": "default",
+      "batch_size": 12288,
+      "mini_batch_size": 3072,
+      "epochs": 1000,
+      "early_stop_patience": 100
+    },
+    {
+      "combo_id": 6,
+      "learning_rate": 0.0003,
+      "weight_decay": 0.00003,
+      "dropout": 0.2,
+      "response_head_dims": "default",
+      "batch_size": 12288,
+      "mini_batch_size": 3072,
+      "epochs": 1000,
+      "early_stop_patience": 100
+    },
+    {
+      "combo_id": 7,
+      "learning_rate": 0.0003,
+      "weight_decay": 0.0001,
+      "dropout": 0.3,
+      "response_head_dims": "default",
+      "batch_size": 12288,
+      "mini_batch_size": 3072,
+      "epochs": 1000,
+      "early_stop_patience": 150
+    },
+    {
+      "combo_id": 8,
+      "learning_rate": 0.0003,
+      "weight_decay": 0.00003,
+      "dropout": 0.2,
+      "response_head_dims": "256,128",
+      "batch_size": 12288,
+      "mini_batch_size": 3072,
+      "epochs": 1000,
+      "early_stop_patience": 100
+    },
+    {
+      "combo_id": 9,
+      "learning_rate": 0.0005,
+      "weight_decay": 0.00001,
+      "dropout": 0.1,
+      "response_head_dims": "256,128",
+      "batch_size": 12288,
+      "mini_batch_size": 3072,
+      "epochs": 1000,
+      "early_stop_patience": 50
+    },
+    {
+      "combo_id": 10,
+      "learning_rate": 0.0003,
+      "weight_decay": 0.00001,
+      "dropout": 0.1,
+      "response_head_dims": "512,256",
+      "batch_size": 12288,
+      "mini_batch_size": 3072,
+      "epochs": 1000,
+      "early_stop_patience": 100
+    },
+    {
+      "combo_id": 11,
+      "learning_rate": 0.0005,
+      "weight_decay": 0.00001,
+      "dropout": 0.1,
+      "response_head_dims": "512,256",
+      "batch_size": 12288,
+      "mini_batch_size": 3072,
+      "epochs": 1500,
+      "early_stop_patience": 100
+    },
+    {
+      "combo_id": 12,
+      "learning_rate": 0.0003,
+      "weight_decay": 0.00001,
+      "dropout": 0.15,
+      "response_head_dims": "512,256,128",
+      "batch_size": 12288,
+      "mini_batch_size": 3072,
+      "epochs": 1000,
+      "early_stop_patience": 100
+    },
+    {
+      "combo_id": 13,
+      "learning_rate": 0.0001,
+      "weight_decay": 0.0001,
+      "dropout": 0.3,
+      "response_head_dims": "512,256",
+      "batch_size": 4096,
+      "mini_batch_size": 1024,
+      "epochs": 2000,
+      "early_stop_patience": 150
+    },
+    {
+      "combo_id": 14,
+      "learning_rate": 0.0005,
+      "weight_decay": 0.00001,
+      "dropout": 0.1,
+      "response_head_dims": "default",
+      "batch_size": 8192,
+      "mini_batch_size": 2048,
+      "epochs": 1000,
+      "early_stop_patience": 50
+    },
+    {
+      "combo_id": 15,
+      "learning_rate": 0.0003,
+      "weight_decay": 0.00001,
+      "dropout": 0.1,
+      "response_head_dims": "256,128",
+      "batch_size": 8192,
+      "mini_batch_size": 2048,
+      "epochs": 1000,
+      "early_stop_patience": 100
+    },
+    {
+      "combo_id": 16,
+      "learning_rate": 0.0005,
+      "weight_decay": 0.00001,
+      "dropout": 0.1,
+      "response_head_dims": "default",
+      "batch_size": 4096,
+      "mini_batch_size": 1024,
+      "epochs": 1000,
+      "early_stop_patience": 50
+    },
+    {
+      "combo_id": 17,
+      "learning_rate": 0.0003,
+      "weight_decay": 0.00003,
+      "dropout": 0.15,
+      "response_head_dims": "256,128",
+      "batch_size": 4096,
+      "mini_batch_size": 1024,
+      "epochs": 1500,
+      "early_stop_patience": 100
+    },
+    {
+      "combo_id": 18,
+      "learning_rate": 0.0005,
+      "weight_decay": 0.00001,
+      "dropout": 0.1,
+      "response_head_dims": "default",
+      "batch_size": 12288,
+      "mini_batch_size": 3072,
+      "epochs": 1500,
+      "early_stop_patience": 100
+    },
+    {
+      "combo_id": 19,
+      "learning_rate": 0.0005,
+      "weight_decay": 0.00001,
+      "dropout": 0.1,
+      "response_head_dims": "default",
+      "batch_size": 12288,
+      "mini_batch_size": 3072,
+      "epochs": 2000,
+      "early_stop_patience": 150
+    },
+    {
+      "combo_id": 20,
+      "learning_rate": 0.0003,
+      "weight_decay": 0.00001,
+      "dropout": 0.1,
+      "response_head_dims": "512,256,128",
+      "batch_size": 12288,
+      "mini_batch_size": 3072,
+      "epochs": 1500,
+      "early_stop_patience": 150
+    },
+    {
+      "combo_id": 21,
+      "learning_rate": 0.001,
+      "weight_decay": 0.00001,
+      "dropout": 0.1,
+      "response_head_dims": "default",
+      "batch_size": 12288,
+      "mini_batch_size": 3072,
+      "epochs": 1000,
+      "early_stop_patience": 50
+    },
+    {
+      "combo_id": 22,
+      "learning_rate": 0.0005,
+      "weight_decay": 0.00001,
+      "dropout": 0.15,
+      "response_head_dims": "128",
+      "batch_size": 12288,
+      "mini_batch_size": 3072,
+      "epochs": 1000,
+      "early_stop_patience": 50
+    },
+    {
+      "combo_id": 23,
+      "learning_rate": 0.0003,
+      "weight_decay": 0.000001,
+      "dropout": 0.1,
+      "response_head_dims": "512,256",
+      "batch_size": 8192,
+      "mini_batch_size": 2048,
+      "epochs": 1500,
+      "early_stop_patience": 100
+    }
+  ]
+}

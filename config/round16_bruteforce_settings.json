@@ -1,0 +1,124 @@
+{
+  "round": "round16",
+  "purpose": "Focused brute-force response optimization on top Round 13/15 stacks",
+  "round12_root": "result/optimization_runs/round12_proto_alignment",
+  "round11_root": "result/optimization_runs/round11_stability_recon",
+  "round13_root": "result/optimization_runs/round13_proto_response",
+  "round15_root": "result/optimization_runs/round15_repro_rescue",
+  "references": {
+    "round13_best": 0.6112395039184843,
+    "round15_best": 0.6083,
+    "round12_exp037": 0.5971789386885913,
+    "r7_exp048": 0.5918
+  },
+  "stage16a": {
+    "enabled": true,
+    "models": [
+      "r13_exp_008",
+      "r15c_exp_005",
+      "r15c_exp_024",
+      "r13_exp_035"
+    ],
+    "feature_modes": [
+      "none",
+      "own_plus_summary",
+      "own_plus_summary_no_l2",
+      "own_plus_summary_robust_scaler"
+    ],
+    "seeds": [101, 202, 303],
+    "max_combos": 24
+  },
+  "stage16b": {
+    "enabled": true,
+    "top_k_candidates": 10,
+    "seeds": [101, 202, 303, 404, 505, 606, 707, 808, 909, 1001]
+  },
+  "stage16c": {
+    "enabled": true,
+    "models": [
+      "r13_exp_008",
+      "r15c_exp_005",
+      "r15c_exp_024"
+    ],
+    "feature_variants": [
+      "own_plus_summary",
+      "own_plus_summary_no_l2",
+      "own_plus_summary_no_gap",
+      "own_plus_summary_no_initialized_flags",
+      "own_plus_summary_zscore",
+      "own_plus_summary_robust_scaler"
+    ],
+    "max_combos": 8,
+    "seeds": [101, 202, 303]
+  },
+  "stage16e_own_proto_context": {
+    "enabled": true,
+    "models": [
+      "r13_exp_008",
+      "r15c_exp_005",
+      "r15c_exp_024"
+    ],
+    "feature_modes": [
+      "none",
+      "own_plus_summary",
+      "own_proto_delta",
+      "own_proto_context",
+      "own_proto_context_projected_16",
+      "own_proto_context_projected_32"
+    ],
+    "max_combos": 8,
+    "seeds": [101, 202, 303]
+  },
+  "stage16f_delta_replacement": {
+    "enabled": true,
+    "models": [
+      "r13_exp_008",
+      "r15c_exp_005",
+      "r15c_exp_024",
+      "r13_exp_035"
+    ],
+    "feature_modes": [
+      "none",
+      "own_plus_summary",
+      "own_proto_delta_only",
+      "own_plus_summary_plus_delta"
+    ],
+    "optional_feature_modes": [
+      "own_proto_delta_projected_16",
+      "own_proto_delta_projected_32",
+      "own_proto_delta_normed"
+    ],
+    "include_optional_modes": false,
+    "max_combos": 8,
+    "seeds": [101, 202, 303],
+    "confirmation_seeds": [101, 202, 303, 404, 505, 606, 707, 808, 909, 1001],
+    "finetune_config": "config/params_finetune_round16_delta_replacement.json"
+  },
+  "stage16d": {
+    "enabled": false,
+    "lineages": [
+      "r15c_exp_005",
+      "r15c_exp_024"
+    ],
+    "vicreg_lambdas": [0.0, 0.000001, 0.000003, 0.00001, 0.00003],
+    "schedules": [
+      {"start": 90, "full": 150},
+      {"start": 120, "full": 180}
+    ],
+    "seeds": [101, 202, 303]
+  },
+  "finetune": {
+    "config": "config/params_finetune_round16_bruteforce.json",
+    "epochs": 1500,
+    "batch_size": 12288,
+    "mini_batch_size": 3072,
+    "max_parallel": 12
+  },
+  "selection": {
+    "mode": "round16_bruteforce_qc",
+    "stage16a_top_k": 10,
+    "min_seed_mean": 0.6,
+    "target_mean": 0.6112,
+    "stretch_best": 0.62
+  }
+}

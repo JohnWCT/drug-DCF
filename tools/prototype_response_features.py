@@ -7,10 +7,132 @@ from typing import Dict, List, Optional, Sequence, Tuple, Union
 import numpy as np
 
 SUPPORTED_MODES = frozenset(
-    {"none", "own_cancer", "all_source_anchors", "all_source_and_target", "own_plus_summary"}
+    {
+        "none",
+        "own_cancer",
+        "all_source_anchors",
+        "all_source_and_target",
+        "own_plus_summary",
+        "own_plus_summary_no_l2",
+        "own_plus_summary_no_gap",
+        "own_plus_summary_no_initialized_flags",
+        "own_plus_summary_zscore",
+        "own_plus_summary_robust_scaler",
+        "own_proto_delta",
+        "own_proto_context",
+        "own_proto_context_projected_16",
+        "own_proto_context_projected_32",
+        "own_proto_interaction",
+        "own_proto_delta_only",
+        "own_plus_summary_plus_delta",
+        "own_plus_summary_no_delta_control",
+        "own_proto_delta_projected_16",
+        "own_proto_delta_projected_32",
+        "own_proto_delta_normed",
+    }
+)
+OWN_PROTO_CONTEXT_MODES = frozenset(
+    {
+        "own_proto_delta",
+        "own_proto_context",
+        "own_proto_context_projected_16",
+        "own_proto_context_projected_32",
+        "own_proto_interaction",
+    }
+)
+OWN_PROTO_DELTA_REPLACEMENT_MODES = frozenset(
+    {
+        "own_proto_delta_only",
+        "own_plus_summary_plus_delta",
+        "own_plus_summary_no_delta_control",
+        "own_proto_delta_projected_16",
+        "own_proto_delta_projected_32",
+        "own_proto_delta_normed",
+    }
 )
 SUPPORTED_METRICS = frozenset({"cosine", "euclidean"})
 SENTINEL_DISTANCE = 1.0
+
+
+def normalize_feature_mode(mode: str) -> str:
+    mode = str(mode).lower()
+    if mode in OWN_PROTO_CONTEXT_MODES or mode in OWN_PROTO_DELTA_REPLACEMENT_MODES:
+        return mode
+    if mode.startswith("own_plus_summary"):
+        return "own_plus_summary"
+    return mode
+
+
+def is_own_proto_delta_replacement_mode(mode: str) -> bool:
+    return str(mode).lower() in OWN_PROTO_DELTA_REPLACEMENT_MODES
+
+
+def get_projected_delta_dim(mode: str) -> int:
+    mode = str(mode).lower()
+    if mode == "own_proto_delta_projected_16":
+        return 16
+    if mode == "own_proto_delta_projected_32":
+        return 32
+    return 0
+
+
+def is_own_proto_context_mode(mode: str) -> bool:
+    return str(mode).lower() in OWN_PROTO_CONTEXT_MODES
+
+
+def get_projected_context_dim(mode: str) -> int:
+    mode = str(mode).lower()
+    if mode == "own_proto_context_projected_16":
+        return 16
+    if mode == "own_proto_context_projected_32":
+        return 32
+    return 0
+
+
+def parse_feature_variant(mode: str) -> dict:
+    mode = str(mode).lower()
+    return {
+        "base_mode": normalize_feature_mode(mode),
+        "drop_l2": mode == "own_plus_summary_no_l2",
+        "drop_gap": mode == "own_plus_summary_no_gap",
+        "drop_initialized_flags": mode == "own_plus_summary_no_initialized_flags",
+        "scaler": (
+            "robust"
+            if mode == "own_plus_summary_robust_scaler"
+            else "standard"
+            if mode == "own_plus_summary_zscore"
+            else "default"
+        ),
+    }
+
+
+def resolve_feature_mode_options(
+    feature_mode: str,
+    *,
+    include_l2_distance: bool = True,
+    include_same_cancer_gap: bool = True,
+    include_initialized_flag: bool = True,
+    proto_feature_scaler: str = "standard",
+) -> dict:
+    variant = parse_feature_variant(feature_mode)
+    if is_own_proto_context_mode(feature_mode) or is_own_proto_delta_replacement_mode(feature_mode):
+        return {
+            "mode": str(feature_mode).lower(),
+            "include_l2_distance": include_l2_distance,
+            "include_same_cancer_gap": include_same_cancer_gap,
+            "include_initialized_flag": include_initialized_flag,
+            "proto_feature_scaler": proto_feature_scaler,
+            "feature_mode_label": str(feature_mode).lower(),
+        }
+    scaler = variant["scaler"] if variant["scaler"] != "default" else proto_feature_scaler
+    return {
+        "mode": variant["base_mode"],
+        "include_l2_distance": False if variant["drop_l2"] else include_l2_distance,
+        "include_same_cancer_gap": False if variant["drop_gap"] else include_same_cancer_gap,
+        "include_initialized_flag": False if variant["drop_initialized_flags"] else include_initialized_flag,
+        "proto_feature_scaler": scaler,
+        "feature_mode_label": str(feature_mode).lower(),
+    }
 
 
 def cosine_distance(a: np.ndarray, b: np.ndarray) -> float:
@@ -48,6 +170,580 @@ def _safe_vector(vec: Optional[np.ndarray], dim: int) -> Tuple[np.ndarray, bool]
     if not np.all(np.isfinite(arr)):
         return np.zeros(dim, dtype=np.float32), False
     return arr, True
+
+
+def get_own_source_target_vectors(
+    sample_cancer_id: int,
+    source_anchor_prototypes: np.ndarray,
+    target_prototypes: Optional[np.ndarray],
+    source_initialized: Optional[np.ndarray] = None,
+    target_initialized: Optional[np.ndarray] = None,
+    strict: bool = True,
+    latent_dim: Optional[int] = None,
+) -> dict:
+    """Return own-cancer source anchor and target prototype vectors."""
+    cid = int(sample_cancer_id)
+    dim = int(latent_dim or source_anchor_prototypes.shape[1])
+    src_init = (
+        np.asarray(source_initialized, dtype=bool)
+        if source_initialized is not None
+        else np.ones(len(source_anchor_prototypes), dtype=bool)
+    )
+    tgt_protos = target_prototypes if target_prototypes is not None else source_anchor_prototypes
+    tgt_init = (
+        np.asarray(target_initialized, dtype=bool)
+        if target_initialized is not None
+        else np.ones(len(tgt_protos), dtype=bool)
+    )
+
+    if cid < 0 or cid >= len(source_anchor_prototypes):
+        if strict:
+            raise ValueError(f"Unknown cancer id {cid}")
+        return {
+            "source_anchor": np.zeros(dim, dtype=np.float32),
+            "target_proto": np.zeros(dim, dtype=np.float32),
+            "source_initialized": False,
+            "target_initialized": False,
+        }
+
+    src_vec, src_ok = _safe_vector(source_anchor_prototypes[cid], dim)
+    tgt_vec, tgt_ok = _safe_vector(tgt_protos[cid], dim)
+    src_ready = bool(src_init[cid]) and src_ok
+    tgt_ready = bool(tgt_init[cid]) and tgt_ok
+
+    if strict:
+        if not src_ready:
+            raise ValueError(f"Missing source anchor prototype for cancer id {cid}")
+        if not tgt_ready:
+            raise ValueError(f"Missing target prototype for cancer id {cid}")
+
+    if not src_ready:
+        src_vec = np.zeros(dim, dtype=np.float32)
+    if not tgt_ready:
+        tgt_vec = np.zeros(dim, dtype=np.float32)
+
+    return {
+        "source_anchor": src_vec.astype(np.float32),
+        "target_proto": tgt_vec.astype(np.float32),
+        "source_initialized": src_ready,
+        "target_initialized": tgt_ready,
+    }
+
+
+def get_own_cancer_prototype_vectors(
+    cancer_id: int,
+    source_anchor_prototypes: np.ndarray,
+    target_prototypes: Optional[np.ndarray] = None,
+    source_initialized: Optional[np.ndarray] = None,
+    target_initialized: Optional[np.ndarray] = None,
+    strict: bool = True,
+    latent_dim: Optional[int] = None,
+) -> dict:
+    """Alias for get_own_source_target_vectors (Round 16F API)."""
+    return get_own_source_target_vectors(
+        cancer_id,
+        source_anchor_prototypes,
+        target_prototypes,
+        source_initialized=source_initialized,
+        target_initialized=target_initialized,
+        strict=strict,
+        latent_dim=latent_dim,
+    )
+
+
+def _l2_normalize(vec: np.ndarray) -> np.ndarray:
+    vec = np.asarray(vec, dtype=np.float32).reshape(-1)
+    norm = float(np.linalg.norm(vec))
+    if norm <= 0.0 or not np.isfinite(norm):
+        return np.zeros_like(vec, dtype=np.float32)
+    return (vec / norm).astype(np.float32)
+
+
+def compute_own_proto_delta_vectors(
+    z: np.ndarray,
+    source_anchor_c: np.ndarray,
+    target_proto_c: np.ndarray,
+    normalize: bool = False,
+) -> Tuple[np.ndarray, List[str]]:
+    z_vec = np.asarray(z, dtype=np.float32).reshape(-1)
+    src = np.asarray(source_anchor_c, dtype=np.float32).reshape(-1)
+    tgt = np.asarray(target_proto_c, dtype=np.float32).reshape(-1)
+    latent_dim = int(z_vec.shape[0])
+    z_minus_source = z_vec - src
+    z_minus_target = z_vec - tgt
+    source_minus_target = src - tgt
+    if normalize:
+        z_minus_source = _l2_normalize(z_minus_source)
+        z_minus_target = _l2_normalize(z_minus_target)
+        source_minus_target = _l2_normalize(source_minus_target)
+    features = np.concatenate([z_minus_source, z_minus_target, source_minus_target]).astype(np.float32)
+    names = (
+        _dim_feature_names("proto_delta_z_minus_source", latent_dim)
+        + _dim_feature_names("proto_delta_z_minus_target", latent_dim)
+        + _dim_feature_names("proto_delta_source_minus_target", latent_dim)
+    )
+    return features, names
+
+
+def build_raw_delta_vector(
+    z: np.ndarray,
+    source_anchor_c: np.ndarray,
+    target_proto_c: np.ndarray,
+) -> np.ndarray:
+    z_vec = np.asarray(z, dtype=np.float32).reshape(-1)
+    delta, _ = compute_own_proto_delta_vectors(z_vec, source_anchor_c, target_proto_c, normalize=False)
+    return delta
+
+
+def _dim_feature_names(prefix: str, dim: int) -> List[str]:
+    return [f"{prefix}_dim{i:03d}" for i in range(dim)]
+
+
+def _own_plus_summary_feature_names(
+    cancer_names: Sequence[str],
+    metric: str,
+    include_l2_distance: bool,
+    include_same_cancer_gap: bool,
+    include_initialized_flag: bool,
+) -> List[str]:
+    return _feature_names_for_mode(
+        "own_plus_summary",
+        cancer_names,
+        metric,
+        include_l2_distance,
+        include_same_cancer_gap,
+        include_initialized_flag,
+    )
+
+
+def _feature_names_for_own_proto_context_mode(
+    mode: str,
+    latent_dim: int,
+    cancer_names: Sequence[str],
+    metric: str = "cosine",
+    include_l2_distance: bool = True,
+    include_same_cancer_gap: bool = True,
+    include_initialized_flag: bool = True,
+    projection_dim: int = 0,
+) -> List[str]:
+    mode = str(mode).lower()
+    summary_names = _own_plus_summary_feature_names(
+        cancer_names, metric, include_l2_distance, include_same_cancer_gap, include_initialized_flag
+    )
+    if mode == "own_proto_delta":
+        names = (
+            _dim_feature_names("proto_delta_z_minus_source", latent_dim)
+            + _dim_feature_names("proto_delta_z_minus_target", latent_dim)
+            + _dim_feature_names("proto_delta_source_minus_target", latent_dim)
+            + summary_names
+        )
+        return names
+    if mode == "own_proto_context":
+        names = (
+            _dim_feature_names("proto_context_source", latent_dim)
+            + _dim_feature_names("proto_context_target", latent_dim)
+            + _dim_feature_names("proto_context_source_minus_target", latent_dim)
+            + summary_names
+        )
+        return names
+    if mode in ("own_proto_context_projected_16", "own_proto_context_projected_32"):
+        pfx = f"proto_context_pca{projection_dim}"
+        return _dim_feature_names(pfx, projection_dim) + summary_names
+    if mode == "own_proto_interaction":
+        names = (
+            _dim_feature_names("proto_interact_z_times_source", latent_dim)
+            + _dim_feature_names("proto_interact_z_times_target", latent_dim)
+            + _dim_feature_names("proto_delta_z_minus_source", latent_dim)
+            + _dim_feature_names("proto_delta_z_minus_target", latent_dim)
+            + summary_names
+        )
+        return names
+    raise ValueError(f"Unsupported own_proto_context mode={mode!r}")
+
+
+def build_raw_context_vector(
+    z: np.ndarray,
+    source_anchor_c: np.ndarray,
+    target_proto_c: np.ndarray,
+) -> np.ndarray:
+    z = np.asarray(z, dtype=np.float32).reshape(-1)
+    src = np.asarray(source_anchor_c, dtype=np.float32).reshape(-1)
+    tgt = np.asarray(target_proto_c, dtype=np.float32).reshape(-1)
+    return np.concatenate([src, tgt, src - tgt, z - src, z - tgt]).astype(np.float32)
+
+
+def compute_own_plus_summary_vector(
+    z: np.ndarray,
+    cancer_id: int,
+    source_anchor_prototypes: np.ndarray,
+    target_prototypes: Optional[np.ndarray],
+    cancer_type_mapping: Optional[Dict],
+    metric: str = "cosine",
+    include_l2_distance: bool = True,
+    include_same_cancer_gap: bool = True,
+    include_initialized_flag: bool = True,
+    strict: bool = False,
+    source_initialized: Optional[np.ndarray] = None,
+    target_initialized: Optional[np.ndarray] = None,
+) -> np.ndarray:
+    pack = compute_proto_distance_features(
+        z,
+        cancer_id,
+        source_anchor_prototypes,
+        target_prototypes=target_prototypes,
+        cancer_type_mapping=cancer_type_mapping,
+        mode="own_plus_summary",
+        metric=metric,
+        include_l2_distance=include_l2_distance,
+        include_same_cancer_gap=include_same_cancer_gap,
+        include_initialized_flag=include_initialized_flag,
+        strict=strict,
+        source_initialized=source_initialized,
+        target_initialized=target_initialized,
+    )
+    return np.asarray(pack["features"], dtype=np.float32).reshape(-1)
+
+
+def compute_own_proto_context_features(
+    z: np.ndarray,
+    cancer_id: int,
+    source_anchor_prototypes: np.ndarray,
+    target_prototypes: Optional[np.ndarray] = None,
+    mode: str = "own_proto_delta",
+    own_summary_features: Optional[np.ndarray] = None,
+    cancer_type_mapping: Optional[Dict] = None,
+    metric: str = "cosine",
+    include_l2_distance: bool = True,
+    include_same_cancer_gap: bool = True,
+    include_initialized_flag: bool = True,
+    source_initialized: Optional[np.ndarray] = None,
+    target_initialized: Optional[np.ndarray] = None,
+    projection_model: Optional[object] = None,
+    strict: bool = True,
+) -> Tuple[np.ndarray, List[str], dict]:
+    """Compute extra (non-z) own-prototype context features for one sample."""
+    mode = str(mode).lower()
+    if mode not in OWN_PROTO_CONTEXT_MODES:
+        raise ValueError(f"Unsupported own_proto_context mode={mode!r}")
+
+    z_vec = np.asarray(z, dtype=np.float32).reshape(-1)
+    latent_dim = int(z_vec.shape[0])
+    vecs = get_own_source_target_vectors(
+        cancer_id,
+        source_anchor_prototypes,
+        target_prototypes,
+        source_initialized=source_initialized,
+        target_initialized=target_initialized,
+        strict=strict,
+        latent_dim=latent_dim,
+    )
+    src = vecs["source_anchor"]
+    tgt = vecs["target_proto"]
+
+    if own_summary_features is None:
+        own_summary_features = compute_own_plus_summary_vector(
+            z_vec,
+            cancer_id,
+            source_anchor_prototypes,
+            target_prototypes,
+            cancer_type_mapping,
+            metric=metric,
+            include_l2_distance=include_l2_distance,
+            include_same_cancer_gap=include_same_cancer_gap,
+            include_initialized_flag=include_initialized_flag,
+            strict=strict,
+            source_initialized=source_initialized,
+            target_initialized=target_initialized,
+        )
+    own_summary_features = np.asarray(own_summary_features, dtype=np.float32).reshape(-1)
+
+    mapping = cancer_type_mapping or {}
+    id_to_name = {int(k): str(v) for k, v in mapping.get("id_to_name", {}).items()}
+    if not id_to_name:
+        id_to_name = {i: str(i) for i in range(len(source_anchor_prototypes))}
+    cancer_names = [id_to_name[i] for i in sorted(id_to_name.keys())]
+    proj_dim = get_projected_context_dim(mode)
+
+    if mode == "own_proto_delta":
+        features = np.concatenate([z_vec - src, z_vec - tgt, src - tgt, own_summary_features])
+    elif mode == "own_proto_context":
+        features = np.concatenate([src, tgt, src - tgt, own_summary_features])
+    elif mode in ("own_proto_context_projected_16", "own_proto_context_projected_32"):
+        if projection_model is None:
+            raise ValueError(f"projection_model required for mode={mode}")
+        raw_context = build_raw_context_vector(z_vec, src, tgt).reshape(1, -1)
+        projected = projection_model.transform(raw_context).reshape(-1)
+        features = np.concatenate([projected, own_summary_features])
+        proj_dim = int(projected.shape[0])
+    elif mode == "own_proto_interaction":
+        features = np.concatenate([z_vec * src, z_vec * tgt, z_vec - src, z_vec - tgt, own_summary_features])
+    else:
+        raise ValueError(f"Unsupported mode={mode!r}")
+
+    feature_names = _feature_names_for_own_proto_context_mode(
+        mode,
+        latent_dim,
+        cancer_names,
+        metric,
+        include_l2_distance,
+        include_same_cancer_gap,
+        include_initialized_flag,
+        projection_dim=proj_dim,
+    )
+    if len(feature_names) != len(features):
+        raise ValueError(f"feature_names length {len(feature_names)} != features length {len(features)}")
+
+    metadata = {
+        "mode": mode,
+        "latent_dim": latent_dim,
+        "feature_dim": int(len(features)),
+        "projection_dim": proj_dim,
+        "includes_own_plus_summary": True,
+    }
+    return features.astype(np.float32), feature_names, metadata
+
+
+def compute_own_proto_context_features_batch(
+    z: np.ndarray,
+    cancer_ids: Sequence[int],
+    source_anchor_prototypes: np.ndarray,
+    target_prototypes: Optional[np.ndarray] = None,
+    mode: str = "own_proto_delta",
+    cancer_type_mapping: Optional[Dict] = None,
+    metric: str = "cosine",
+    include_l2_distance: bool = True,
+    include_same_cancer_gap: bool = True,
+    include_initialized_flag: bool = True,
+    source_initialized: Optional[np.ndarray] = None,
+    target_initialized: Optional[np.ndarray] = None,
+    projection_model: Optional[object] = None,
+    strict: bool = False,
+) -> Dict:
+    z_arr = np.asarray(z, dtype=np.float32)
+    if z_arr.ndim == 1:
+        z_arr = z_arr.reshape(1, -1)
+    cancer_arr = np.asarray(cancer_ids)
+    rows = []
+    names: Optional[List[str]] = None
+    meta: dict = {}
+    for vec, cid in zip(z_arr, cancer_arr):
+        feat, feat_names, row_meta = compute_own_proto_context_features(
+            vec,
+            int(cid),
+            source_anchor_prototypes,
+            target_prototypes=target_prototypes,
+            mode=mode,
+            cancer_type_mapping=cancer_type_mapping,
+            metric=metric,
+            include_l2_distance=include_l2_distance,
+            include_same_cancer_gap=include_same_cancer_gap,
+            include_initialized_flag=include_initialized_flag,
+            source_initialized=source_initialized,
+            target_initialized=target_initialized,
+            projection_model=projection_model,
+            strict=strict,
+        )
+        rows.append(feat)
+        names = feat_names
+        meta = row_meta
+    features = np.stack(rows, axis=0)
+    return {"features": features, "feature_names": names or [], "metadata": meta}
+
+
+def _delta_replacement_flags(mode: str) -> dict:
+    mode = str(mode).lower()
+    return {
+        "uses_own_plus_summary": mode
+        in ("own_plus_summary", "own_plus_summary_no_delta_control", "own_plus_summary_plus_delta"),
+        "uses_delta": mode
+        in (
+            "own_proto_delta_only",
+            "own_plus_summary_plus_delta",
+            "own_proto_delta_normed",
+            "own_proto_delta_projected_16",
+            "own_proto_delta_projected_32",
+        ),
+        "uses_projection": mode in ("own_proto_delta_projected_16", "own_proto_delta_projected_32"),
+    }
+
+
+def compute_own_proto_delta_replacement_features(
+    z: np.ndarray,
+    cancer_id: int,
+    source_anchor_prototypes: np.ndarray,
+    target_prototypes: Optional[np.ndarray] = None,
+    mode: str = "own_proto_delta_only",
+    cancer_type_mapping: Optional[Dict] = None,
+    metric: str = "cosine",
+    include_l2_distance: bool = True,
+    include_same_cancer_gap: bool = True,
+    include_initialized_flag: bool = True,
+    source_initialized: Optional[np.ndarray] = None,
+    target_initialized: Optional[np.ndarray] = None,
+    projection_model: Optional[object] = None,
+    strict: bool = True,
+) -> Tuple[np.ndarray, List[str], dict]:
+    """Compute extra (non-z) features for Round 16F delta replacement / ablation modes."""
+    feature_mode_label = str(mode).lower()
+    mode = feature_mode_label
+    if mode == "own_plus_summary_no_delta_control":
+        mode = "own_plus_summary"
+    if mode not in OWN_PROTO_DELTA_REPLACEMENT_MODES and mode != "own_plus_summary":
+        raise ValueError(f"Unsupported delta replacement mode={mode!r}")
+
+    z_vec = np.asarray(z, dtype=np.float32).reshape(-1)
+    latent_dim = int(z_vec.shape[0])
+    vecs = get_own_source_target_vectors(
+        cancer_id,
+        source_anchor_prototypes,
+        target_prototypes,
+        source_initialized=source_initialized,
+        target_initialized=target_initialized,
+        strict=strict,
+        latent_dim=latent_dim,
+    )
+    src = vecs["source_anchor"]
+    tgt = vecs["target_proto"]
+
+    mapping = cancer_type_mapping or {}
+    id_to_name = {int(k): str(v) for k, v in mapping.get("id_to_name", {}).items()}
+    if not id_to_name:
+        id_to_name = {i: str(i) for i in range(len(source_anchor_prototypes))}
+    cancer_names = [id_to_name[i] for i in sorted(id_to_name.keys())]
+    summary_names = _own_plus_summary_feature_names(
+        cancer_names, metric, include_l2_distance, include_same_cancer_gap, include_initialized_flag
+    )
+
+    if mode == "own_plus_summary":
+        summary = compute_own_plus_summary_vector(
+            z_vec,
+            cancer_id,
+            source_anchor_prototypes,
+            target_prototypes,
+            cancer_type_mapping,
+            metric=metric,
+            include_l2_distance=include_l2_distance,
+            include_same_cancer_gap=include_same_cancer_gap,
+            include_initialized_flag=include_initialized_flag,
+            strict=strict,
+            source_initialized=source_initialized,
+            target_initialized=target_initialized,
+        )
+        features = summary
+        feature_names = summary_names
+        proj_dim = 0
+    else:
+        normalize_delta = mode == "own_proto_delta_normed"
+        delta_features, delta_names = compute_own_proto_delta_vectors(z_vec, src, tgt, normalize=normalize_delta)
+        proj_dim = get_projected_delta_dim(mode)
+
+        if mode == "own_proto_delta_only":
+            features = delta_features
+            feature_names = delta_names
+        elif mode == "own_plus_summary_plus_delta":
+            summary = compute_own_plus_summary_vector(
+                z_vec,
+                cancer_id,
+                source_anchor_prototypes,
+                target_prototypes,
+                cancer_type_mapping,
+                metric=metric,
+                include_l2_distance=include_l2_distance,
+                include_same_cancer_gap=include_same_cancer_gap,
+                include_initialized_flag=include_initialized_flag,
+                strict=strict,
+                source_initialized=source_initialized,
+                target_initialized=target_initialized,
+            )
+            features = np.concatenate([summary, delta_features])
+            feature_names = summary_names + delta_names
+        elif mode in ("own_proto_delta_projected_16", "own_proto_delta_projected_32"):
+            if projection_model is None:
+                raise ValueError(f"projection_model required for mode={mode}")
+            raw_delta = build_raw_delta_vector(z_vec, src, tgt).reshape(1, -1)
+            projected = projection_model.transform(raw_delta).reshape(-1)
+            proj_dim = int(projected.shape[0])
+            features = projected.astype(np.float32)
+            feature_names = _dim_feature_names(f"proto_delta_pca{proj_dim}", proj_dim)
+        elif mode == "own_proto_delta_normed":
+            features = delta_features
+            feature_names = delta_names
+        else:
+            raise ValueError(f"Unsupported mode={mode!r}")
+
+    if len(feature_names) != len(features):
+        raise ValueError(f"feature_names length {len(feature_names)} != features length {len(features)}")
+
+    flags = _delta_replacement_flags(feature_mode_label)
+    metadata = {
+        "mode": feature_mode_label,
+        "latent_dim": latent_dim,
+        "feature_dim": int(len(features)),
+        "projection_dim": proj_dim,
+        **flags,
+    }
+    return features.astype(np.float32), feature_names, metadata
+
+
+def compute_own_proto_delta_replacement_features_batch(
+    z: np.ndarray,
+    cancer_ids: Sequence[int],
+    source_anchor_prototypes: np.ndarray,
+    target_prototypes: Optional[np.ndarray] = None,
+    mode: str = "own_proto_delta_only",
+    cancer_type_mapping: Optional[Dict] = None,
+    metric: str = "cosine",
+    include_l2_distance: bool = True,
+    include_same_cancer_gap: bool = True,
+    include_initialized_flag: bool = True,
+    source_initialized: Optional[np.ndarray] = None,
+    target_initialized: Optional[np.ndarray] = None,
+    projection_model: Optional[object] = None,
+    strict: bool = False,
+) -> Dict:
+    z_arr = np.asarray(z, dtype=np.float32)
+    if z_arr.ndim == 1:
+        z_arr = z_arr.reshape(1, -1)
+    cancer_arr = np.asarray(cancer_ids)
+    rows = []
+    names: Optional[List[str]] = None
+    meta: dict = {}
+    for vec, cid in zip(z_arr, cancer_arr):
+        feat, feat_names, row_meta = compute_own_proto_delta_replacement_features(
+            vec,
+            int(cid),
+            source_anchor_prototypes,
+            target_prototypes=target_prototypes,
+            mode=mode,
+            cancer_type_mapping=cancer_type_mapping,
+            metric=metric,
+            include_l2_distance=include_l2_distance,
+            include_same_cancer_gap=include_same_cancer_gap,
+            include_initialized_flag=include_initialized_flag,
+            source_initialized=source_initialized,
+            target_initialized=target_initialized,
+            projection_model=projection_model,
+            strict=strict,
+        )
+        rows.append(feat)
+        names = feat_names
+        meta = row_meta
+    features = np.stack(rows, axis=0)
+    return {"features": features, "feature_names": names or [], "metadata": meta}
+
+
+def fit_context_projection(
+    raw_context_matrix: np.ndarray,
+    n_components: int,
+    random_state: int = 42,
+):
+    from sklearn.decomposition import PCA
+
+    mat = np.asarray(raw_context_matrix, dtype=np.float64)
+    n_components = min(int(n_components), mat.shape[0], mat.shape[1])
+    pca = PCA(n_components=n_components, random_state=random_state)
+    pca.fit(mat)
+    return pca
 
 
 def _feature_names_for_mode(
@@ -119,8 +815,17 @@ def compute_proto_distance_features(
     """Compute prototype-distance features for one or many samples."""
     del normalize  # scaler applied in extraction stage
     mode = str(mode).lower()
-    if mode not in SUPPORTED_MODES:
+    base_mode = normalize_feature_mode(mode)
+    if base_mode not in SUPPORTED_MODES and mode not in SUPPORTED_MODES:
         raise ValueError(f"Unsupported mode={mode!r}")
+
+    variant = parse_feature_variant(mode)
+    if variant["drop_l2"]:
+        include_l2_distance = False
+    if variant["drop_gap"]:
+        include_same_cancer_gap = False
+    if variant["drop_initialized_flags"]:
+        include_initialized_flag = False
 
     z_arr = np.asarray(z, dtype=np.float32)
     single = z_arr.ndim == 1
@@ -139,8 +844,9 @@ def compute_proto_distance_features(
         id_to_name = {i: str(i) for i in range(len(source_anchor_prototypes))}
     cancer_names = [id_to_name[i] for i in sorted(id_to_name.keys())]
 
+    base_mode = normalize_feature_mode(mode)
     feature_names = _feature_names_for_mode(
-        mode,
+        base_mode,
         cancer_names,
         metric,
         include_l2_distance,
@@ -171,7 +877,7 @@ def compute_proto_distance_features(
         "num_cancer_types": len(cancer_names),
     }
 
-    if mode == "none":
+    if base_mode == "none":
         features_out = features[0] if single else features
         return {"features": features_out, "feature_names": feature_names, "metadata": metadata}
 
@@ -180,7 +886,7 @@ def compute_proto_distance_features(
         if cid_int < 0 or cid_int >= len(source_anchor_prototypes):
             if strict:
                 raise ValueError(f"Unknown cancer id {cid_int}")
-            if mode in ("own_cancer", "own_plus_summary"):
+            if base_mode in ("own_cancer", "own_plus_summary"):
                 features[row_idx, :] = SENTINEL_DISTANCE
                 if include_initialized_flag and "proto_source_anchor_initialized" in feature_names:
                     init_idx = feature_names.index("proto_source_anchor_initialized")
@@ -194,7 +900,7 @@ def compute_proto_distance_features(
         tgt_ready = bool(tgt_init[cid_int]) and tgt_ok
 
         col = 0
-        if mode in ("own_cancer", "own_plus_summary"):
+        if base_mode in ("own_cancer", "own_plus_summary"):
             src_cos = _distance(vec, src_vec, metric) if src_ready else SENTINEL_DISTANCE
             features[row_idx, col] = src_cos
             col += 1
@@ -221,7 +927,7 @@ def compute_proto_distance_features(
                 features[row_idx, col] = float(tgt_ready)
                 col += 1
 
-        if mode in ("all_source_anchors", "all_source_and_target"):
+        if base_mode in ("all_source_anchors", "all_source_and_target"):
             start_col = col
             for c_idx, _name in enumerate(cancer_names):
                 s_vec, s_ok = _safe_vector(source_anchor_prototypes[c_idx], z_arr.shape[1])
@@ -232,7 +938,7 @@ def compute_proto_distance_features(
                 )
             col = start_col + len(cancer_names)
 
-        if mode == "all_source_and_target":
+        if base_mode == "all_source_and_target":
             start_col = col
             for c_idx, _name in enumerate(cancer_names):
                 t_vec, t_ok = _safe_vector(target_prototypes[c_idx], z_arr.shape[1])
@@ -243,7 +949,7 @@ def compute_proto_distance_features(
                 )
             col = start_col + len(cancer_names)
 
-        if mode == "own_plus_summary":
+        if base_mode == "own_plus_summary":
             dists = []
             for c_idx in range(len(cancer_names)):
                 s_vec, s_ok = _safe_vector(source_anchor_prototypes[c_idx], z_arr.shape[1])
