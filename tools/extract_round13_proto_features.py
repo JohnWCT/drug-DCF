@@ -232,16 +232,19 @@ def build_combined_latent_dicts(
     return metadata
 
 
+def _resolve_feature_outdir(row: pd.Series, outdir: str, feature_mode: str) -> str:
+    manifest_dir = row.get("combined_latent_dir")
+    if manifest_dir is not None and str(manifest_dir).strip() not in ("", "nan"):
+        return resolve_path(str(manifest_dir))
+    return os.path.join(resolve_path(outdir), str(row["source_model_id"]), feature_mode)
+
+
 def extract_from_manifest(manifest_path: str, outdir: str, strict: bool = True) -> pd.DataFrame:
     manifest = pd.read_csv(resolve_path(manifest_path))
     rows = []
     for _, row in manifest.iterrows():
         feature_mode = str(row.get("prototype_feature_mode", row.get("feature_mode", "none")))
-        target_out = os.path.join(
-            resolve_path(outdir),
-            str(row["source_model_id"]),
-            feature_mode,
-        )
+        target_out = _resolve_feature_outdir(row, outdir, feature_mode)
         meta = build_combined_latent_dicts(
             checkpoint_dir=str(row["checkpoint_dir"]),
             feature_mode=feature_mode,

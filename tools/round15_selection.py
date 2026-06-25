@@ -62,6 +62,20 @@ def _round15_branch(row: pd.Series) -> str:
     return "15C"
 
 
+def _round15_route_id(row: pd.Series) -> str:
+    for col in ("route_id", "round15_route_id", "round14_route_id"):
+        val = row.get(col)
+        if pd.notna(val) and str(val).strip():
+            return str(val)
+    branch = str(row.get("round15_branch", row.get("round14_branch", "")))
+    source = str(row.get("source_model", row.get("source_baseline_exp_id", "")))
+    if branch in ("15C", "14B") or "008" in source:
+        return "exp008_proto_response_route"
+    if branch in ("14C",) or "035" in source:
+        return "exp035_strong_zonly_route"
+    return _route_id(row)
+
+
 def annotate_round15_scores(df: pd.DataFrame) -> pd.DataFrame:
     out = annotate_round14_scores(df)
     for col in ROUND15_OUTPUT_COLS:
@@ -69,7 +83,7 @@ def annotate_round15_scores(df: pd.DataFrame) -> pd.DataFrame:
             out[col] = np.nan
 
     out["round15_branch"] = out.apply(_round15_branch, axis=1)
-    out["round15_route_id"] = out.apply(_route_id, axis=1)
+    out["round15_route_id"] = out.apply(_round15_route_id, axis=1)
     out["round15_vicreg_active"] = out.apply(is_vicreg_active, axis=1)
     out["source_model"] = out.get("source_model", out.get("source_baseline_exp_id", ""))
 
