@@ -110,9 +110,9 @@
   "finetune": {
     "config": "config/params_finetune_round16_bruteforce.json",
     "epochs": 1500,
-    "batch_size": 12288,
-    "mini_batch_size": 3072,
-    "max_parallel": 12
+    "batch_size": 24576,
+    "mini_batch_size": 6144,
+    "max_parallel": 16
   },
   "selection": {
     "mode": "round16_bruteforce_qc",

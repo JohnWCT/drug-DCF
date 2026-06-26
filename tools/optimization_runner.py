@@ -571,16 +571,19 @@ def _run_one_round13_finetune_job(
     job_epochs = epochs
     if "epochs" in job_row and str(job_row.get("epochs", "")).strip() not in ("", "nan"):
         job_epochs = int(job_row["epochs"])
+    # CLI batch args from stage scripts take precedence over manifest defaults.
     job_batch_size = batch_size
-    if "batch_size" in job_row and str(job_row.get("batch_size", "")).strip() not in ("", "nan"):
-        job_batch_size = int(job_row["batch_size"])
-    elif "batch_size" in combo:
-        job_batch_size = int(combo["batch_size"])
+    if job_batch_size <= 0:
+        if "batch_size" in job_row and str(job_row.get("batch_size", "")).strip() not in ("", "nan"):
+            job_batch_size = int(job_row["batch_size"])
+        elif "batch_size" in combo:
+            job_batch_size = int(combo["batch_size"])
     job_mini_batch_size = mini_batch_size
-    if "mini_batch_size" in job_row and str(job_row.get("mini_batch_size", "")).strip() not in ("", "nan"):
-        job_mini_batch_size = int(job_row["mini_batch_size"])
-    elif "mini_batch_size" in combo:
-        job_mini_batch_size = int(combo["mini_batch_size"])
+    if job_mini_batch_size <= 0:
+        if "mini_batch_size" in job_row and str(job_row.get("mini_batch_size", "")).strip() not in ("", "nan"):
+            job_mini_batch_size = int(job_row["mini_batch_size"])
+        elif "mini_batch_size" in combo:
+            job_mini_batch_size = int(combo["mini_batch_size"])
 
     cmd = [
         sys.executable,

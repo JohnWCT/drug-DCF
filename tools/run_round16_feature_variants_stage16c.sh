@@ -7,22 +7,21 @@ FINETUNE_BATCH_SIZE="${FINETUNE_BATCH_SIZE:-12288}"
 FINETUNE_MINI_BATCH_SIZE="${FINETUNE_MINI_BATCH_SIZE:-3072}"
 FINETUNE_EPOCHS="${FINETUNE_EPOCHS:-1500}"
 
-echo "========== ROUND16 STAGE 16B START $(date -u +%Y-%m-%dT%H:%M:%SZ) =========="
+echo "========== ROUND16 STAGE 16C START $(date -u +%Y-%m-%dT%H:%M:%SZ) =========="
 
 python3 tools/round16_bruteforce_config_builder.py \
   --settings config/round16_bruteforce_settings.json \
   --outdir "${ROUND16_ROOT}" \
-  --stage 16b \
-  --top-candidates "${ROUND16_ROOT}/reports/round16_top_candidates.csv" \
+  --stage 16c \
   --force
 
 python3 tools/extract_round13_proto_features.py \
-  --manifest "${ROUND16_ROOT}/manifests/stage16b_proto_feature_manifest.csv" \
-  --outdir "${ROUND16_ROOT}/features"
+  --manifest "${ROUND16_ROOT}/manifests/stage16c_proto_feature_manifest.csv" \
+  --outdir "${ROUND16_ROOT}/features_stage16c"
 
 python3 tools/optimization_runner.py finetune \
-  --manifest "${ROUND16_ROOT}/manifests/stage16b_finetune_dispatch_manifest.csv" \
-  --run-dir "${ROUND16_ROOT}/stage16b" \
+  --manifest "${ROUND16_ROOT}/manifests/stage16c_finetune_dispatch_manifest.csv" \
+  --run-dir "${ROUND16_ROOT}/stage16c" \
   --finetune-config config/params_finetune_round16_bruteforce.json \
   --batch-size "${FINETUNE_BATCH_SIZE}" \
   --mini-batch-size "${FINETUNE_MINI_BATCH_SIZE}" \
@@ -32,14 +31,14 @@ python3 tools/optimization_runner.py finetune \
   --round13-mode
 
 python3 tools/optimization_runner.py aggregate \
-  --run-dir "${ROUND16_ROOT}/stage16b"
+  --run-dir "${ROUND16_ROOT}/stage16c"
 
 python3 tools/analyze_round16_bruteforce.py \
-  --run-dir "${ROUND16_ROOT}/stage16b" \
+  --run-dir "${ROUND16_ROOT}/stage16c" \
   --round13-root result/optimization_runs/round13_proto_response \
   --round15-root result/optimization_runs/round15_repro_rescue \
-  --aggregate "${ROUND16_ROOT}/stage16b/aggregate/aggregate_scores.csv" \
-  --stage 16b \
-  --outdir "${ROUND16_ROOT}/final_report"
+  --aggregate "${ROUND16_ROOT}/stage16c/aggregate/aggregate_scores.csv" \
+  --stage 16c \
+  --outdir "${ROUND16_ROOT}/reports_stage16c"
 
-echo "========== ROUND16 STAGE 16B DONE $(date -u +%Y-%m-%dT%H:%M:%SZ) =========="
+echo "========== ROUND16 STAGE 16C DONE $(date -u +%Y-%m-%dT%H:%M:%SZ) =========="
