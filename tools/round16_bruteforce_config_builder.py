@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 import sys
@@ -26,6 +27,13 @@ from tools.prototype_response_features import (
 )
 from tools.round13_config_builder import FEATURE_MODE_DEFAULTS
 from tools.round9_diagnostics_common import load_json, resolve_path
+from tools.round14_config_builder import (
+    _apply_vicreg,
+    _manifest_row,
+    _resolve_pretrain_params,
+    _write_config,
+)
+from tools.round10_config_builder import _lam_tag
 
 ROUND16_MODEL_SPECS: Dict[str, Dict[str, str]] = {
     "r13_exp_008": {
@@ -559,8 +567,105 @@ def build_stage16f(settings: dict, outdir: str) -> Dict[str, str]:
 
 
 def build_stage16d(settings: dict, outdir: str) -> Dict[str, str]:
-    del settings, outdir
-    raise NotImplementedError("Round 16D pretrain micro-search is optional and not implemented yet.")
+    """Ultra-low / late VICReg micro-search on Round 15 lineages (pretrain only)."""
+    stage_cfg = settings.get("stage16d", {})
+    if not stage_cfg.get("enabled", False):
+        raise ValueError("stage16d is disabled in settings")
+
+    stage_root = os.path.join(resolve_path(outdir), "stage16d")
+    config_dir = os.path.join(stage_root, "configs")
+    manifests_dir = os.path.join(stage_root, "manifests")
+    os.makedirs(config_dir, exist_ok=True)
+    os.makedirs(manifests_dir, exist_ok=True)
+
+    round15_root = resolve_path(settings["round15_root"])
+    lineages = list(stage_cfg.get("lineages", []))
+    vicreg_lambdas = [float(x) for x in stage_cfg.get("vicreg_lambdas", [0.0])]
+    schedules = list(stage_cfg.get("schedules", [{"start": 90, "full": 150}]))
+    seeds = [int(s) for s in stage_cfg.get("seeds", [101, 202, 303])]
+
+    generated_at = datetime.now(timezone.utc).isoformat()
+    metadata_base = {
+        "round": "round16",
+        "stage": "16d",
+        "generated_at": generated_at,
+        "purpose": "vicreg_micro_search",
+    }
+
+    rows: List[dict] = []
+    job_idx = 0
+
+    def next_exp_id() -> str:
+        nonlocal job_idx
+        job_idx += 1
+        return f"exp_{job_idx:03d}"
+
+    for lineage_key in lineages:
+        if lineage_key not in ROUND16_MODEL_SPECS:
+            raise ValueError(f"Unknown 16D lineage model key: {lineage_key}")
+        spec = ROUND16_MODEL_SPECS[lineage_key]
+        source_model = spec["source_model_id"]
+        baseline_params, checkpoint_dir = _resolve_pretrain_params(round15_root, source_model)
+        base = copy.deepcopy(baseline_params)
+        base.update(
+            {
+                "round": "round16",
+                "round16_branch": "16D",
+                "round16_lineage": lineage_key,
+                "source_model": source_model,
+                "lineage_checkpoint_dir": checkpoint_dir,
+            }
+        )
+
+        for lam in vicreg_lambdas:
+            for sched in schedules:
+                start = int(sched["start"])
+                full = int(sched["full"])
+                for seed in seeds:
+                    params = _apply_vicreg(base, "16D", lam, lam, start, full, seed)
+                    params["round"] = "round16"
+                    params["round16_branch"] = "16D"
+                    params["round16_lineage"] = lineage_key
+                    exp_id = next_exp_id()
+                    job_id = (
+                        f"r16d_{lineage_key}_vv{_lam_tag(lam)}_{_lam_tag(lam)}"
+                        f"_s{start}_f{full}_seed{seed}"
+                    )
+                    config_path = os.path.join(config_dir, f"{job_id}.json")
+                    rel_config = os.path.relpath(config_path, PROJECT_ROOT)
+                    result_dir = os.path.join(stage_root, "pretrain", exp_id)
+                    _write_config(
+                        config_path,
+                        params,
+                        {
+                            **metadata_base,
+                            "lineage": lineage_key,
+                            "source_model": source_model,
+                            "job_id": job_id,
+                        },
+                    )
+                    row = _manifest_row(
+                        job_id,
+                        exp_id,
+                        rel_config,
+                        os.path.relpath(result_dir, PROJECT_ROOT),
+                        params,
+                        route_id=lineage_key,
+                        source_model=source_model,
+                        branch="16D",
+                    )
+                    row["round"] = "round16"
+                    row["round16_branch"] = "16D"
+                    row["round16_lineage"] = lineage_key
+                    rows.append(row)
+
+    manifest_path = os.path.join(manifests_dir, "stage16d_pretrain_manifest.csv")
+    pd.DataFrame(rows).to_csv(manifest_path, index=False)
+    return {
+        "stage16d_pretrain_manifest": manifest_path,
+        "stage16d_root": stage_root,
+        "n_jobs": len(rows),
+    }
 
 
 def build_round16_configs(

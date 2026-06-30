@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# shellcheck source=tools/run_round16_notify_helpers.sh
+source "$(dirname "$0")/run_round16_notify_helpers.sh"
+
 ROUND16_ROOT="result/optimization_runs/round16_bruteforce"
-FINETUNE_PARALLEL="${FINETUNE_PARALLEL:-12}"
-FINETUNE_BATCH_SIZE="${FINETUNE_BATCH_SIZE:-12288}"
-FINETUNE_MINI_BATCH_SIZE="${FINETUNE_MINI_BATCH_SIZE:-3072}"
+FINETUNE_PARALLEL="${FINETUNE_PARALLEL:-20}"
+FINETUNE_BATCH_SIZE="${FINETUNE_BATCH_SIZE:-24576}"
+FINETUNE_MINI_BATCH_SIZE="${FINETUNE_MINI_BATCH_SIZE:-6144}"
 FINETUNE_EPOCHS="${FINETUNE_EPOCHS:-1500}"
 
 echo "========== ROUND16 STAGE 16E START $(date -u +%Y-%m-%dT%H:%M:%SZ) =========="
+r16_notify --event stage-start --stage 16E
 
 python3 tools/round16_bruteforce_config_builder.py \
   --settings config/round16_bruteforce_settings.json \
@@ -41,4 +45,5 @@ python3 tools/analyze_round16_bruteforce.py \
   --stage 16e \
   --outdir "${ROUND16_ROOT}/reports_stage16e"
 
+r16_notify --event stage-done --stage 16E
 echo "========== ROUND16 STAGE 16E DONE $(date -u +%Y-%m-%dT%H:%M:%SZ) =========="

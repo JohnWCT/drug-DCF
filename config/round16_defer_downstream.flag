@@ -1,0 +1,3 @@
+# Round 16 downstream brute-force (16A/16B/16C) deferred to a later round.
+# Architecture / feature-family stages (16D–16F) run first.
+# Delete this file (or run tools/run_round16_downstream_sweep.sh) to enable 16A–16C.

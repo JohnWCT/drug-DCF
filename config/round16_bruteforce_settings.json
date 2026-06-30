@@ -95,7 +95,7 @@
     "finetune_config": "config/params_finetune_round16_delta_replacement.json"
   },
   "stage16d": {
-    "enabled": false,
+    "enabled": true,
     "lineages": [
       "r15c_exp_005",
       "r15c_exp_024"
@@ -105,14 +105,20 @@
       {"start": 90, "full": 150},
       {"start": 120, "full": 180}
     ],
-    "seeds": [101, 202, 303]
+    "seeds": [101, 202, 303],
+    "downstream": {
+      "feature_modes": ["none", "own_plus_summary"],
+      "seeds": [101, 202, 303],
+      "max_combos": 1,
+      "top_k_per_lineage": 4
+    }
   },
   "finetune": {
     "config": "config/params_finetune_round16_bruteforce.json",
     "epochs": 1500,
     "batch_size": 24576,
     "mini_batch_size": 6144,
-    "max_parallel": 16
+    "max_parallel": 20
   },
   "selection": {
     "mode": "round16_bruteforce_qc",

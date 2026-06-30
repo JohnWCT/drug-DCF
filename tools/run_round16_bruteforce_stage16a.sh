@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# shellcheck source=tools/run_round16_skip_downstream_guard.sh
+source "$(dirname "$0")/run_round16_skip_downstream_guard.sh"
+round16_skip_downstream_if_deferred "16A"
+
+# shellcheck source=tools/run_round16_notify_helpers.sh
+source "$(dirname "$0")/run_round16_notify_helpers.sh"
+
 ROUND16_ROOT="result/optimization_runs/round16_bruteforce"
 FINETUNE_PARALLEL="${FINETUNE_PARALLEL:-12}"
 FINETUNE_BATCH_SIZE="${FINETUNE_BATCH_SIZE:-12288}"
@@ -41,4 +48,5 @@ python3 tools/analyze_round16_bruteforce.py \
   --stage 16a \
   --outdir "${ROUND16_ROOT}/reports"
 
+r16_notify --event stage-done --stage 16A
 echo "========== ROUND16 STAGE 16A DONE $(date -u +%Y-%m-%dT%H:%M:%SZ) =========="

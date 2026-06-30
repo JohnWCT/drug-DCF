@@ -102,7 +102,12 @@ def aggregate_seed_stats(all_df: pd.DataFrame) -> pd.DataFrame:
 
     work[metric] = _safe_numeric(work[metric])
     work["feature_mode"] = work.apply(_feature_mode_from_row, axis=1)
-    work["round16_model_key"] = work.get("round16_model_key", work.get("source_model_id", "")).astype(str)
+    if "round16_model_key" in work.columns:
+        work["round16_model_key"] = work["round16_model_key"].astype(str)
+    elif "source_model_id" in work.columns:
+        work["round16_model_key"] = work["source_model_id"].astype(str)
+    else:
+        work["round16_model_key"] = ""
     if work["round16_model_key"].eq("").all() or work["round16_model_key"].eq("nan").all():
         id_col = _model_id_col(work) if any(c in work.columns for c in ("Model_ID", "ID", "model_id")) else None
         if id_col:
