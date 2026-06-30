@@ -421,6 +421,13 @@ def build_combined_latent_dicts_delta_replacement(
         for i, sid in enumerate(tcga_latent.keys()):
             combined_tcga[sid] = concat_latent_and_proto_features(tcga_z[i], {"features": proto_tcga_mat[i]})
 
+    ccle_out = os.path.join(outdir, "ccle_latent_proto.pkl")
+    tcga_out = os.path.join(outdir, "tcga_latent_proto.pkl")
+    with open(ccle_out, "wb") as f:
+        pickle.dump(combined_ccle, f)
+    with open(tcga_out, "wb") as f:
+        pickle.dump(combined_tcga, f)
+
     response_input_dim = len(next(iter(combined_ccle.values())))
     proto_dim = len(feature_names)
     z_names = [f"z_dim{i:03d}" for i in range(latent_dim)]

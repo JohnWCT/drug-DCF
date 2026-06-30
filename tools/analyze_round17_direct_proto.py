@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 from typing import Optional
 
@@ -48,9 +49,52 @@ def _read_aggregate(path: Optional[str]) -> pd.DataFrame:
     return pd.read_csv(resolve_path(path))
 
 
+def _parse_model_id_feature_mode(model_id: str) -> tuple[str, str]:
+    model_id = str(model_id)
+    match = re.match(r"^(r\d+c?_exp_\d+(?:_control)?)_(.+)$", model_id)
+    if match:
+        return match.group(1), match.group(2)
+    return model_id, "unknown"
+
+
+def _normalize_aggregate(agg: pd.DataFrame) -> pd.DataFrame:
+    if agg.empty:
+        return agg
+    out = agg.copy()
+    if "Model_ID" in out.columns and "model_id" not in out.columns:
+        out = out.rename(columns={"Model_ID": "model_id"})
+    if "model_id" in out.columns and "feature_mode" not in out.columns:
+        parsed = out["model_id"].map(_parse_model_id_feature_mode)
+        out["round17_model_key"] = [p[0] for p in parsed]
+        out["feature_mode"] = [p[1] for p in parsed]
+    for base in (HISTORICAL_METRIC, INTEGRATED5_METRIC, INTEGRATED5_DRUG_METRIC):
+        mean_col = f"{base}_mean"
+        if mean_col in out.columns and base not in out.columns:
+            out[base] = pd.to_numeric(out[mean_col], errors="coerce")
+    return out
+
+
 def _seed_summary(agg: pd.DataFrame) -> pd.DataFrame:
     if agg.empty:
         return pd.DataFrame()
+    agg = _normalize_aggregate(agg)
+    if f"{HISTORICAL_METRIC}_mean" in agg.columns and HISTORICAL_METRIC not in agg.columns:
+        rows = []
+        for _, row in agg.iterrows():
+            entry = {
+                "model_id": row.get("model_id"),
+                "feature_mode": row.get("feature_mode"),
+                "n_seeds": int(row.get("n_finetune_runs", 1)) if pd.notna(row.get("n_finetune_runs")) else 1,
+            }
+            for col in (HISTORICAL_METRIC, INTEGRATED5_METRIC, INTEGRATED5_DRUG_METRIC):
+                mean_col = f"{col}_mean"
+                std_col = f"{col}_std"
+                if mean_col in agg.columns:
+                    entry[f"{col}_mean"] = float(row[mean_col]) if pd.notna(row[mean_col]) else np.nan
+                    entry[f"{col}_std"] = float(row[std_col]) if std_col in agg.columns and pd.notna(row.get(std_col)) else 0.0
+                    entry[f"{col}_best"] = entry[f"{col}_mean"]
+            rows.append(entry)
+        return pd.DataFrame(rows)
     group_cols = [c for c in ("model_id", "feature_mode", "combo_id", "response_head_mode") if c in agg.columns]
     if not group_cols:
         group_cols = ["model_id"] if "model_id" in agg.columns else []
@@ -75,6 +119,7 @@ def _seed_summary(agg: pd.DataFrame) -> pd.DataFrame:
 def _five_target_summary(agg: pd.DataFrame) -> pd.DataFrame:
     if agg.empty:
         return pd.DataFrame()
+    agg = _normalize_aggregate(agg)
     targets = {
         "gdsc_intersect13": HISTORICAL_METRIC,
         "tcga_only3": "tcga_only3_Average_TCGA_AUC",
@@ -84,9 +129,10 @@ def _five_target_summary(agg: pd.DataFrame) -> pd.DataFrame:
     }
     rows = []
     for target, col in targets.items():
-        if col not in agg.columns:
+        value_col = col if col in agg.columns else f"{col}_mean"
+        if value_col not in agg.columns:
             continue
-        vals = pd.to_numeric(agg[col], errors="coerce").dropna()
+        vals = pd.to_numeric(agg[value_col], errors="coerce").dropna()
         rows.append(
             {
                 "eval_target": target,
@@ -165,7 +211,7 @@ def analyze_round17(
     outdir = resolve_path(outdir)
     os.makedirs(outdir, exist_ok=True)
     agg_path = aggregate_path or os.path.join(run_dir, "aggregate", "aggregate_scores.csv")
-    agg = _read_aggregate(agg_path)
+    agg = _normalize_aggregate(_read_aggregate(agg_path))
 
     seed_summary = _seed_summary(agg)
     if "feature_mode" in seed_summary.columns:
@@ -193,21 +239,21 @@ def analyze_round17(
         )
 
     outputs = {
-        "round17_stage_summary": write_csv(os.path.join(outdir, f"round17_stage{stage}_summary.csv"), seed_summary),
+        "round17_stage_summary": write_csv(seed_summary, os.path.join(outdir, f"round17_stage{stage}_summary.csv")),
         "round17_feature_family_summary": write_csv(
-            os.path.join(outdir, "round17_feature_family_summary.csv"), feature_family
+            feature_family, os.path.join(outdir, "round17_feature_family_summary.csv")
         ),
-        "round17_head_family_summary": write_csv(os.path.join(outdir, "round17_head_family_summary.csv"), head_family),
+        "round17_head_family_summary": write_csv(head_family, os.path.join(outdir, "round17_head_family_summary.csv")),
         "round17_five_target_eval_summary": write_csv(
-            os.path.join(outdir, "round17_five_target_eval_summary.csv"), _five_target_summary(agg)
+            _five_target_summary(agg), os.path.join(outdir, "round17_five_target_eval_summary.csv")
         ),
         "round17_historical_vs_integrated5_ranking": write_csv(
-            os.path.join(outdir, "round17_historical_vs_integrated5_ranking.csv"), _ranking_table(seed_summary)
+            _ranking_table(seed_summary), os.path.join(outdir, "round17_historical_vs_integrated5_ranking.csv")
         ),
         "round17_top_candidates": write_csv(
-            os.path.join(outdir, "round17_top_candidates.csv"), _top_candidates(seed_summary)
+            _top_candidates(seed_summary), os.path.join(outdir, "round17_top_candidates.csv")
         ),
-        "round17_tsne_artifact_index": write_csv(os.path.join(outdir, "round17_tsne_artifact_index.csv"), pd.DataFrame()),
+        "round17_tsne_artifact_index": write_csv(pd.DataFrame(), os.path.join(outdir, "round17_tsne_artifact_index.csv")),
         "round17_final_report": _build_report(outdir, stage, seed_summary, settings.get("references", {})),
     }
     return outputs
