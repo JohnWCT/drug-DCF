@@ -1,0 +1,41 @@
+{
+  "round": "round17",
+  "purpose": "Minimal Stage 17A smoke (safe feature modes only, 1 model, 1 seed, 1 combo)",
+  "_extends": "config/round17_direct_proto_settings.json",
+  "round12_root": "result/optimization_runs/round12_proto_alignment",
+  "round11_root": "result/optimization_runs/round11_stability_recon",
+  "round15_root": "result/optimization_runs/round15_repro_rescue",
+  "drug_smiles_path": "data/GDSC_drug_merge_pubchem_dropNA_MACCS_AACDR_extended.csv",
+  "finetune": {
+    "config": "config/params_finetune_round17_direct_proto.json",
+    "epochs": 5,
+    "batch_size": 12288,
+    "mini_batch_size": 3072,
+    "max_parallel": 1,
+    "drug_smiles_path": "data/GDSC_drug_merge_pubchem_dropNA_MACCS_AACDR_extended.csv"
+  },
+  "stage17a": {
+    "enabled": true,
+    "models": ["r13_exp_008"],
+    "feature_modes": [
+      "none",
+      "own_plus_summary",
+      "own_proto_delta_projected_16",
+      "own_proto_delta_projected_32",
+      "own_proto_context_projected_16",
+      "own_proto_context_projected_32"
+    ],
+    "head_mode": "concat_mlp",
+    "seeds": [101],
+    "max_combos": 1
+  },
+  "stage17b": {
+    "enabled": false
+  },
+  "stage17c": {
+    "enabled": false
+  },
+  "stage17f": {
+    "enabled": false
+  }
+}

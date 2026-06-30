@@ -56,12 +56,22 @@
     "round17_drug_macro_metric": "Integrated5_DrugMacro_TCGA_AUC",
     "report_historical_and_integrated5_rankings": true
   },
+  "model_aliases": {
+    "r13_exp_035_control": {
+      "checkpoint": "r13_exp_035",
+      "note": "Round 16F-style control (exp_035 / none); not auto-resolved from Round 16 report"
+    },
+    "r13_exp_008_control": {
+      "checkpoint": "r13_exp_008",
+      "note": "Round 16E-style control (exp_008); not auto-resolved from Round 16 report"
+    }
+  },
   "models": [
     "r13_exp_008",
     "r15c_exp_005",
     "r15c_exp_024",
-    "round16_top1",
-    "round16_top2"
+    "r13_exp_035_control",
+    "r13_exp_008_control"
   ],
   "feature_modes": [
     "none",
@@ -78,7 +88,9 @@
     "minimal_source_only_min_margin"
   ],
   "heads": [
-    "concat_mlp",
+    "concat_mlp"
+  ],
+  "heads_pending_step1": [
     "two_tower_proto",
     "proto_film"
   ],
@@ -110,8 +122,8 @@
       "r13_exp_008",
       "r15c_exp_005",
       "r15c_exp_024",
-      "round16_top1",
-      "round16_top2"
+      "r13_exp_035_control",
+      "r13_exp_008_control"
     ],
     "feature_modes": [
       "none",
@@ -134,7 +146,8 @@
   "stage17b": {
     "enabled": true,
     "top_k_feature_candidates": 10,
-    "heads": ["concat_mlp", "two_tower_proto", "proto_film"],
+    "heads": ["concat_mlp"],
+    "note": "two_tower_proto and proto_film require step1 classifier wiring; manifest-only until implemented",
     "seeds": [101, 202, 303],
     "max_combos": 8
   },
@@ -145,7 +158,7 @@
   },
   "stage17f": {
     "enabled": true,
-    "models": ["r13_exp_008", "round16_top1"]
+    "models": ["r13_exp_008", "r13_exp_035_control"]
   },
   "references": {
     "round13_best": 0.6112395039184843,

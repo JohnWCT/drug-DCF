@@ -26,6 +26,10 @@ from tools.round9_diagnostics_common import load_json, resolve_path
 
 ROUND17_MODEL_SPECS: Dict[str, Dict[str, str]] = {
     **ROUND16_MODEL_SPECS,
+    # Explicit control aliases (not auto-resolved Round 16 tops). See settings model_aliases.
+    "r13_exp_035_control": ROUND16_MODEL_SPECS["r13_exp_035"],
+    "r13_exp_008_control": ROUND16_MODEL_SPECS["r13_exp_008"],
+    # Deprecated misleading names — kept for backward compatibility only.
     "round16_top1": ROUND16_MODEL_SPECS["r13_exp_035"],
     "round16_top2": ROUND16_MODEL_SPECS["r13_exp_008"],
 }
