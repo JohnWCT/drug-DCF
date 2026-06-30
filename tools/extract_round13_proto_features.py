@@ -21,10 +21,12 @@ if PROJECT_ROOT not in sys.path:
 
 from tools.extract_round12_prototypes import extract_prototypes_from_checkpoint
 from tools.prototype_response_features import (
+    build_projection_raw_row,
     build_raw_context_vector,
     build_raw_delta_vector,
     compute_own_proto_context_features_batch,
     compute_own_proto_delta_replacement_features_batch,
+    compute_round17_standalone_features_batch,
     compute_proto_distance_features,
     concat_latent_and_proto_features,
     fit_context_projection,
@@ -33,6 +35,7 @@ from tools.prototype_response_features import (
     get_projected_delta_dim,
     is_own_proto_context_mode,
     is_own_proto_delta_replacement_mode,
+    is_round17_standalone_mode,
     resolve_feature_mode_options,
 )
 from tools.round9_diagnostics_common import (
@@ -321,7 +324,15 @@ def build_combined_latent_dicts_delta_replacement(
                 strict=strict,
                 latent_dim=latent_dim,
             )
-            raw_rows.append(build_raw_delta_vector(vec, vecs["source_anchor"], vecs["target_proto"]))
+            raw_rows.append(
+                build_projection_raw_row(
+                    vec,
+                    vecs["source_anchor"],
+                    vecs["target_proto"],
+                    feature_mode,
+                    target_available=bool(vecs.get("target_initialized", True)),
+                )
+            )
         raw_mat = np.stack(raw_rows, axis=0)
         projection_model = fit_context_projection(raw_mat, proj_dim)
         actual_proj_dim = int(getattr(projection_model, "n_components_", proj_dim))
@@ -446,6 +457,175 @@ def build_combined_latent_dicts_delta_replacement(
     return metadata
 
 
+def build_combined_latent_dicts_round17_standalone(
+    checkpoint_dir: str,
+    feature_mode: str,
+    outdir: str,
+    metric: str = "cosine",
+    include_l2_distance: bool = True,
+    include_same_cancer_gap: bool = True,
+    include_initialized_flag: bool = False,
+    proto_feature_scaler: str = "standard",
+    strict: bool = False,
+    proto_cache_dir: Optional[str] = None,
+) -> Dict:
+    checkpoint_dir = resolve_path(checkpoint_dir)
+    outdir = resolve_path(outdir)
+    os.makedirs(outdir, exist_ok=True)
+    feature_mode = str(feature_mode).lower()
+
+    source_pkl, target_pkl = find_latent_paths(checkpoint_dir)
+    if not source_pkl:
+        raise FileNotFoundError(f"Missing CCLE latent dict under {checkpoint_dir}")
+    ccle_latent = _load_latent_dict(source_pkl)
+    tcga_latent = _load_latent_dict(target_pkl) if target_pkl and os.path.isfile(target_pkl) else {}
+
+    cache_dir = proto_cache_dir or os.path.join(outdir, "_proto_cache")
+    proto = _load_or_extract_prototypes(checkpoint_dir, cache_dir, strict=strict)
+    mapping = proto["cancer_type_mapping"]
+    name_to_id = mapping.get("name_to_id", {})
+    ccle_map, tcga_map = _load_cancer_maps()
+
+    ccle_ids = [_sample_cancer_id(sid, "source", ccle_map, tcga_map, name_to_id) for sid in ccle_latent.keys()]
+    ccle_z = np.stack([ccle_latent[sid] for sid in ccle_latent.keys()], axis=0)
+    latent_dim = int(ccle_z.shape[1])
+
+    projection_model = None
+    projection_metadata = None
+    proj_dim = get_projected_context_dim(feature_mode)
+    if proj_dim > 0:
+        raw_rows = []
+        for vec, cid in zip(ccle_z, ccle_ids):
+            vecs = get_own_source_target_vectors(
+                int(cid),
+                proto["source_anchor_prototypes"],
+                proto["target_prototypes"],
+                source_initialized=proto["source_initialized"],
+                target_initialized=proto["target_initialized"],
+                strict=strict,
+                latent_dim=latent_dim,
+            )
+            raw_rows.append(
+                build_projection_raw_row(
+                    vec,
+                    vecs["source_anchor"],
+                    vecs["target_proto"],
+                    feature_mode,
+                    target_available=bool(vecs.get("target_initialized", True)),
+                )
+            )
+        raw_mat = np.stack(raw_rows, axis=0)
+        projection_model = fit_context_projection(raw_mat, proj_dim)
+        projection_metadata = {
+            "projection_type": "pca",
+            "fit_domain": "source_only",
+            "input_dim": int(raw_mat.shape[1]),
+            "requested_output_dim": int(proj_dim),
+            "output_dim": int(getattr(projection_model, "n_components_", proj_dim)),
+            "feature_mode": feature_mode,
+        }
+        with open(os.path.join(outdir, "projection_model.pkl"), "wb") as f:
+            pickle.dump(projection_model, f)
+        with open(os.path.join(outdir, "projection_metadata.json"), "w", encoding="utf-8") as f:
+            json.dump(projection_metadata, f, indent=2)
+
+    proto_ccle = compute_round17_standalone_features_batch(
+        ccle_z,
+        ccle_ids,
+        proto["source_anchor_prototypes"],
+        target_prototypes=proto["target_prototypes"],
+        mode=feature_mode,
+        cancer_type_mapping=mapping,
+        metric=metric,
+        include_l2_distance=include_l2_distance,
+        include_same_cancer_gap=include_same_cancer_gap,
+        include_initialized_flag=include_initialized_flag,
+        source_initialized=proto["source_initialized"],
+        target_initialized=proto["target_initialized"],
+        projection_model=projection_model,
+        strict=strict,
+    )
+    feature_names = list(proto_ccle["feature_names"])
+    proto_mat = np.asarray(proto_ccle["features"], dtype=np.float32)
+    row_meta = proto_ccle.get("metadata", {})
+
+    scaler = _build_scaler(proto_feature_scaler)
+    scaler_payload = {"type": proto_feature_scaler}
+    if scaler is not None and len(proto_mat) > 0:
+        scaler.fit(proto_mat)
+        proto_mat = scaler.transform(proto_mat).astype(np.float32)
+        scaler_payload = {"type": proto_feature_scaler, "mean": getattr(scaler, "mean_", None)}
+
+    combined_ccle = {
+        sid: concat_latent_and_proto_features(ccle_z[i], {"features": proto_mat[i]})
+        for i, sid in enumerate(ccle_latent.keys())
+    }
+    combined_tcga = {}
+    if tcga_latent:
+        tcga_ids = [_sample_cancer_id(sid, "target", ccle_map, tcga_map, name_to_id) for sid in tcga_latent.keys()]
+        tcga_z = np.stack([tcga_latent[sid] for sid in tcga_latent.keys()], axis=0)
+        proto_tcga = compute_round17_standalone_features_batch(
+            tcga_z,
+            tcga_ids,
+            proto["source_anchor_prototypes"],
+            target_prototypes=proto["target_prototypes"],
+            mode=feature_mode,
+            cancer_type_mapping=mapping,
+            metric=metric,
+            include_l2_distance=include_l2_distance,
+            include_same_cancer_gap=include_same_cancer_gap,
+            include_initialized_flag=include_initialized_flag,
+            source_initialized=proto["source_initialized"],
+            target_initialized=proto["target_initialized"],
+            projection_model=projection_model,
+            strict=strict,
+        )
+        proto_tcga_mat = np.asarray(proto_tcga["features"], dtype=np.float32)
+        if scaler is not None and scaler_payload.get("type") != "none":
+            proto_tcga_mat = scaler.transform(proto_tcga_mat).astype(np.float32)
+        for i, sid in enumerate(tcga_latent.keys()):
+            combined_tcga[sid] = concat_latent_and_proto_features(tcga_z[i], {"features": proto_tcga_mat[i]})
+
+    response_input_dim = len(next(iter(combined_ccle.values())))
+    z_names = [f"z_dim{i:03d}" for i in range(latent_dim)]
+    full_feature_names = z_names + feature_names
+    ccle_out = os.path.join(outdir, "ccle_latent_proto.pkl")
+    tcga_out = os.path.join(outdir, "tcga_latent_proto.pkl")
+    with open(ccle_out, "wb") as f:
+        pickle.dump(combined_ccle, f)
+    with open(tcga_out, "wb") as f:
+        pickle.dump(combined_tcga, f)
+
+    metadata = {
+        "checkpoint_dir": checkpoint_dir,
+        "feature_mode": feature_mode,
+        "prototype_feature_mode": feature_mode,
+        "response_input_mode": "z_plus_proto_features",
+        "base_latent_dim": latent_dim,
+        "proto_feature_dim": len(feature_names),
+        "latent_dim": latent_dim,
+        "response_input_dim": response_input_dim,
+        "proto_feature_scaler": proto_feature_scaler,
+        "metric": metric,
+        "include_l2_distance": include_l2_distance,
+        "include_same_cancer_gap": include_same_cancer_gap,
+        "include_initialized_flag": include_initialized_flag,
+        "n_ccle_samples": len(combined_ccle),
+        "n_tcga_samples": len(combined_tcga),
+        "scaler": scaler_payload,
+        "uses_own_plus_summary": bool(row_meta.get("uses_own_plus_summary", False)),
+        "uses_projection": bool(row_meta.get("uses_projection", False)),
+        "projection_dim": int(row_meta.get("projection_dim", 0)),
+        "projection_fit_domain": "source_only" if row_meta.get("uses_projection") else None,
+        "projection_metadata": projection_metadata,
+    }
+    with open(os.path.join(outdir, "feature_names.json"), "w", encoding="utf-8") as f:
+        json.dump(full_feature_names, f, indent=2)
+    with open(os.path.join(outdir, "feature_metadata.json"), "w", encoding="utf-8") as f:
+        json.dump(metadata, f, indent=2, default=str)
+    return metadata
+
+
 def build_combined_latent_dicts(
     checkpoint_dir: str,
     feature_mode: str,
@@ -475,6 +655,19 @@ def build_combined_latent_dicts(
     ccle_map, tcga_map = _load_cancer_maps()
 
     feature_mode = str(feature_mode).lower()
+    if is_round17_standalone_mode(feature_mode):
+        return build_combined_latent_dicts_round17_standalone(
+            checkpoint_dir=checkpoint_dir,
+            feature_mode=feature_mode,
+            outdir=outdir,
+            metric=metric,
+            include_l2_distance=include_l2_distance,
+            include_same_cancer_gap=include_same_cancer_gap,
+            include_initialized_flag=include_initialized_flag,
+            proto_feature_scaler=proto_feature_scaler,
+            strict=strict,
+            proto_cache_dir=proto_cache_dir,
+        )
     if is_own_proto_delta_replacement_mode(feature_mode):
         return build_combined_latent_dicts_delta_replacement(
             checkpoint_dir=checkpoint_dir,

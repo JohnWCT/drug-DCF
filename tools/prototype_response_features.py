@@ -28,7 +28,13 @@ SUPPORTED_MODES = frozenset(
         "own_plus_summary_no_delta_control",
         "own_proto_delta_projected_16",
         "own_proto_delta_projected_32",
+        "own_proto_delta_projected_8",
+        "own_proto_delta_projected_64",
         "own_proto_delta_normed",
+        "own_plus_summary_plus_delta_projected_16",
+        "source_proto_delta_projected_16",
+        "target_available_context_projected_16",
+        "minimal_source_only_min_margin",
     }
 )
 OWN_PROTO_CONTEXT_MODES = frozenset(
@@ -47,7 +53,17 @@ OWN_PROTO_DELTA_REPLACEMENT_MODES = frozenset(
         "own_plus_summary_no_delta_control",
         "own_proto_delta_projected_16",
         "own_proto_delta_projected_32",
+        "own_proto_delta_projected_8",
+        "own_proto_delta_projected_64",
         "own_proto_delta_normed",
+        "own_plus_summary_plus_delta_projected_16",
+        "source_proto_delta_projected_16",
+    }
+)
+ROUND17_STANDALONE_MODES = frozenset(
+    {
+        "target_available_context_projected_16",
+        "minimal_source_only_min_margin",
     }
 )
 SUPPORTED_METRICS = frozenset({"cosine", "euclidean"})
@@ -67,12 +83,32 @@ def is_own_proto_delta_replacement_mode(mode: str) -> bool:
     return str(mode).lower() in OWN_PROTO_DELTA_REPLACEMENT_MODES
 
 
+def is_round17_standalone_mode(mode: str) -> bool:
+    return str(mode).lower() in ROUND17_STANDALONE_MODES
+
+
+def is_round17_proto_feature_mode(mode: str) -> bool:
+    mode = str(mode).lower()
+    return (
+        is_own_proto_delta_replacement_mode(mode)
+        or is_round17_standalone_mode(mode)
+        or mode in OWN_PROTO_DELTA_REPLACEMENT_MODES
+        or mode in ROUND17_STANDALONE_MODES
+    )
+
+
 def get_projected_delta_dim(mode: str) -> int:
     mode = str(mode).lower()
+    if mode == "own_proto_delta_projected_8":
+        return 8
     if mode == "own_proto_delta_projected_16":
         return 16
     if mode == "own_proto_delta_projected_32":
         return 32
+    if mode == "own_proto_delta_projected_64":
+        return 64
+    if mode in ("own_plus_summary_plus_delta_projected_16", "source_proto_delta_projected_16"):
+        return 16
     return 0
 
 
@@ -86,7 +122,19 @@ def get_projected_context_dim(mode: str) -> int:
         return 16
     if mode == "own_proto_context_projected_32":
         return 32
+    if mode == "target_available_context_projected_16":
+        return 16
     return 0
+
+
+def get_projection_raw_kind(mode: str) -> str:
+    """How to build the matrix row before PCA for Round 17 projection modes."""
+    mode = str(mode).lower()
+    if mode == "source_proto_delta_projected_16":
+        return "source_delta_only"
+    if mode == "target_available_context_projected_16":
+        return "target_available_context"
+    return "full_delta"
 
 
 def parse_feature_variant(mode: str) -> dict:
@@ -115,7 +163,11 @@ def resolve_feature_mode_options(
     proto_feature_scaler: str = "standard",
 ) -> dict:
     variant = parse_feature_variant(feature_mode)
-    if is_own_proto_context_mode(feature_mode) or is_own_proto_delta_replacement_mode(feature_mode):
+    if (
+        is_own_proto_context_mode(feature_mode)
+        or is_own_proto_delta_replacement_mode(feature_mode)
+        or is_round17_standalone_mode(feature_mode)
+    ):
         return {
             "mode": str(feature_mode).lower(),
             "include_l2_distance": include_l2_distance,
@@ -293,6 +345,46 @@ def build_raw_delta_vector(
     z_vec = np.asarray(z, dtype=np.float32).reshape(-1)
     delta, _ = compute_own_proto_delta_vectors(z_vec, source_anchor_c, target_proto_c, normalize=False)
     return delta
+
+
+def build_source_only_delta_vector(
+    z: np.ndarray,
+    source_anchor_c: np.ndarray,
+) -> np.ndarray:
+    z_vec = np.asarray(z, dtype=np.float32).reshape(-1)
+    src = np.asarray(source_anchor_c, dtype=np.float32).reshape(-1)
+    return (z_vec - src).astype(np.float32)
+
+
+def build_target_available_context_vector(
+    z: np.ndarray,
+    source_anchor_c: np.ndarray,
+    target_proto_c: np.ndarray,
+    target_available: bool,
+) -> np.ndarray:
+    z_vec = np.asarray(z, dtype=np.float32).reshape(-1)
+    src = np.asarray(source_anchor_c, dtype=np.float32).reshape(-1)
+    tgt = np.asarray(target_proto_c, dtype=np.float32).reshape(-1)
+    if not target_available:
+        tgt = src.copy()
+    return build_raw_context_vector(z_vec, src, tgt)
+
+
+def build_projection_raw_row(
+    z: np.ndarray,
+    source_anchor_c: np.ndarray,
+    target_proto_c: np.ndarray,
+    mode: str,
+    target_available: bool = True,
+) -> np.ndarray:
+    kind = get_projection_raw_kind(mode)
+    if kind == "source_delta_only":
+        return build_source_only_delta_vector(z, source_anchor_c)
+    if kind == "target_available_context":
+        return build_target_available_context_vector(
+            z, source_anchor_c, target_proto_c, target_available=target_available
+        )
+    return build_raw_delta_vector(z, source_anchor_c, target_proto_c)
 
 
 def _dim_feature_names(prefix: str, dim: int) -> List[str]:
@@ -552,18 +644,30 @@ def compute_own_proto_context_features_batch(
 
 def _delta_replacement_flags(mode: str) -> dict:
     mode = str(mode).lower()
+    projected_delta_modes = (
+        "own_proto_delta_projected_8",
+        "own_proto_delta_projected_16",
+        "own_proto_delta_projected_32",
+        "own_proto_delta_projected_64",
+        "own_plus_summary_plus_delta_projected_16",
+        "source_proto_delta_projected_16",
+    )
     return {
         "uses_own_plus_summary": mode
-        in ("own_plus_summary", "own_plus_summary_no_delta_control", "own_plus_summary_plus_delta"),
+        in (
+            "own_plus_summary",
+            "own_plus_summary_no_delta_control",
+            "own_plus_summary_plus_delta",
+            "own_plus_summary_plus_delta_projected_16",
+        ),
         "uses_delta": mode
         in (
             "own_proto_delta_only",
             "own_plus_summary_plus_delta",
             "own_proto_delta_normed",
-            "own_proto_delta_projected_16",
-            "own_proto_delta_projected_32",
+            *projected_delta_modes,
         ),
-        "uses_projection": mode in ("own_proto_delta_projected_16", "own_proto_delta_projected_32"),
+        "uses_projection": mode in projected_delta_modes,
     }
 
 
@@ -657,14 +761,42 @@ def compute_own_proto_delta_replacement_features(
             )
             features = np.concatenate([summary, delta_features])
             feature_names = summary_names + delta_names
-        elif mode in ("own_proto_delta_projected_16", "own_proto_delta_projected_32"):
+        elif mode in (
+            "own_proto_delta_projected_8",
+            "own_proto_delta_projected_16",
+            "own_proto_delta_projected_32",
+            "own_proto_delta_projected_64",
+            "source_proto_delta_projected_16",
+        ):
             if projection_model is None:
                 raise ValueError(f"projection_model required for mode={mode}")
-            raw_delta = build_raw_delta_vector(z_vec, src, tgt).reshape(1, -1)
+            raw_delta = build_projection_raw_row(z_vec, src, tgt, mode).reshape(1, -1)
             projected = projection_model.transform(raw_delta).reshape(-1)
             proj_dim = int(projected.shape[0])
             features = projected.astype(np.float32)
             feature_names = _dim_feature_names(f"proto_delta_pca{proj_dim}", proj_dim)
+        elif mode == "own_plus_summary_plus_delta_projected_16":
+            if projection_model is None:
+                raise ValueError(f"projection_model required for mode={mode}")
+            summary = compute_own_plus_summary_vector(
+                z_vec,
+                cancer_id,
+                source_anchor_prototypes,
+                target_prototypes,
+                cancer_type_mapping,
+                metric=metric,
+                include_l2_distance=include_l2_distance,
+                include_same_cancer_gap=include_same_cancer_gap,
+                include_initialized_flag=include_initialized_flag,
+                strict=strict,
+                source_initialized=source_initialized,
+                target_initialized=target_initialized,
+            )
+            raw_delta = build_raw_delta_vector(z_vec, src, tgt).reshape(1, -1)
+            projected = projection_model.transform(raw_delta).reshape(-1)
+            proj_dim = int(projected.shape[0])
+            features = np.concatenate([summary, projected.astype(np.float32)])
+            feature_names = summary_names + _dim_feature_names(f"proto_delta_pca{proj_dim}", proj_dim)
         elif mode == "own_proto_delta_normed":
             features = delta_features
             feature_names = delta_names
@@ -710,6 +842,142 @@ def compute_own_proto_delta_replacement_features_batch(
     meta: dict = {}
     for vec, cid in zip(z_arr, cancer_arr):
         feat, feat_names, row_meta = compute_own_proto_delta_replacement_features(
+            vec,
+            int(cid),
+            source_anchor_prototypes,
+            target_prototypes=target_prototypes,
+            mode=mode,
+            cancer_type_mapping=cancer_type_mapping,
+            metric=metric,
+            include_l2_distance=include_l2_distance,
+            include_same_cancer_gap=include_same_cancer_gap,
+            include_initialized_flag=include_initialized_flag,
+            source_initialized=source_initialized,
+            target_initialized=target_initialized,
+            projection_model=projection_model,
+            strict=strict,
+        )
+        rows.append(feat)
+        names = feat_names
+        meta = row_meta
+    features = np.stack(rows, axis=0)
+    return {"features": features, "feature_names": names or [], "metadata": meta}
+
+
+def compute_round17_standalone_features(
+    z: np.ndarray,
+    cancer_id: int,
+    source_anchor_prototypes: np.ndarray,
+    target_prototypes: Optional[np.ndarray] = None,
+    mode: str = "minimal_source_only_min_margin",
+    cancer_type_mapping: Optional[Dict] = None,
+    metric: str = "cosine",
+    include_l2_distance: bool = True,
+    include_same_cancer_gap: bool = True,
+    include_initialized_flag: bool = False,
+    source_initialized: Optional[np.ndarray] = None,
+    target_initialized: Optional[np.ndarray] = None,
+    projection_model: Optional[object] = None,
+    strict: bool = True,
+) -> Tuple[np.ndarray, List[str], dict]:
+    """Round 17 standalone proto feature modes (not delta-replacement family)."""
+    feature_mode_label = str(mode).lower()
+    if feature_mode_label not in ROUND17_STANDALONE_MODES:
+        raise ValueError(f"Unsupported round17 standalone mode={feature_mode_label!r}")
+
+    z_vec = np.asarray(z, dtype=np.float32).reshape(-1)
+    latent_dim = int(z_vec.shape[0])
+    vecs = get_own_source_target_vectors(
+        cancer_id,
+        source_anchor_prototypes,
+        target_prototypes,
+        source_initialized=source_initialized,
+        target_initialized=target_initialized,
+        strict=strict,
+        latent_dim=latent_dim,
+    )
+    src = vecs["source_anchor"]
+    tgt = vecs["target_proto"]
+    tgt_available = bool(vecs.get("target_initialized", True))
+
+    if feature_mode_label == "minimal_source_only_min_margin":
+        summary_pack = compute_proto_distance_features(
+            z_vec,
+            cancer_id,
+            source_anchor_prototypes,
+            target_prototypes=target_prototypes,
+            cancer_type_mapping=cancer_type_mapping,
+            mode="own_plus_summary",
+            metric=metric,
+            include_l2_distance=include_l2_distance,
+            include_same_cancer_gap=include_same_cancer_gap,
+            include_initialized_flag=False,
+            strict=strict,
+            source_initialized=source_initialized,
+            target_initialized=target_initialized,
+        )
+        full_names = list(summary_pack["feature_names"])
+        summary_vals = np.asarray(summary_pack["features"], dtype=np.float32).reshape(-1)
+        feature_names = [
+            "proto_own_source_cosine_dist",
+            "proto_source_min_dist",
+            "proto_source_top1_margin",
+        ]
+        features = np.asarray(
+            [summary_vals[full_names.index(name)] for name in feature_names],
+            dtype=np.float32,
+        )
+        proj_dim = 0
+    elif feature_mode_label == "target_available_context_projected_16":
+        if projection_model is None:
+            raise ValueError(f"projection_model required for mode={feature_mode_label}")
+        raw_context = build_projection_raw_row(
+            z_vec, src, tgt, feature_mode_label, target_available=tgt_available
+        ).reshape(1, -1)
+        projected = projection_model.transform(raw_context).reshape(-1)
+        proj_dim = int(projected.shape[0])
+        features = projected.astype(np.float32)
+        feature_names = _dim_feature_names(f"proto_context_pca{proj_dim}", proj_dim)
+    else:
+        raise ValueError(f"Unsupported mode={feature_mode_label!r}")
+
+    metadata = {
+        "mode": feature_mode_label,
+        "latent_dim": latent_dim,
+        "feature_dim": int(len(features)),
+        "projection_dim": proj_dim,
+        "target_proto_available": tgt_available,
+        "uses_own_plus_summary": feature_mode_label == "minimal_source_only_min_margin",
+        "uses_projection": feature_mode_label == "target_available_context_projected_16",
+    }
+    return features.astype(np.float32), feature_names, metadata
+
+
+def compute_round17_standalone_features_batch(
+    z: np.ndarray,
+    cancer_ids: Sequence[int],
+    source_anchor_prototypes: np.ndarray,
+    target_prototypes: Optional[np.ndarray] = None,
+    mode: str = "minimal_source_only_min_margin",
+    cancer_type_mapping: Optional[Dict] = None,
+    metric: str = "cosine",
+    include_l2_distance: bool = True,
+    include_same_cancer_gap: bool = True,
+    include_initialized_flag: bool = False,
+    source_initialized: Optional[np.ndarray] = None,
+    target_initialized: Optional[np.ndarray] = None,
+    projection_model: Optional[object] = None,
+    strict: bool = False,
+) -> Dict:
+    z_arr = np.asarray(z, dtype=np.float32)
+    if z_arr.ndim == 1:
+        z_arr = z_arr.reshape(1, -1)
+    cancer_arr = np.asarray(cancer_ids)
+    rows = []
+    names: Optional[List[str]] = None
+    meta: dict = {}
+    for vec, cid in zip(z_arr, cancer_arr):
+        feat, feat_names, row_meta = compute_round17_standalone_features(
             vec,
             int(cid),
             source_anchor_prototypes,

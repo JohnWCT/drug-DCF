@@ -121,23 +121,22 @@ def _build_model_pool(settings: dict, model_keys: List[str]) -> pd.DataFrame:
 def _own_proto_manifest_fields(feature_mode: str) -> dict:
     mode = str(feature_mode).lower()
     proj_dim = get_projected_delta_dim(mode) or get_projected_context_dim(mode)
-    uses_projection = mode in (
-        "own_proto_context_projected_16",
-        "own_proto_context_projected_32",
-        "own_proto_delta_projected_16",
-        "own_proto_delta_projected_32",
-    )
+    uses_projection = proj_dim > 0
     flags = {
         "uses_own_plus_summary": mode
-        in ("own_plus_summary", "own_plus_summary_no_delta_control", "own_plus_summary_plus_delta"),
+        in ("own_plus_summary", "own_plus_summary_no_delta_control", "own_plus_summary_plus_delta", "own_plus_summary_plus_delta_projected_16", "minimal_source_only_min_margin"),
         "uses_delta": mode
         in (
             "own_proto_delta",
             "own_proto_delta_only",
             "own_plus_summary_plus_delta",
             "own_proto_delta_normed",
+            "own_proto_delta_projected_8",
             "own_proto_delta_projected_16",
             "own_proto_delta_projected_32",
+            "own_proto_delta_projected_64",
+            "own_plus_summary_plus_delta_projected_16",
+            "source_proto_delta_projected_16",
         ),
         "uses_projection": uses_projection,
     }

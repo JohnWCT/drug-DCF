@@ -5,6 +5,10 @@
     "status": "completed",
     "description": "5-target TCGA eval, Integrated5 metrics, AACDR extended SMILES CLI wiring"
   },
+  "round12_root": "result/optimization_runs/round12_proto_alignment",
+  "round11_root": "result/optimization_runs/round11_stability_recon",
+  "round13_root": "result/optimization_runs/round13_proto_response",
+  "round15_root": "result/optimization_runs/round15_repro_rescue",
   "drug_smiles_path": "data/GDSC_drug_merge_pubchem_dropNA_MACCS_AACDR_extended.csv",
   "eval_targets": [
     {
@@ -37,11 +41,6 @@
     "historical_headline": {
       "primary": "Average_TCGA_AUC",
       "alias_source": "gdsc_intersect13",
-      "integrated_keys": [
-        "Integrated_Global_TCGA_AUC",
-        "Integrated_Average_TCGA_AUC",
-        "Integrated_DrugMacro_TCGA_AUC"
-      ],
       "integrated_target_count": 3
     },
     "round17_integrated5": {
@@ -53,8 +52,50 @@
   "selection": {
     "historical_primary_metric": "Average_TCGA_AUC",
     "round17_primary_metric": "Integrated5_TargetMacro_TCGA_AUC",
+    "round17_integrated_metric": "Integrated5_TargetMacro_TCGA_AUC",
+    "round17_drug_macro_metric": "Integrated5_DrugMacro_TCGA_AUC",
     "report_historical_and_integrated5_rankings": true
   },
+  "models": [
+    "r13_exp_008",
+    "r15c_exp_005",
+    "r15c_exp_024",
+    "round16_top1",
+    "round16_top2"
+  ],
+  "feature_modes": [
+    "none",
+    "own_plus_summary",
+    "own_proto_delta_projected_8",
+    "own_proto_delta_projected_16",
+    "own_proto_delta_projected_32",
+    "own_proto_delta_projected_64",
+    "own_proto_context_projected_16",
+    "own_proto_context_projected_32",
+    "own_plus_summary_plus_delta_projected_16",
+    "source_proto_delta_projected_16",
+    "target_available_context_projected_16",
+    "minimal_source_only_min_margin"
+  ],
+  "heads": [
+    "concat_mlp",
+    "two_tower_proto",
+    "proto_film"
+  ],
+  "tsne": {
+    "enabled": true,
+    "random_state": 17,
+    "perplexity": 30,
+    "learning_rate": "auto",
+    "init": "pca",
+    "max_iter": 1000,
+    "max_source_samples": 3000,
+    "max_target_samples": 3000,
+    "plot_source_prototypes": true,
+    "plot_target_prototypes": true
+  },
+  "seeds_stage17a": [101, 202, 303],
+  "seeds_confirmation": [101, 202, 303, 404, 505, 606, 707, 808, 909, 1001],
   "finetune": {
     "config": "config/params_finetune_round17_direct_proto.json",
     "epochs": 1500,
@@ -64,20 +105,47 @@
     "drug_smiles_path": "data/GDSC_drug_merge_pubchem_dropNA_MACCS_AACDR_extended.csv"
   },
   "stage17a": {
-    "enabled": false,
-    "note": "Phase 1+: direct prototype feature optimization"
+    "enabled": true,
+    "models": [
+      "r13_exp_008",
+      "r15c_exp_005",
+      "r15c_exp_024",
+      "round16_top1",
+      "round16_top2"
+    ],
+    "feature_modes": [
+      "none",
+      "own_plus_summary",
+      "own_proto_delta_projected_8",
+      "own_proto_delta_projected_16",
+      "own_proto_delta_projected_32",
+      "own_proto_delta_projected_64",
+      "own_proto_context_projected_16",
+      "own_proto_context_projected_32",
+      "own_plus_summary_plus_delta_projected_16",
+      "source_proto_delta_projected_16",
+      "target_available_context_projected_16",
+      "minimal_source_only_min_margin"
+    ],
+    "head_mode": "concat_mlp",
+    "seeds": [101, 202, 303],
+    "max_combos": 8
   },
   "stage17b": {
-    "enabled": false,
-    "note": "Phase 1+: prototype-aware response head search"
+    "enabled": true,
+    "top_k_feature_candidates": 10,
+    "heads": ["concat_mlp", "two_tower_proto", "proto_film"],
+    "seeds": [101, 202, 303],
+    "max_combos": 8
   },
   "stage17c": {
-    "enabled": false,
-    "note": "Phase 1+: 10-seed confirmation"
+    "enabled": true,
+    "top_k_candidates": 5,
+    "seeds": [101, 202, 303, 404, 505, 606, 707, 808, 909, 1001]
   },
   "stage17f": {
-    "enabled": false,
-    "note": "Phase 1+: prototype-aware tSNE visualization"
+    "enabled": true,
+    "models": ["r13_exp_008", "round16_top1"]
   },
   "references": {
     "round13_best": 0.6112395039184843,
