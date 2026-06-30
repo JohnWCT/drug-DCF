@@ -13,7 +13,7 @@ from sklearn.metrics import average_precision_score, roc_auc_score
 
 from tools.dataprocess import safemakedirs
 
-# Primary TCGA eval (GDSC-overlapping 13 drugs); replaces legacy intersect_pretrain for finetune eval.
+# Primary TCGA eval (GDSC-overlapping 13 drugs); historical headline metric source.
 FIXED_TCGA_EVAL_GDSC_INTERSECT13 = (
     "data/TCGA/PMID27354694_DR_OMICS_ad_intersect_pretrain_gdsc_intersect13.csv"
 )
@@ -21,22 +21,60 @@ FIXED_TCGA_EVAL_TCGA_ONLY3 = (
     "data/TCGA/PMID27354694_DR_OMICS_ad_intersect_pretrain_tcga_only3.csv"
 )
 FIXED_TCGA_EVAL_DAPL = "data/TCGA/TCGA_drug_response_from_DAPL.csv"
+FIXED_TCGA_EVAL_AACDR_TCGA_ONLY = (
+    "data/TCGA/TCGA_AACDR_response_final_with_smiles_intersect_pretrain_tcga_only.csv"
+)
+FIXED_TCGA_EVAL_AACDR_GDSC_INTERSECT = (
+    "data/TCGA/TCGA_AACDR_response_final_with_smiles_intersect_pretrain_gdsc_intersect.csv"
+)
+
+FIXED_DRUG_SMILES_AACDR_EXTENDED = (
+    "data/GDSC_drug_merge_pubchem_dropNA_MACCS_AACDR_extended.csv"
+)
 
 # Backward-compatible aliases used across finetune scripts.
 FIXED_TCGA_DATA_FOLDER = FIXED_TCGA_EVAL_GDSC_INTERSECT13
 FIXED_TCGA_DATA_FOLDER_EXTRA = FIXED_TCGA_EVAL_DAPL
 
+HISTORICAL_TCGA_EVAL_KEYS: Tuple[str, ...] = (
+    "gdsc_intersect13",
+    "tcga_only3",
+    "dapl",
+)
+
+ROUND17_TCGA_EVAL_KEYS: Tuple[str, ...] = (
+    *HISTORICAL_TCGA_EVAL_KEYS,
+    "aacdr_tcga_only",
+    "aacdr_gdsc_intersect",
+)
+
 DEFAULT_TCGA_EVAL_TARGETS: Tuple[Tuple[str, str], ...] = (
     ("gdsc_intersect13", FIXED_TCGA_EVAL_GDSC_INTERSECT13),
     ("tcga_only3", FIXED_TCGA_EVAL_TCGA_ONLY3),
     ("dapl", FIXED_TCGA_EVAL_DAPL),
+    ("aacdr_tcga_only", FIXED_TCGA_EVAL_AACDR_TCGA_ONLY),
+    ("aacdr_gdsc_intersect", FIXED_TCGA_EVAL_AACDR_GDSC_INTERSECT),
 )
+
+HISTORICAL_TCGA_EVAL_TARGETS: Tuple[Tuple[str, str], ...] = tuple(
+    (key, path) for key, path in DEFAULT_TCGA_EVAL_TARGETS if key in HISTORICAL_TCGA_EVAL_KEYS
+)
+
+DEFAULT_TCGA_EVAL_PREFIX_MAP: Dict[str, str] = {
+    "gdsc_intersect13": "",
+    "tcga_only3": "tcga_only3_",
+    "dapl": "dapl_",
+    "aacdr_tcga_only": "aacdr_tcga_only_",
+    "aacdr_gdsc_intersect": "aacdr_gdsc_intersect_",
+}
 
 # Legacy tag mapping for prediction rows.
 EVAL_KEY_TO_LEGACY_TAG = {
     "gdsc_intersect13": "TCGA1",
     "tcga_only3": "tcga_only3",
     "dapl": "TCGA2",
+    "aacdr_tcga_only": "AACDR_TCGA_ONLY",
+    "aacdr_gdsc_intersect": "AACDR_GDSC_INTERSECT",
 }
 
 
@@ -208,6 +246,16 @@ INTEGRATED_METRIC_KEYS = (
     "Integrated_n_tcga_eval_targets",
 )
 
+INTEGRATED5_METRIC_KEYS = (
+    "Integrated5_TargetMacro_TCGA_AUC",
+    "Integrated5_TargetMacro_TCGA_AUPRC",
+    "Integrated5_DrugMacro_TCGA_AUC",
+    "Integrated5_DrugMacro_TCGA_AUPRC",
+    "Integrated5_n_tcga_eval_targets",
+    "Integrated5_n_tcga_drugs_with_valid_auc",
+    "Integrated5_n_tcga_samples_pooled",
+)
+
 INTEGRATED_SUMMARY_PRIORITY_COLUMNS = [
     "Model_ID",
     "Test_AUC",
@@ -220,6 +268,11 @@ INTEGRATED_SUMMARY_PRIORITY_COLUMNS = [
     "dapl_Average_TCGA_AUC",
     "TCGA2_Global_TCGA_AUC",
     "TCGA2_Average_TCGA_AUC",
+    "aacdr_tcga_only_Global_TCGA_AUC",
+    "aacdr_tcga_only_Average_TCGA_AUC",
+    "aacdr_gdsc_intersect_Global_TCGA_AUC",
+    "aacdr_gdsc_intersect_Average_TCGA_AUC",
+    *INTEGRATED5_METRIC_KEYS,
     *INTEGRATED_METRIC_KEYS,
 ]
 
@@ -230,6 +283,47 @@ def _safe_float(val) -> float:
         return f if not np.isnan(f) else np.nan
     except (TypeError, ValueError):
         return np.nan
+
+
+def _subset_eval_results(
+    tcga_eval_results: Dict[str, dict],
+    keys: Sequence[str],
+) -> Dict[str, dict]:
+    return {
+        key: tcga_eval_results[key]
+        for key in keys
+        if key in tcga_eval_results and tcga_eval_results[key]
+    }
+
+
+def _collect_target_and_drug_macro(
+    tcga_eval_results: Dict[str, dict],
+) -> Tuple[List[float], List[float], List[float], List[float], int]:
+    """Return target avg AUC/AUPRC lists, drug AUC/AUPRC lists, and n_targets."""
+    target_avg_aucs: List[float] = []
+    target_avg_auprcs: List[float] = []
+    drug_aucs: List[float] = []
+    drug_auprcs: List[float] = []
+    n_targets = 0
+    for _eval_key, result in tcga_eval_results.items():
+        if not result:
+            continue
+        n_targets += 1
+        avg_m = result.get("Average_Metrics", {})
+        avg_auc = _safe_float(avg_m.get("AUC"))
+        avg_auprc = _safe_float(avg_m.get("AUPRC"))
+        if not np.isnan(avg_auc):
+            target_avg_aucs.append(avg_auc)
+        if not np.isnan(avg_auprc):
+            target_avg_auprcs.append(avg_auprc)
+        for metrics in result.get("Drug_Metrics", {}).values():
+            auc = _safe_float(metrics.get("AUC"))
+            auprc = _safe_float(metrics.get("AUPRC"))
+            if not np.isnan(auc):
+                drug_aucs.append(auc)
+            if not np.isnan(auprc):
+                drug_auprcs.append(auprc)
+    return target_avg_aucs, target_avg_auprcs, drug_aucs, drug_auprcs, n_targets
 
 
 def normalize_tcga_eval_result(result: Optional[dict]) -> dict:
@@ -309,43 +403,25 @@ def merge_all_target_predictions(tcga_eval_results: Dict[str, dict]) -> pd.DataF
 
 def compute_integrated_tcga_metrics(tcga_eval_results: Dict[str, dict]) -> dict:
     """
-    Cross-target integrated metrics:
-    - Integrated_Global_*: pooled over all samples from gdsc13 + tcga_only3 + dapl
+    Historical 3-target integrated metrics (backward compatible with Round 13–16):
+    - Integrated_Global_*: pooled over gdsc_intersect13 + tcga_only3 + dapl
     - Integrated_Average_*: macro mean of per-target Average_Metrics
     - Integrated_DrugMacro_*: macro mean of all per-drug AUC/AUPRC with valid values
     """
-    tcga_eval_results = normalize_tcga_eval_suite(tcga_eval_results)
+    historical = normalize_tcga_eval_suite(
+        _subset_eval_results(tcga_eval_results, HISTORICAL_TCGA_EVAL_KEYS)
+    )
     pooled_preds: List[float] = []
     pooled_targets: List[float] = []
-    target_avg_aucs: List[float] = []
-    target_avg_auprcs: List[float] = []
-    drug_aucs: List[float] = []
-    drug_auprcs: List[float] = []
-    n_targets = 0
 
-    merged_preds = merge_all_target_predictions(tcga_eval_results)
+    merged_preds = merge_all_target_predictions(historical)
     if not merged_preds.empty:
         pooled_preds = merged_preds["confidence"].astype(float).tolist()
         pooled_targets = merged_preds["ground_truth"].astype(float).tolist()
 
-    for eval_key, result in tcga_eval_results.items():
-        if not result:
-            continue
-        n_targets += 1
-        avg_m = result.get("Average_Metrics", {})
-        avg_auc = _safe_float(avg_m.get("AUC"))
-        avg_auprc = _safe_float(avg_m.get("AUPRC"))
-        if not np.isnan(avg_auc):
-            target_avg_aucs.append(avg_auc)
-        if not np.isnan(avg_auprc):
-            target_avg_auprcs.append(avg_auprc)
-        for metrics in result.get("Drug_Metrics", {}).values():
-            auc = _safe_float(metrics.get("AUC"))
-            auprc = _safe_float(metrics.get("AUPRC"))
-            if not np.isnan(auc):
-                drug_aucs.append(auc)
-            if not np.isnan(auprc):
-                drug_auprcs.append(auprc)
+    target_avg_aucs, target_avg_auprcs, drug_aucs, drug_auprcs, n_targets = _collect_target_and_drug_macro(
+        historical
+    )
 
     integrated: dict = {
         "Integrated_n_tcga_eval_targets": n_targets,
@@ -371,6 +447,30 @@ def compute_integrated_tcga_metrics(tcga_eval_results: Dict[str, dict]) -> dict:
     return integrated
 
 
+def compute_integrated5_tcga_metrics(tcga_eval_results: Dict[str, dict]) -> dict:
+    """
+    Round 17 extended 5-target macro metrics (does not replace historical headline metrics).
+    TargetMacro = macro mean across the 5 eval targets' Average_Metrics.
+    DrugMacro = macro mean across all valid per-drug metrics from all 5 targets.
+    """
+    suite = normalize_tcga_eval_suite(
+        _subset_eval_results(tcga_eval_results, ROUND17_TCGA_EVAL_KEYS)
+    )
+    target_avg_aucs, target_avg_auprcs, drug_aucs, drug_auprcs, n_targets = _collect_target_and_drug_macro(suite)
+    merged_preds = merge_all_target_predictions(suite)
+    n_samples = int(len(merged_preds)) if not merged_preds.empty else 0
+
+    return {
+        "Integrated5_n_tcga_eval_targets": n_targets,
+        "Integrated5_n_tcga_samples_pooled": n_samples,
+        "Integrated5_n_tcga_drugs_with_valid_auc": len(drug_aucs),
+        "Integrated5_TargetMacro_TCGA_AUC": float(np.nanmean(target_avg_aucs)) if target_avg_aucs else np.nan,
+        "Integrated5_TargetMacro_TCGA_AUPRC": float(np.nanmean(target_avg_auprcs)) if target_avg_auprcs else np.nan,
+        "Integrated5_DrugMacro_TCGA_AUC": float(np.nanmean(drug_aucs)) if drug_aucs else np.nan,
+        "Integrated5_DrugMacro_TCGA_AUPRC": float(np.nanmean(drug_auprcs)) if drug_auprcs else np.nan,
+    }
+
+
 def build_integrated_target_summary_df(tcga_eval_results: Dict[str, dict]) -> pd.DataFrame:
     """One row per eval target plus a final INTEGRATED_ALL row."""
     rows = []
@@ -382,6 +482,7 @@ def build_integrated_target_summary_df(tcga_eval_results: Dict[str, dict]) -> pd
     if not rows:
         return pd.DataFrame()
     integrated = compute_integrated_tcga_metrics(tcga_eval_results)
+    integrated5 = compute_integrated5_tcga_metrics(tcga_eval_results)
     rows.append(
         {
             "eval_target": "INTEGRATED_ALL",
@@ -394,17 +495,25 @@ def build_integrated_target_summary_df(tcga_eval_results: Dict[str, dict]) -> pd
             "n_drugs_with_valid_auc": integrated.get("Integrated_n_tcga_drugs_with_valid_auc", 0),
         }
     )
+    rows.append(
+        {
+            "eval_target": "INTEGRATED5_ALL",
+            "global_auc": np.nan,
+            "global_auprc": np.nan,
+            "global_f1": np.nan,
+            "average_auc": integrated5.get("Integrated5_TargetMacro_TCGA_AUC", np.nan),
+            "average_auprc": integrated5.get("Integrated5_TargetMacro_TCGA_AUPRC", np.nan),
+            "n_drugs_total": integrated5.get("Integrated5_n_tcga_drugs_with_valid_auc", 0),
+            "n_drugs_with_valid_auc": integrated5.get("Integrated5_n_tcga_drugs_with_valid_auc", 0),
+        }
+    )
     return pd.DataFrame(rows)
 
 
 def flatten_tcga_eval_metrics(tcga_eval_results: Dict[str, dict], prefix_map: Optional[dict] = None) -> dict:
     """Flatten multi-target TCGA results + integrated cross-target metrics for comparison CSV."""
     tcga_eval_results = normalize_tcga_eval_suite(tcga_eval_results)
-    prefix_map = prefix_map or {
-        "gdsc_intersect13": "",
-        "tcga_only3": "tcga_only3_",
-        "dapl": "dapl_",
-    }
+    prefix_map = prefix_map or DEFAULT_TCGA_EVAL_PREFIX_MAP
     flat: dict = {}
     for eval_key, result in tcga_eval_results.items():
         prefix = prefix_map.get(eval_key, f"{eval_key}_")
@@ -425,6 +534,7 @@ def flatten_tcga_eval_metrics(tcga_eval_results: Dict[str, dict], prefix_map: Op
             flat["TCGA2_Average_TCGA_AUPRC"] = flat.get("dapl_Average_TCGA_AUPRC", np.nan)
 
     flat.update(compute_integrated_tcga_metrics(tcga_eval_results))
+    flat.update(compute_integrated5_tcga_metrics(tcga_eval_results))
 
     # Primary aliases: gdsc_intersect13 remains the headline Global/Average columns
     gdsc = tcga_eval_results.get("gdsc_intersect13") or {}
@@ -444,10 +554,15 @@ def is_per_drug_tcga_column(col: str) -> bool:
         "Global_",
         "Average_",
         "Integrated_",
+        "Integrated5_",
         "tcga_only3_Global_",
         "tcga_only3_Average_",
         "dapl_Global_",
         "dapl_Average_",
+        "aacdr_tcga_only_Global_",
+        "aacdr_tcga_only_Average_",
+        "aacdr_gdsc_intersect_Global_",
+        "aacdr_gdsc_intersect_Average_",
         "TCGA2_Global_",
         "TCGA2_Average_",
     )
@@ -466,8 +581,11 @@ def write_eval_metrics_integrated_summary(outfolder: str, comparison_df: pd.Data
         c
         for c in comparison_df.columns
         if c.startswith("Integrated_")
+        or c.startswith("Integrated5_")
         or c.startswith("tcga_only3_")
         or c.startswith("dapl_")
+        or c.startswith("aacdr_tcga_only_")
+        or c.startswith("aacdr_gdsc_intersect_")
         or c.startswith("TCGA2_")
         or c in ("Global_TCGA_AUC", "Average_TCGA_AUC", "Test_AUC", "Val_AUC", "Model_ID", "ID")
     ]
@@ -588,7 +706,7 @@ def export_codeae_finetune_eval(
         )
         saved_targets[eval_key] = target_dir
 
-    # Integrated cross-target eval (gdsc13 + tcga_only3 + dapl)
+    # Integrated cross-target eval (historical 3-target + Round 17 Integrated5)
     integrated_dir = os.path.join(base, "target_eval_integrated")
     safemakedirs(integrated_dir)
     integrated_summary = build_integrated_target_summary_df(tcga_eval_results)
@@ -607,6 +725,7 @@ def export_codeae_finetune_eval(
                 os.path.join(integrated_dir, "target_metrics_per_drug.csv"), index=False
             )
     integrated_flat = compute_integrated_tcga_metrics(tcga_eval_results)
+    integrated_flat.update(compute_integrated5_tcga_metrics(tcga_eval_results))
     pd.DataFrame([integrated_flat]).to_csv(
         os.path.join(base, "eval_metrics_integrated_summary.csv"), index=False
     )

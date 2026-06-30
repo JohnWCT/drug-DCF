@@ -42,6 +42,7 @@ from tools.inference_utils import inference_on_tcga_drugs, calculate_comprehensi
 from tools.prediction_export import collect_ccle_predictions, save_prediction_tables
 from tools.finetune_tcga_eval import (
     DEFAULT_TCGA_EVAL_TARGETS,
+    FIXED_DRUG_SMILES_AACDR_EXTENDED,
     FIXED_TCGA_DATA_FOLDER,
     FIXED_TCGA_DATA_FOLDER_EXTRA,
     export_codeae_finetune_eval,
@@ -57,7 +58,7 @@ if not torch.cuda.is_available():
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-FIXED_DRUG_SMILES_DATA_PATH = "data/GDSC_drug_merge_pubchem_dropNA_MACCS.csv"
+FIXED_DRUG_SMILES_DATA_PATH = FIXED_DRUG_SMILES_AACDR_EXTENDED
 
 # Function to load parameters from config file
 def load_config(config_path='config/params_grid_latent.json'):
@@ -849,6 +850,7 @@ def step_1_finetune_pipeline_zscore(
         'drug_smiles_data_path': drug_smiles_data_path,
         'tcga_data_folder': tcga_inference_data_folder,
         'tcga_data_folder_extra': tcga_inference_data_folder_extra,
+        'tcga_eval_targets': [key for key, _ in DEFAULT_TCGA_EVAL_TARGETS],
         'batch_size': batch_size,
         'mini_batch_size': mini_batch_size,
         'epochs': epochs,
@@ -1265,6 +1267,12 @@ if __name__ == "__main__":
                        
     parser.add_argument('--response_data', type=str, default='data/GDSC2_fitted_dose_response_MaxScreen_raw.csv',
                         help='Path to the drug response data CSV file.')
+    parser.add_argument(
+        '--drug-smiles-path',
+        type=str,
+        default=FIXED_DRUG_SMILES_DATA_PATH,
+        help='Drug SMILES table for GDSC training graph construction and TCGA inference.',
+    )
     parser.add_argument('--model_select_path', type=str, required=True,
                         help='Path to model_select.csv for batch processing')
     parser.add_argument('--config', type=str, default='config/finetune_params_grid.json',
@@ -1286,7 +1294,7 @@ if __name__ == "__main__":
         outfolder=args.outfolder,
         response_data_path=args.response_data,
         model_select_path=args.model_select_path,
-        drug_smiles_data_path=FIXED_DRUG_SMILES_DATA_PATH,
+        drug_smiles_data_path=args.drug_smiles_path,
         tcga_inference_data_folder=FIXED_TCGA_DATA_FOLDER,
         tcga_inference_data_folder_extra=FIXED_TCGA_DATA_FOLDER_EXTRA,
         batch_size=args.batch_size,

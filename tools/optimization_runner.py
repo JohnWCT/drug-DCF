@@ -23,7 +23,12 @@ if PROJECT_ROOT not in sys.path:
 
 from tools.optimization_config_generator import MANIFEST_COLUMNS, generate_configs
 from tools.optimization_report import generate_final_reports
-from tools.optimization_selection import SelectionInsufficientError, write_selection_outputs
+from tools.finetune_tcga_eval import FIXED_DRUG_SMILES_AACDR_EXTENDED
+from tools.optimization_selection import (
+    SelectionInsufficientError,
+    build_model_select_from_top10,
+    write_selection_outputs,
+)
 from tools.update_running_report import write_running_report
 
 
@@ -39,6 +44,10 @@ def _resolve_path(path: str) -> str:
         return path
     return os.path.join(PROJECT_ROOT, path)
 
+
+def _append_drug_smiles_arg(cmd: List[str], drug_smiles_path: str) -> None:
+    if drug_smiles_path:
+        cmd.extend(["--drug-smiles-path", _resolve_path(drug_smiles_path)])
 
 
 def _resolve_pretrain_result_folder(model_id: str, model_row, job_row) -> str:
@@ -455,8 +464,8 @@ def _run_one_finetune_job(
     epochs: int,
     dry_run: bool,
     lock: threading.Lock,
+    drug_smiles_path: str = FIXED_DRUG_SMILES_AACDR_EXTENDED,
 ) -> None:
-    from tools.optimization_selection import build_model_select_from_top10
 
     job_id = job_row["job_id"]
     model_id = job_row["model_id"]
@@ -511,6 +520,7 @@ def _run_one_finetune_job(
         "--epochs",
         str(epochs),
     ]
+    _append_drug_smiles_arg(cmd, drug_smiles_path)
     if dry_run:
         _run_command(cmd, log_path, dry_run=True)
         return
@@ -546,6 +556,7 @@ def _run_one_round13_finetune_job(
     epochs: int,
     dry_run: bool,
     lock: threading.Lock,
+    drug_smiles_path: str = FIXED_DRUG_SMILES_AACDR_EXTENDED,
 ) -> None:
     job_id = job_row["job_id"]
     combo_id = int(job_row["combo_id"])
@@ -604,6 +615,7 @@ def _run_one_round13_finetune_job(
     seed_val = job_row.get("seed", job_row.get("random_seed"))
     if seed_val is not None and str(seed_val).strip() not in ("", "nan"):
         cmd.extend(["--random_seed", str(int(seed_val))])
+    _append_drug_smiles_arg(cmd, drug_smiles_path)
     if dry_run:
         _run_command(cmd, log_path, dry_run=True)
         return
@@ -646,6 +658,7 @@ def run_round13_finetune_stage(
     dry_run: bool = False,
     rerun_completed: bool = False,
     max_parallel: int = 1,
+    drug_smiles_path: str = FIXED_DRUG_SMILES_AACDR_EXTENDED,
 ) -> None:
     manager = ManifestManager(manifest_path, default_columns=ROUND13_FINETUNE_MANIFEST_COLUMNS)
     manifest_df = manager.df
@@ -684,6 +697,7 @@ def run_round13_finetune_stage(
                 epochs,
                 dry_run,
                 lock,
+                drug_smiles_path,
             )
     else:
         print(f"[round13 finetune] parallel dispatch: {len(jobs)} jobs, max_parallel={max_parallel}")
@@ -704,6 +718,7 @@ def run_round13_finetune_stage(
                     epochs,
                     dry_run,
                     lock,
+                    drug_smiles_path,
                 )
                 for job in jobs
             ]
@@ -727,6 +742,7 @@ def run_finetune_stage(
     dry_run: bool = False,
     rerun_completed: bool = False,
     max_parallel: int = 1,
+    drug_smiles_path: str = FIXED_DRUG_SMILES_AACDR_EXTENDED,
 ) -> None:
     manager = ManifestManager(manifest_path, default_columns=FINETUNE_MANIFEST_COLUMNS)
     finetune_dir = _resolve_path(os.path.join(run_dir, "finetune"))
@@ -751,7 +767,7 @@ def run_finetune_stage(
             _run_one_finetune_job(
                 job, manager, run_dir, top10_df, combos, finetune_config,
                 finetune_dir, logs_dir, status_dir, scratch_dir,
-                batch_size, mini_batch_size, epochs, dry_run, lock,
+                batch_size, mini_batch_size, epochs, dry_run, lock, drug_smiles_path,
             )
     else:
         # Pool size = max concurrent hyperparameter combos (each subprocess is independent).
@@ -762,7 +778,7 @@ def run_finetune_stage(
                     _run_one_finetune_job,
                     job, manager, run_dir, top10_df, combos, finetune_config,
                     finetune_dir, logs_dir, status_dir, scratch_dir,
-                    batch_size, mini_batch_size, epochs, dry_run, lock,
+                    batch_size, mini_batch_size, epochs, dry_run, lock, drug_smiles_path,
                 )
                 for job in jobs
             ]
@@ -888,6 +904,11 @@ def build_parser() -> argparse.ArgumentParser:
     ft.add_argument("--batch-size", type=int, default=2048)
     ft.add_argument("--mini-batch-size", type=int, default=512)
     ft.add_argument("--epochs", type=int, default=1000, help="Finetune epochs (use low value for smoke tests)")
+    ft.add_argument(
+        "--drug-smiles-path",
+        default=FIXED_DRUG_SMILES_AACDR_EXTENDED,
+        help="Drug SMILES CSV forwarded to step1 finetune subprocesses",
+    )
     ft.add_argument("--max-parallel", type=int, default=1, help="Concurrent finetune subprocesses")
     ft.add_argument("--dry-run", action="store_true")
     ft.add_argument("--rerun-completed", action="store_true")
@@ -1008,6 +1029,7 @@ def main(argv: Optional[List[str]] = None) -> None:
                 dry_run=args.dry_run,
                 rerun_completed=args.rerun_completed,
                 max_parallel=args.max_parallel,
+                drug_smiles_path=args.drug_smiles_path,
             )
             return
         run_finetune_stage(
@@ -1021,6 +1043,7 @@ def main(argv: Optional[List[str]] = None) -> None:
             dry_run=args.dry_run,
             rerun_completed=args.rerun_completed,
             max_parallel=args.max_parallel,
+            drug_smiles_path=args.drug_smiles_path,
         )
         return
 

@@ -1,0 +1,87 @@
+{
+  "round": "round17",
+  "purpose": "Direct prototype representation optimization with 5-target TCGA inference and prototype tSNE",
+  "phase0": {
+    "status": "completed",
+    "description": "5-target TCGA eval, Integrated5 metrics, AACDR extended SMILES CLI wiring"
+  },
+  "drug_smiles_path": "data/GDSC_drug_merge_pubchem_dropNA_MACCS_AACDR_extended.csv",
+  "eval_targets": [
+    {
+      "key": "gdsc_intersect13",
+      "path": "data/TCGA/PMID27354694_DR_OMICS_ad_intersect_pretrain_gdsc_intersect13.csv",
+      "role": "historical_primary"
+    },
+    {
+      "key": "tcga_only3",
+      "path": "data/TCGA/PMID27354694_DR_OMICS_ad_intersect_pretrain_tcga_only3.csv",
+      "role": "historical_secondary"
+    },
+    {
+      "key": "dapl",
+      "path": "data/TCGA/TCGA_drug_response_from_DAPL.csv",
+      "role": "historical_secondary"
+    },
+    {
+      "key": "aacdr_tcga_only",
+      "path": "data/TCGA/TCGA_AACDR_response_final_with_smiles_intersect_pretrain_tcga_only.csv",
+      "role": "round17_extended"
+    },
+    {
+      "key": "aacdr_gdsc_intersect",
+      "path": "data/TCGA/TCGA_AACDR_response_final_with_smiles_intersect_pretrain_gdsc_intersect.csv",
+      "role": "round17_extended"
+    }
+  ],
+  "metrics": {
+    "historical_headline": {
+      "primary": "Average_TCGA_AUC",
+      "alias_source": "gdsc_intersect13",
+      "integrated_keys": [
+        "Integrated_Global_TCGA_AUC",
+        "Integrated_Average_TCGA_AUC",
+        "Integrated_DrugMacro_TCGA_AUC"
+      ],
+      "integrated_target_count": 3
+    },
+    "round17_integrated5": {
+      "primary": "Integrated5_TargetMacro_TCGA_AUC",
+      "secondary": "Integrated5_DrugMacro_TCGA_AUC",
+      "integrated_target_count": 5
+    }
+  },
+  "selection": {
+    "historical_primary_metric": "Average_TCGA_AUC",
+    "round17_primary_metric": "Integrated5_TargetMacro_TCGA_AUC",
+    "report_historical_and_integrated5_rankings": true
+  },
+  "finetune": {
+    "config": "config/params_finetune_round17_direct_proto.json",
+    "epochs": 1500,
+    "batch_size": 12288,
+    "mini_batch_size": 3072,
+    "max_parallel": 8,
+    "drug_smiles_path": "data/GDSC_drug_merge_pubchem_dropNA_MACCS_AACDR_extended.csv"
+  },
+  "stage17a": {
+    "enabled": false,
+    "note": "Phase 1+: direct prototype feature optimization"
+  },
+  "stage17b": {
+    "enabled": false,
+    "note": "Phase 1+: prototype-aware response head search"
+  },
+  "stage17c": {
+    "enabled": false,
+    "note": "Phase 1+: 10-seed confirmation"
+  },
+  "stage17f": {
+    "enabled": false,
+    "note": "Phase 1+: prototype-aware tSNE visualization"
+  },
+  "references": {
+    "round13_best": 0.6112395039184843,
+    "round15_best": 0.6083,
+    "round16_best": 0.6068
+  }
+}
