@@ -111,9 +111,9 @@
   "finetune": {
     "config": "config/params_finetune_round17_direct_proto.json",
     "epochs": 1500,
-    "batch_size": 12288,
-    "mini_batch_size": 3072,
-    "max_parallel": 8,
+    "batch_size": 24576,
+    "mini_batch_size": 6144,
+    "max_parallel": 26,
     "drug_smiles_path": "data/GDSC_drug_merge_pubchem_dropNA_MACCS_AACDR_extended.csv"
   },
   "stage17a": {

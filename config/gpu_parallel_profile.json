@@ -27,9 +27,9 @@
     "max_parallel": 33
   },
   "finetune": {
-    "batch_size": 12288,
-    "mini_batch_size": 3072,
+    "batch_size": 24576,
+    "mini_batch_size": 6144,
     "max_parallel": 26,
-    "notes": "Round 7: 120 jobs at parallel=42 hit CUBLAS_STATUS_NOT_INITIALIZED; use 26. Round 6 (64 jobs) succeeded at 42."
+    "notes": "Round 17 pipeline targets ~85% GPU SM via batch=24576, parallel=26."
   }
 }
