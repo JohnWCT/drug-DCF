@@ -336,4 +336,32 @@ Step 5: Stage 17C 10-seed confirmation
 
 ---
 
-*文件版本：Phase 0 完成後生成（2026-06）*
+## 9. 進度更新（2026-07-07）
+
+### 9.1 Stage 17A 完成摘要
+
+- `stage17a_finetune_dispatch_manifest.csv` 已達 `1440/1440 success`（`failed=0`）。
+- 本輪正式最佳候選之一：`finetune_r13_exp_008_own_plus_summary_plus_delta_projected_16`（後續進入 17B head search）。
+- 目前 Round 17 狀態：**17A 完成，17B/17C 尚未執行**。
+
+### 9.2 監控與通知
+
+- `tools/run_round17_direct_proto_stage17a.sh`、`tools/run_round17_proto_head_stage17b.sh`、`tools/run_round17_confirmation_stage17c.sh`
+  已內建 Telegram `stage-start` / `stage-done` 通知。
+- `tools/run_round17_pipeline.sh` 已內建 pipeline start/done 與 stage fail 通知。
+
+### 9.3 17B 接續前檢查
+
+```text
+必要前置：
+1. 17A finetune manifest 全 success
+2. 產出 reports_stage17a/round17_top_candidates.csv
+
+建議流程：
+1. 先做 stage17a aggregate + analyze（補齊 reports_stage17a）
+2. 再啟動 run_round17_proto_head_stage17b.sh
+```
+
+---
+
+*文件版本：Phase 0 + Stage17A 完成更新（2026-07）*
