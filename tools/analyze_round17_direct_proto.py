@@ -83,6 +83,7 @@ def _seed_summary(agg: pd.DataFrame) -> pd.DataFrame:
         for _, row in agg.iterrows():
             entry = {
                 "model_id": row.get("model_id"),
+                "round17_model_key": row.get("round17_model_key"),
                 "feature_mode": row.get("feature_mode"),
                 "n_seeds": int(row.get("n_finetune_runs", 1)) if pd.notna(row.get("n_finetune_runs")) else 1,
             }
@@ -106,6 +107,9 @@ def _seed_summary(agg: pd.DataFrame) -> pd.DataFrame:
         if not isinstance(keys, tuple):
             keys = (keys,)
         row = dict(zip(group_cols, keys))
+        if "model_id" in row and "round17_model_key" not in row:
+            parsed = _parse_model_id_feature_mode(row["model_id"])
+            row["round17_model_key"] = parsed[0]
         for col in metric_cols:
             vals = pd.to_numeric(grp[col], errors="coerce").dropna()
             row[f"{col}_mean"] = float(vals.mean()) if not vals.empty else np.nan

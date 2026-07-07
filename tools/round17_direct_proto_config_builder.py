@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
@@ -71,6 +72,43 @@ def _resolve_checkpoint_round17(settings: dict, model_key: str):
     if not os.path.isdir(checkpoint_dir):
         raise FileNotFoundError(f"Checkpoint not found for {model_key}: {checkpoint_dir}")
     return checkpoint_dir, spec
+
+
+def _parse_model_id_feature_mode(model_id: str) -> tuple[str, str]:
+    model_id = str(model_id)
+    match = re.match(r"^(r\d+c?_exp_\d+(?:_control)?)_(.+)$", model_id)
+    if match:
+        return match.group(1), match.group(2)
+    return model_id, "unknown"
+
+
+def _resolve_model_key_from_candidate(cand: pd.Series) -> str:
+    explicit = str(cand.get("round17_model_key", cand.get("model_key", ""))).strip()
+    if explicit and explicit in ROUND17_MODEL_SPECS:
+        return explicit
+
+    model_id = str(cand.get("model_id", "")).strip()
+    if model_id:
+        parsed_key, _ = _parse_model_id_feature_mode(model_id)
+        if parsed_key in ROUND17_MODEL_SPECS:
+            return parsed_key
+        matches = [key for key in ROUND17_MODEL_SPECS if key in model_id]
+        if matches:
+            return max(matches, key=len)
+
+    raise ValueError(f"Cannot resolve Round 17 model key from candidate: {dict(cand)}")
+
+
+def _resolve_model_select_path(outdir: str, model_key: str, feature_mode: str) -> str:
+    job_key = f"{model_key}_{feature_mode}"
+    for rel in (
+        os.path.join("manifests", "model_selects", f"{job_key}.csv"),
+        os.path.join("manifests", "model_selects_stage17b", f"{job_key}.csv"),
+    ):
+        path = os.path.join(outdir, rel)
+        if os.path.isfile(path):
+            return path
+    raise FileNotFoundError(f"Missing model_select for {job_key} under {outdir}/manifests")
 
 
 def _stage_enabled(settings: dict, stage_key: str) -> bool:
@@ -143,12 +181,7 @@ def build_stage17b(settings: dict, outdir: str, top_candidates_path: str) -> Dic
     heads = list(stage_cfg.get("heads", ["concat_mlp"]))
 
     for _, cand in candidates.head(int(stage_cfg.get("top_k_feature_candidates", 10))).iterrows():
-        model_key = str(cand.get("round17_model_key", cand.get("model_key", "")))
-        if model_key not in ROUND17_MODEL_SPECS:
-            for key in ROUND17_MODEL_SPECS:
-                if key in str(cand.get("model_id", "")):
-                    model_key = key
-                    break
+        model_key = _resolve_model_key_from_candidate(cand)
         feature_mode = str(cand.get("feature_mode", "none"))
         combo_id = int(cand.get("combo_id", 0))
         checkpoint_dir, spec = _resolve_checkpoint_round17(settings, model_key)
@@ -173,8 +206,7 @@ def build_stage17b(settings: dict, outdir: str, top_candidates_path: str) -> Dic
                     **{k: defaults[k] for k in defaults if k.startswith("include_") or k.endswith("_metric") or k == "proto_feature_scaler"},
                 }
             )
-            src_ms = os.path.join(outdir, "manifests", "model_selects", f"{job_key}.csv")
-            model_select_path = src_ms if os.path.isfile(src_ms) else os.path.join(model_select_dir, f"{job_key}.csv")
+            model_select_path = _resolve_model_select_path(outdir, model_key, feature_mode)
             combo_row = all_combos[combo_id] if combo_id < len(all_combos) else all_combos[0]
             for seed in stage_cfg["seeds"]:
                 ft_job_id = f"ft_17b_{job_key}_{head_mode}_c{combo_id:02d}_s{seed}"
@@ -231,7 +263,7 @@ def build_stage17c(settings: dict, outdir: str, top_candidates_path: str) -> Dic
     finetune_config = settings.get("finetune", {}).get("config", "config/params_finetune_round17_direct_proto.json")
 
     for _, cand in candidates.iterrows():
-        model_key = str(cand.get("round17_model_key", cand.get("model_key", "")))
+        model_key = _resolve_model_key_from_candidate(cand)
         feature_mode = str(cand.get("feature_mode", "none"))
         head_mode = str(cand.get("response_head_mode", "concat_mlp"))
         combo_id = int(cand.get("combo_id", 0))
@@ -239,7 +271,7 @@ def build_stage17c(settings: dict, outdir: str, top_candidates_path: str) -> Dic
         job_key = f"{model_key}_{feature_mode}"
         feature_dir = os.path.join(outdir, "features", model_key, feature_mode)
         checkpoint_dir, _ = _resolve_checkpoint_round17(settings, model_key)
-        model_select_path = os.path.join(outdir, "manifests", "model_selects", f"{job_key}.csv")
+        model_select_path = _resolve_model_select_path(outdir, model_key, feature_mode)
         for seed in stage_cfg["seeds"]:
             finetune_rows.append(
                 {
