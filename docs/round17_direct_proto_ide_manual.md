@@ -3,7 +3,7 @@
 ## Direct Prototype Representation Optimization + 5-target TCGA Inference + Prototype tSNE
 
 本文件為 Round 17 的 IDE 實作與執行手冊。  
-**Phase 0（17D–17E 基礎設施）已完成**；**Phase 1+（17A–C、17F pipeline）已補齊工具與設定**，可啟動 Stage 17A。
+**Phase 0（17D–17E 基礎設施）已完成**；**Phase 1+ Stage 17A–C 已完成**（2026-07-07）；**17F tSNE 待執行**。
 
 ---
 
@@ -19,7 +19,7 @@ Round 17D-E:
   5-target TCGA inference expansion          ← Phase 0 已完成
 
 Round 17F:
-  Prototype-aware tSNE visualization         ← Phase 1+ 待實作
+  Prototype-aware tSNE visualization         ← 工具已備，待執行
 ```
 
 Round 17 的主方法目標是繼續優化 direct prototype representation：
@@ -336,32 +336,46 @@ Step 5: Stage 17C 10-seed confirmation
 
 ---
 
-## 9. 進度更新（2026-07-07）
+## 9. 進度更新（2026-07-08）
 
-### 9.1 Stage 17A 完成摘要
+### 9.1 Stage 17A–C 完成摘要
 
-- `stage17a_finetune_dispatch_manifest.csv` 已達 `1440/1440 success`（`failed=0`）。
-- 本輪正式最佳候選之一：`finetune_r13_exp_008_own_plus_summary_plus_delta_projected_16`（後續進入 17B head search）。
-- 目前 Round 17 狀態：**17A 完成，17B/17C 尚未執行**。
+| Stage | Jobs | Status | 報表 |
+|-------|------|--------|------|
+| **17A** feature optimization | 1440 | **1440/1440 success** | `reports_stage17a/` |
+| **17B** head search (`concat_mlp`) | 30 | **30/30 success** | `reports_stage17b/` |
+| **17C** 10-seed confirmation | 50 | **50/50 success** | `reports_stage17c/` |
 
-### 9.2 監控與通知
+完整結論見 [`docs/round17_final_report.md`](round17_final_report.md)。
+
+**17C 最終最佳（10-seed）：**
+
+| 排名 | Model | feature_mode | Historical Avg TCGA | Integrated5 |
+|------|-------|--------------|---------------------|-------------|
+| 1 | `r13_exp_008` | `own_proto_context_projected_16` | **0.5892 ± 0.0336** | 0.5606 |
+| 2 | `r15c_exp_005` | `own_plus_summary` | 0.5868 ± 0.0304 | **0.5617** |
+| 3 | `r13_exp_008` | `own_proto_delta_projected_8` | 0.5840 ± 0.0306 | 0.5574 |
+
+- vs Round 13 best（0.6112）：**未達**（gap ≈ 0.022）
+- direct prototype **未全面**超越 `own_plus_summary`；projected context/delta 有局部優勢
+
+### 9.2 已知修復
+
+- **17B 初跑 3 failed**：`r13_exp_035_control` 被誤解析為 `r13_exp_035` → `Missing model_select_path`
+- **修復 commit**：`287dd73`（最長 model key 匹配 + `model_select` 驗證）；失敗 job 已重跑成功
+
+### 9.3 監控與通知
 
 - `tools/run_round17_direct_proto_stage17a.sh`、`tools/run_round17_proto_head_stage17b.sh`、`tools/run_round17_confirmation_stage17c.sh`
   已內建 Telegram `stage-start` / `stage-done` 通知。
 - `tools/run_round17_pipeline.sh` 已內建 pipeline start/done 與 stage fail 通知。
 
-### 9.3 17B 接續前檢查
+### 9.4 後續（17F）
 
-```text
-必要前置：
-1. 17A finetune manifest 全 success
-2. 產出 reports_stage17a/round17_top_candidates.csv
-
-建議流程：
-1. 先做 stage17a aggregate + analyze（補齊 reports_stage17a）
-2. 再啟動 run_round17_proto_head_stage17b.sh
+```bash
+docker exec -w /workspace/DAPL DAPL bash tools/run_round17_prototype_tsne_stage17f.sh
 ```
 
 ---
 
-*文件版本：Phase 0 + Stage17A 完成更新（2026-07）*
+*文件版本：Phase 0 + Stage17A–C 完成更新（2026-07-08）*
