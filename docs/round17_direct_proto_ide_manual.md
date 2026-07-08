@@ -369,7 +369,7 @@ Step 5: Stage 17C 10-seed confirmation
 4. `r15c_exp_005` / `own_plus_summary` — 0.5732
 5. `r13_exp_035_control` / `own_proto_delta_projected_16` — 0.5612
 
-各 dataset 個別 Top-5 與 17C 10-seed 排名見 [`round17_final_report.md`](round17_final_report.md)「替代基準」一節。
+各 dataset 個別 Top-5 與 17C 10-seed 排名見 [`round17_final_report.md`](round17_final_report.md)「替代基準」一節；**五 dataset Top-5 去重共 16 models**（含重現路徑表）。
 
 ### 9.2 已知修復
 

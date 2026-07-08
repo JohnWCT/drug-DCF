@@ -102,6 +102,84 @@ mean_5target_drug_macro_auc =
 | **aacdr_tcga_only** | `r13_exp_008_control` / `own_plus_summary` (0.5999) | `r15c_exp_024` / `own_plus_summary` (0.5952) | `r15c_exp_005` / `own_plus_summary` (0.5926) | `r13_exp_008` / `own_plus_summary` (0.5913) | `r15c_exp_005` / `own_proto_context_projected_32` (0.5770) |
 | **aacdr_gdsc_intersect** | `r15c_exp_005` / `own_plus_summary` (0.5209) | `r13_exp_008` / `own_plus_summary` (0.5173) | `r13_exp_008_control` / `own_plus_summary` (0.5115) | `r15c_exp_005` / `none` (0.5085) | `r15c_exp_024` / `own_plus_summary` (0.5074) |
 
+### 各 Dataset Top-5 去重清單（16 models，含重現路徑）
+
+**排名來源：** `result/optimization_runs/round17_direct_proto/stage17a/aggregate/aggregate_scores.csv`  
+**指標：** 各 dataset 的 per-drug macro AUC（`Average_TCGA_AUC_*` 欄位）
+
+**共用設定（重現 17A finetune / eval）：**
+
+| 用途 | 路徑 |
+|------|------|
+| Round 17 設定 | `config/round17_direct_proto_settings.json` |
+| Finetune 超參 | `config/params_finetune_round17_direct_proto.json` |
+| Drug SMILES | `data/GDSC_drug_merge_pubchem_dropNA_MACCS_AACDR_extended.csv` |
+| 17A manifest | `result/optimization_runs/round17_direct_proto/manifests/stage17a_finetune_dispatch_manifest.csv` |
+| Aggregate 來源 | `result/optimization_runs/round17_direct_proto/stage17a/aggregate/aggregate_scores.csv` |
+
+**TCGA eval 五資料集：**
+
+| eval key | 路徑 |
+|----------|------|
+| `gdsc_intersect13` | `data/TCGA/PMID27354694_DR_OMICS_ad_intersect_pretrain_gdsc_intersect13.csv` |
+| `tcga_only3` | `data/TCGA/PMID27354694_DR_OMICS_ad_intersect_pretrain_tcga_only3.csv` |
+| `dapl` | `data/TCGA/TCGA_drug_response_from_DAPL.csv` |
+| `aacdr_tcga_only` | `data/TCGA/TCGA_AACDR_response_final_with_smiles_intersect_pretrain_tcga_only.csv` |
+| `aacdr_gdsc_intersect` | `data/TCGA/TCGA_AACDR_response_final_with_smiles_intersect_pretrain_gdsc_intersect.csv` |
+
+**去重模型清單（依出現 dataset 數排序）：**
+
+| # | model_id | feature_mode | 出現於 Top-5（dataset:rank） | pretrain checkpoint | feature_dir |
+|---|----------|--------------|------------------------------|---------------------|-------------|
+| 1 | `r13_exp_008_control_own_plus_summary` | own_plus_summary | gdsc13:#2, tcga3:#4, aacdr_tcga:#1, aacdr_gdsc:#3 | `result/optimization_runs/round12_proto_alignment/pretrain/exp_008` | `.../features/r13_exp_008_control/own_plus_summary` |
+| 2 | `r15c_exp_005_own_plus_summary` | own_plus_summary | gdsc13:#3, aacdr_tcga:#3, aacdr_gdsc:#1 | `result/optimization_runs/round15_repro_rescue/pretrain/exp_005` | `.../features/r15c_exp_005/own_plus_summary` |
+| 3 | `r13_exp_008_own_plus_summary` | own_plus_summary | gdsc13:#5, aacdr_tcga:#4, aacdr_gdsc:#2 | `result/optimization_runs/round12_proto_alignment/pretrain/exp_008` | `.../features/r13_exp_008/own_plus_summary` |
+| 4 | `r15c_exp_024_own_plus_summary` | own_plus_summary | gdsc13:#4, aacdr_tcga:#2, aacdr_gdsc:#5 | `result/optimization_runs/round15_repro_rescue/pretrain/exp_024` | `.../features/r15c_exp_024/own_plus_summary` |
+| 5 | `r13_exp_035_control_minimal_source_only_min_margin` | minimal_source_only_min_margin | tcga3:#1 | `result/optimization_runs/round11_stability_recon/pretrain/exp_035` | `.../features/r13_exp_035_control/minimal_source_only_min_margin` |
+| 6 | `r15c_exp_024_own_proto_context_projected_32` | own_proto_context_projected_32 | tcga3:#2 | `result/optimization_runs/round15_repro_rescue/pretrain/exp_024` | `.../features/r15c_exp_024/own_proto_context_projected_32` |
+| 7 | `r15c_exp_024_own_proto_delta_projected_64` | own_proto_delta_projected_64 | tcga3:#3 | `result/optimization_runs/round15_repro_rescue/pretrain/exp_024` | `.../features/r15c_exp_024/own_proto_delta_projected_64` |
+| 8 | `r13_exp_008_control_own_proto_context_projected_32` | own_proto_context_projected_32 | tcga3:#5 | `result/optimization_runs/round12_proto_alignment/pretrain/exp_008` | `.../features/r13_exp_008_control/own_proto_context_projected_32` |
+| 9 | `r13_exp_035_control_none` | none | gdsc13:#1 | `result/optimization_runs/round11_stability_recon/pretrain/exp_035` | `.../features/r13_exp_035_control/none` |
+| 10 | `r13_exp_008_minimal_source_only_min_margin` | minimal_source_only_min_margin | dapl:#1 | `result/optimization_runs/round12_proto_alignment/pretrain/exp_008` | `.../features/r13_exp_008/minimal_source_only_min_margin` |
+| 11 | `r15c_exp_005_minimal_source_only_min_margin` | minimal_source_only_min_margin | dapl:#2 | `result/optimization_runs/round15_repro_rescue/pretrain/exp_005` | `.../features/r15c_exp_005/minimal_source_only_min_margin` |
+| 12 | `r15c_exp_024_minimal_source_only_min_margin` | minimal_source_only_min_margin | dapl:#3 | `result/optimization_runs/round15_repro_rescue/pretrain/exp_024` | `.../features/r15c_exp_024/minimal_source_only_min_margin` |
+| 13 | `r13_exp_035_control_own_plus_summary` | own_plus_summary | dapl:#4 | `result/optimization_runs/round11_stability_recon/pretrain/exp_035` | `.../features/r13_exp_035_control/own_plus_summary` |
+| 14 | `r13_exp_035_control_own_plus_summary_plus_delta_projected_16` | own_plus_summary_plus_delta_projected_16 | dapl:#5 | `result/optimization_runs/round11_stability_recon/pretrain/exp_035` | `.../features/r13_exp_035_control/own_plus_summary_plus_delta_projected_16` |
+| 15 | `r15c_exp_005_own_proto_context_projected_32` | own_proto_context_projected_32 | aacdr_tcga:#5 | `result/optimization_runs/round15_repro_rescue/pretrain/exp_005` | `.../features/r15c_exp_005/own_proto_context_projected_32` |
+| 16 | `r15c_exp_005_none` | none | aacdr_gdsc:#4 | `result/optimization_runs/round15_repro_rescue/pretrain/exp_005` | `.../features/r15c_exp_005/none` |
+
+上表 `...` = `result/optimization_runs/round17_direct_proto`。
+
+**每個 model 另需路徑（重現 finetune 結果）：**
+
+| 類型 | 路徑樣式 |
+|------|----------|
+| model_select | `result/optimization_runs/round17_direct_proto/manifests/model_selects/<model_id>.csv` |
+| 17A finetune 輸出 | `result/optimization_runs/round17_direct_proto/stage17a/finetune/<model_id>/combo_*/seed_*/` |
+| 整合 eval 摘要 | `.../combo_*/seed_*/eval_metrics_integrated_summary.csv` |
+| 單 target eval | `.../combo_*/seed_*/<model_id>/param_001/target_eval_<eval_key>/target_metrics_summary.csv` |
+
+**純 model_id 去重 list（16）：**
+
+```text
+r13_exp_008_control_own_plus_summary
+r15c_exp_005_own_plus_summary
+r13_exp_008_own_plus_summary
+r15c_exp_024_own_plus_summary
+r13_exp_035_control_minimal_source_only_min_margin
+r15c_exp_024_own_proto_context_projected_32
+r15c_exp_024_own_proto_delta_projected_64
+r13_exp_008_control_own_proto_context_projected_32
+r13_exp_035_control_none
+r13_exp_008_minimal_source_only_min_margin
+r15c_exp_005_minimal_source_only_min_margin
+r15c_exp_024_minimal_source_only_min_margin
+r13_exp_035_control_own_plus_summary
+r13_exp_035_control_own_plus_summary_plus_delta_projected_16
+r15c_exp_005_own_proto_context_projected_32
+r15c_exp_005_none
+```
+
 ### Stage 17C 確認（10-seed, 5 candidates）
 
 | Rank | Model | feature_mode | mean_5target drug-macro |
