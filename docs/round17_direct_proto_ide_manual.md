@@ -359,6 +359,18 @@ Step 5: Stage 17C 10-seed confirmation
 - vs Round 13 best（0.6112）：**未達**（gap ≈ 0.022）
 - direct prototype **未全面**超越 `own_plus_summary`；projected context/delta 有局部優勢
 
+### 9.1.1 替代基準：各藥物 AUC macro mean（5 datasets）
+
+若改以每個 target 的 **per-drug AUC macro mean**（`Average_TCGA_AUC`）再對 5 個 eval target 取平均，**17A Overall Top-5** 為：
+
+1. `r13_exp_008_control` / `own_plus_summary` — **0.5782**
+2. `r15c_exp_024` / `own_plus_summary` — 0.5742
+3. `r13_exp_008` / `own_plus_summary` — 0.5735
+4. `r15c_exp_005` / `own_plus_summary` — 0.5732
+5. `r13_exp_035_control` / `own_proto_delta_projected_16` — 0.5612
+
+各 dataset 個別 Top-5 與 17C 10-seed 排名見 [`round17_final_report.md`](round17_final_report.md)「替代基準」一節。
+
 ### 9.2 已知修復
 
 - **17B 初跑 3 failed**：`r13_exp_035_control` 被誤解析為 `r13_exp_035` → `Missing model_select_path`
@@ -378,4 +390,4 @@ docker exec -w /workspace/DAPL DAPL bash tools/run_round17_prototype_tsne_stage1
 
 ---
 
-*文件版本：Phase 0 + Stage17A–C 完成更新（2026-07-08）*
+*文件版本：Phase 0 + Stage17A–C + drug-macro 基準更新（2026-07-08）*

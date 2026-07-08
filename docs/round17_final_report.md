@@ -60,13 +60,64 @@
 
 17B best historical：**0.6083**（`r13_exp_008_own_proto_delta_projected_8`）；best Integrated5：**0.5762**（`r15c_exp_024_own_plus_summary`）
 
+## 替代基準：各藥物 AUC macro mean（5 datasets）
+
+若不以單一 headline target（`gdsc_intersect13` / `Average_TCGA_AUC`）排序，改以**每個 eval target 內各藥物 AUC 的 macro mean**（即 `Average_TCGA_AUC`，非 sample-pooled `Global_TCGA_AUC`），再對 5 個 target 取平均：
+
+```text
+mean_5target_drug_macro_auc =
+  mean(
+    gdsc_intersect13 Average_TCGA_AUC,
+    tcga_only3 Average_TCGA_AUC,
+    dapl Average_TCGA_AUC,
+    aacdr_tcga_only Average_TCGA_AUC,
+    aacdr_gdsc_intersect Average_TCGA_AUC
+  )
+```
+
+資料來源：`stage17a/aggregate/aggregate_scores.csv`（60 models，feature sweep 全空間）。
+
+### Overall Top-5（5-target drug-macro mean）
+
+| Rank | Model | feature_mode | mean_5target | gdsc13 | tcga3 | dapl | aacdr_tcga | aacdr_gdsc |
+|------|-------|--------------|-------------|--------|-------|------|------------|------------|
+| 1 | `r13_exp_008_control` | `own_plus_summary` | **0.5782** | 0.5998 | 0.6255 | 0.5543 | 0.5999 | 0.5115 |
+| 2 | `r15c_exp_024` | `own_plus_summary` | **0.5742** | 0.5942 | 0.6192 | 0.5551 | 0.5952 | 0.5074 |
+| 3 | `r13_exp_008` | `own_plus_summary` | **0.5735** | 0.5896 | 0.6134 | 0.5562 | 0.5913 | 0.5173 |
+| 4 | `r15c_exp_005` | `own_plus_summary` | **0.5732** | 0.5989 | 0.6022 | 0.5516 | 0.5926 | 0.5209 |
+| 5 | `r13_exp_035_control` | `own_proto_delta_projected_16` | **0.5612** | 0.5873 | 0.5998 | 0.5761 | 0.5745 | 0.4685 |
+
+**觀察：** Overall Top-5 中有 **4/5 為 `own_plus_summary`**；direct prototype 僅 `own_proto_delta_projected_16` 進入第 5 名。
+
+### 各 Dataset Top-5（drug-macro AUC）
+
+| Target | #1 | #2 | #3 | #4 | #5 |
+|--------|----|----|----|----|-----|
+| **gdsc_intersect13** (13 seen) | `r13_exp_035_control` / `none` (0.6049) | `r13_exp_008_control` / `own_plus_summary` (0.5998) | `r15c_exp_005` / `own_plus_summary` (0.5989) | `r15c_exp_024` / `own_plus_summary` (0.5942) | `r13_exp_008` / `own_plus_summary` (0.5896) |
+| **tcga_only3** (3 unseen) | `r13_exp_035_control` / `minimal_source_only_min_margin` (0.6391) | `r15c_exp_024` / `own_proto_context_projected_32` (0.6335) | `r15c_exp_024` / `own_proto_delta_projected_64` (0.6268) | `r13_exp_008_control` / `own_plus_summary` (0.6255) | `r13_exp_008_control` / `own_proto_context_projected_32` (0.6243) |
+| **dapl** (5 drugs) | `r13_exp_008` / `minimal_source_only_min_margin` (0.5955) | `r15c_exp_005` / `minimal_source_only_min_margin` (0.5940) | `r15c_exp_024` / `minimal_source_only_min_margin` (0.5906) | `r13_exp_035_control` / `own_plus_summary` (0.5839) | `r13_exp_035_control` / `own_plus_summary_plus_delta_projected_16` (0.5802) |
+| **aacdr_tcga_only** | `r13_exp_008_control` / `own_plus_summary` (0.5999) | `r15c_exp_024` / `own_plus_summary` (0.5952) | `r15c_exp_005` / `own_plus_summary` (0.5926) | `r13_exp_008` / `own_plus_summary` (0.5913) | `r15c_exp_005` / `own_proto_context_projected_32` (0.5770) |
+| **aacdr_gdsc_intersect** | `r15c_exp_005` / `own_plus_summary` (0.5209) | `r13_exp_008` / `own_plus_summary` (0.5173) | `r13_exp_008_control` / `own_plus_summary` (0.5115) | `r15c_exp_005` / `none` (0.5085) | `r15c_exp_024` / `own_plus_summary` (0.5074) |
+
+### Stage 17C 確認（10-seed, 5 candidates）
+
+| Rank | Model | feature_mode | mean_5target drug-macro |
+|------|-------|--------------|-------------------------|
+| 1 | `r15c_exp_005` | `own_plus_summary` | **0.5618** |
+| 2 | `r13_exp_008` | `own_proto_context_projected_16` | 0.5606 |
+| 3 | `r13_exp_008` | `own_proto_delta_projected_8` | 0.5574 |
+| 4 | `r15c_exp_024` | `own_proto_context_projected_16` | 0.5542 |
+| 5 | `r15c_exp_024` | `own_plus_summary` | 0.5537 |
+
+> 對照欄位：`Integrated5_DrugMacro_TCGA_AUC_mean`（5 target 全部藥物 pooled macro）與上表 `mean_5target` 排序高度一致，但數值略低（因跨 target 藥物數不均）。
+
 ## 結論
 
 | 問題 | 結果 |
 |------|------|
-| direct prototype 是否全面超越 `own_plus_summary`？ | **否**；少數 projected context/delta 在 historical 接近或略優，Integrated5 仍以 `own_plus_summary` 較穩 |
+| direct prototype 是否全面超越 `own_plus_summary`？ | **否**；以 headline `gdsc_intersect13` 或 **5-target drug-macro mean** 看，`own_plus_summary` 仍占多數 Top-5 |
 | 最佳 projected 維度？ | **context_projected_16**（R13 exp_008）與 **delta_projected_8** 表現較佳 |
-| AACDR 5-target 是否改變排序？ | Integrated5 與 historical 排序部分一致；`own_plus_summary` 在 Integrated5 仍居前 |
+| AACDR 5-target 是否改變排序？ | `aacdr_*` 單獨看仍多為 `own_plus_summary` 居前；`tcga_only3` / `dapl` 則 minimal / projected 較強 |
 | 是否重現 Round 13？ | **未達**（gap ≈ 0.022 on best 10-seed historical） |
 
 ## 已知問題與修復
@@ -82,4 +133,4 @@
 
 ---
 
-*Generated from `reports_stage17c/` aggregate on 2026-07-08.*
+*Generated from `reports_stage17c/` aggregate on 2026-07-08; drug-macro rankings from `stage17a/aggregate/aggregate_scores.csv`.*
