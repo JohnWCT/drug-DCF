@@ -192,6 +192,55 @@ r15c_exp_005_none
 
 > 對照欄位：`Integrated5_DrugMacro_TCGA_AUC_mean`（5 target 全部藥物 pooled macro）與上表 `mean_5target` 排序高度一致，但數值略低（因跨 target 藥物數不均）。
 
+## Average_TCGA_AUC 參數調整方向（重點）
+
+分析基礎：
+
+- 17A 全量 job-level 結果（`stage17a/finetune/**/parameter_comparison_tcga_focus.csv`，共 1440 jobs）
+- 17A manifest（`manifests/stage17a_finetune_dispatch_manifest.csv`，含 combo/seed）
+- 17C 10-seed top-5（`reports_stage17c_pre18class_fix_20260708T035033Z/round17_top_candidates.csv`）
+
+### 1) 有貢獻的 feature 方向（看 `Average_TCGA_AUC`）
+
+| feature_mode | 17A 平均 | 17A 單點最高 | Top-100 job 出現次數 |
+|--------------|----------|--------------|----------------------|
+| `own_plus_summary` | **0.5925** | 0.6485 | **28** |
+| `none` | 0.5855 | **0.6557** | 21 |
+| `own_proto_delta_projected_8` | 0.5804 | 0.6296 | 11 |
+| `own_proto_delta_projected_16` | 0.5788 | 0.6359 | 13 |
+| `own_proto_context_projected_16` | 0.5723 | 0.6487 | 5 |
+
+判讀：
+
+- **最穩定主線：** `own_plus_summary`（平均最好、Top 命中率最高）。
+- **高峰但不穩：** `none` 可跑出最高單點，但均值與跨 seed 穩定度不如 `own_plus_summary`。
+- **direct prototype 可延伸方向：** `delta_projected_8/16`（均值次佳）與 `context_projected_16`（17C 最佳 historical）。
+
+### 2) 有貢獻的 finetune combo 方向（看 `Average_TCGA_AUC`）
+
+| combo | 平均 | 單點最高 | 主要設定 |
+|------|------|----------|----------|
+| **4** | **0.5805** | 0.6309 | `lr=1e-4`, `wd=1e-4`, `dropout=0.2`, default head, `12288/3072`, patience=100 |
+| 3 | 0.5764 | 0.6485 | `lr=3e-4`, `wd=3e-5`, `dropout=0.2`, default head, `12288/3072`, patience=100 |
+| 2 | 0.5753 | 0.6468 | `lr=5e-4`, `wd=1e-5`, `dropout=0.1`, default head, `12288/3072`, patience=50 |
+| 7 | 0.5715 | 0.6407 | `lr=5e-4`, `wd=1e-5`, `dropout=0.1`, default head, `8192/2048`, patience=50 |
+| 6 | 0.5563 | 0.6487 | `lr=3e-4`, `wd=1e-5`, `dropout=0.1`, **`head=512,256`** |
+
+判讀（可持續優化）：
+
+- **正向訊號：** 較強 regularization（`dropout=0.2` + 較高 `weight_decay`）在均值上更有利（combo 3/4）。
+- **head 維度：** custom head（`256,128` / `512,256`）均值落後 default，短期先以 default 為主。
+- **batch：** `12288/3072` 整體優於 `8192/2048`（combo 7 相對下滑）。
+- **學習率：** `1e-4`（combo 4）在均值最穩，`3e-4` 可保留做次選；`5e-4` 較偏高風險。
+
+### 3) 後續優化優先順序（以 `Average_TCGA_AUC`）
+
+1. **主幹保留：** `own_plus_summary` + default head + `dropout=0.2` 設定帶（combo 4/3）。
+2. **prototype 強化線：** `own_proto_delta_projected_8/16`、`own_proto_context_projected_16` 分支加密搜尋。
+3. **超參縮圈：** 先集中 `lr ∈ {1e-4, 2e-4, 3e-4}`、`wd ∈ {3e-5, 1e-4, 3e-4}`、`dropout ∈ {0.15, 0.2, 0.25}`。
+4. **減少低效組合：** 先暫停 custom head 大維度（尤其 `512,256`）與小 batch 線。
+5. **穩健評估：** 對新候選至少做 5-seed，再進 10-seed confirm，避免單點高分誤判。
+
 ## 結論
 
 | 問題 | 結果 |
@@ -203,12 +252,16 @@ r15c_exp_005_none
 
 ## Stage 17F（prototype tSNE）
 
-| Model | n_points | source prototypes | target prototypes plotted | missing target skipped |
+僅使用 **pretrain 訓練的 18 類癌症**（與 `metadata/cancer_type_mapping.json`、`kmeans_k=18` 一致；CCLE≥10 ∩ TCGA，並排除 `config/pretrain_cancer_type_exclude.json` 所列類型）。tSNE 樣本與 prototype 皆過濾至這 18 類，不再出現 Engineered / Fibroblast 等非訓練類型。
+
+| Model | n_points | source prototypes | target prototypes plotted | trainable cancer types |
 |-------|----------|-------------------|---------------------------|------------------------|
-| `r13_exp_008` | 4176 | 28 | 20 | 8 |
-| `r13_exp_035_control` | 4176 | 28 | 20 | 8 |
+| `r13_exp_008` | 3973 | 18 | 18 | 18 |
+| `r13_exp_035_control` | 3973 | 18 | 18 | 18 |
 
 輸出目錄：`result/optimization_runs/round17_direct_proto/visualizations/prototype_tsne/<model>/`
+
+實作：`extract_round12_prototypes.py` 讀取 checkpoint `metadata/cancer_type_mapping.json`；`visualize_round17_prototype_tsne.py` 依同一清單過濾 latent 樣本。
 
 ## 已知問題與修復
 
@@ -216,6 +269,16 @@ r15c_exp_005_none
 |------|------|
 | `r13_exp_035_control` 在 17B 被誤解析為 `r13_exp_035`，導致 `Missing model_select_path` | `287dd73`：config builder 改為最長匹配 + `model_select` 路徑驗證；3 筆 17B job 已重跑成功 |
 | sklearn 1.0 `TSNE` 不支援 `max_iter` | `visualize_round17_prototype_tsne.py` 自動 fallback 至 `n_iter` |
+| tSNE / prototype cache 使用 metadata 全量癌症（含 Engineered 等 28 類） | 改為讀取 checkpoint `metadata/cancer_type_mapping.json`（18 類）；17F 已重跑 |
+
+## 18 類 prototype 修正後重跑（目前暫停）
+
+因 prototype feature 曾基於 28 類 cache，原規劃重跑 Stage **17A → 17B → 17C**（feature extraction + finetune + evaluation）。目前已先暫停重跑流程；本報告現階段結論仍基於 `reports_stage17*_pre18class_fix_*` 的已完成結果。
+
+```bash
+docker exec -w /workspace/DAPL DAPL bash tools/prepare_round17_18class_rerun.sh
+docker exec -w /workspace/DAPL DAPL bash tools/run_round17_pipeline.sh
+```
 
 ## 未來可選
 
@@ -223,4 +286,4 @@ r15c_exp_005_none
 
 ---
 
-*Generated from `reports_stage17c/` aggregate + Stage 17F visualizations on 2026-07-08.*
+*Generated from `reports_stage17c_pre18class_fix_20260708T035033Z/` aggregate + Stage 17F visualizations on 2026-07-08.*
