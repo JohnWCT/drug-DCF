@@ -263,6 +263,98 @@ def load_latent_domain_frame(checkpoint_dir: str) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def normalize_proto_cancer_type_mapping(raw: Dict[str, Any]) -> Dict[str, Any]:
+    """Normalize checkpoint or proto-cache cancer mapping to id_to_name/name_to_id/cancer_names."""
+    if "id_to_name" in raw and "name_to_id" in raw and "cancer_names" in raw:
+        id_to_name = {int(k): str(v) for k, v in raw["id_to_name"].items()}
+        cancer_names = [str(x) for x in raw["cancer_names"]]
+        name_to_id = {str(k): int(v) for k, v in raw.get("name_to_id", {}).items()}
+        if not name_to_id:
+            name_to_id = {name: idx for idx, name in id_to_name.items()}
+        return {
+            "id_to_name": id_to_name,
+            "name_to_id": name_to_id,
+            "cancer_names": cancer_names,
+            "num_cancer_types": int(raw.get("num_cancer_types", len(cancer_names))),
+            "mapping_source": raw.get("mapping_source", "proto_cache"),
+        }
+
+    cancer_to_id = {str(k): int(v) for k, v in raw.get("cancer_to_id", {}).items()}
+    if not cancer_to_id:
+        raise ValueError("cancer_type_mapping missing cancer_to_id/id_to_name")
+    cancer_names = [name for name, _ in sorted(cancer_to_id.items(), key=lambda item: item[1])]
+    id_to_name = {idx: name for name, idx in cancer_to_id.items()}
+    if raw.get("id_to_cancer"):
+        id_to_name = {int(k): str(v) for k, v in raw["id_to_cancer"].items()}
+    return {
+        "id_to_name": id_to_name,
+        "name_to_id": dict(cancer_to_id),
+        "cancer_names": cancer_names,
+        "num_cancer_types": int(raw.get("num_cancer_types", len(cancer_names))),
+        "mapping_source": raw.get("mapping_source", "checkpoint_metadata"),
+    }
+
+
+def load_checkpoint_cancer_type_mapping(checkpoint_dir: str) -> Dict[str, Any]:
+    """Load canonical trainable cancer types written during pretrain."""
+    checkpoint_dir = resolve_path(checkpoint_dir)
+    candidates = (
+        os.path.join(checkpoint_dir, "metadata", "cancer_type_mapping.json"),
+        os.path.join(checkpoint_dir, "cancer_type_mapping.json"),
+    )
+    for path in candidates:
+        if os.path.isfile(path):
+            with open(path, "r", encoding="utf-8") as f:
+                payload = normalize_proto_cancer_type_mapping(json.load(f))
+            payload["mapping_source"] = "checkpoint_metadata"
+            return payload
+    raise FileNotFoundError(
+        f"Missing checkpoint cancer_type_mapping.json under {checkpoint_dir} "
+        f"(checked metadata/ and root)"
+    )
+
+
+def load_trainable_latent_domain_frame(checkpoint_dir: str) -> pd.DataFrame:
+    """Latent rows restricted to checkpoint trainable cancer types (typically 18)."""
+    mapping = load_checkpoint_cancer_type_mapping(checkpoint_dir)
+    allowed = set(mapping["name_to_id"].keys())
+    frame = load_latent_domain_frame(checkpoint_dir)
+    filtered = frame[frame["cancer_type"].astype(str).isin(allowed)].copy()
+    if filtered.empty:
+        raise ValueError(
+            f"No latent rows left after filtering to {len(allowed)} trainable cancer types "
+            f"for {checkpoint_dir}"
+        )
+    return filtered
+
+
+def filter_latent_dict_by_cancer_types(
+    latent_dict: Dict[str, np.ndarray],
+    domain: str,
+    allowed_cancer_types: Sequence[str],
+    ccle_map: Optional[pd.Series] = None,
+    tcga_map: Optional[pd.Series] = None,
+) -> Dict[str, np.ndarray]:
+    """Keep only latent vectors whose metadata cancer_type is in allowed_cancer_types."""
+    allowed = {str(x) for x in allowed_cancer_types}
+    if ccle_map is None or tcga_map is None:
+        ccle_map, tcga_map = _load_cancer_maps()
+    filtered: Dict[str, np.ndarray] = {}
+    for sid, vec in latent_dict.items():
+        if domain == "source":
+            if sid not in ccle_map.index:
+                continue
+            cancer = str(ccle_map.loc[sid])
+        else:
+            patient = tcga_three_segment_key(sid)
+            if patient not in tcga_map.index:
+                continue
+            cancer = str(tcga_map.loc[patient])
+        if cancer in allowed:
+            filtered[str(sid)] = vec
+    return filtered
+
+
 def latent_matrix_and_labels(df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     z_cols = [c for c in df.columns if c.startswith("z")]
     x = df[z_cols].to_numpy(dtype=np.float32)

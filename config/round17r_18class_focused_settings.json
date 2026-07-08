@@ -1,0 +1,111 @@
+{
+  "round": "round17r",
+  "purpose": "18-class-clean focused rerun and confirmation after Round 17",
+  "base_round": "round17",
+  "round12_root": "result/optimization_runs/round12_proto_alignment",
+  "round11_root": "result/optimization_runs/round11_stability_recon",
+  "round13_root": "result/optimization_runs/round13_proto_response",
+  "round15_root": "result/optimization_runs/round15_repro_rescue",
+  "round17_root": "result/optimization_runs/round17_direct_proto",
+  "drug_smiles_path": "data/GDSC_drug_merge_pubchem_dropNA_MACCS_AACDR_extended.csv",
+  "prototype_class_source": "checkpoint_metadata",
+  "require_n_trainable_cancer_types": 18,
+  "eval_targets": [
+    {
+      "key": "gdsc_intersect13",
+      "path": "data/TCGA/PMID27354694_DR_OMICS_ad_intersect_pretrain_gdsc_intersect13.csv",
+      "role": "historical_primary"
+    },
+    {
+      "key": "tcga_only3",
+      "path": "data/TCGA/PMID27354694_DR_OMICS_ad_intersect_pretrain_tcga_only3.csv",
+      "role": "historical_secondary"
+    },
+    {
+      "key": "dapl",
+      "path": "data/TCGA/TCGA_drug_response_from_DAPL.csv",
+      "role": "historical_secondary"
+    },
+    {
+      "key": "aacdr_tcga_only",
+      "path": "data/TCGA/TCGA_AACDR_response_final_with_smiles_intersect_pretrain_tcga_only.csv",
+      "role": "round17_extended"
+    },
+    {
+      "key": "aacdr_gdsc_intersect",
+      "path": "data/TCGA/TCGA_AACDR_response_final_with_smiles_intersect_pretrain_gdsc_intersect.csv",
+      "role": "round17_extended"
+    }
+  ],
+  "selection": {
+    "historical_primary_metric": "Average_TCGA_AUC",
+    "integrated5_target_macro_metric": "Integrated5_TargetMacro_TCGA_AUC",
+    "integrated5_drug_macro_metric": "Integrated5_DrugMacro_TCGA_AUC",
+    "report_historical_and_integrated5_rankings": true
+  },
+  "finetune": {
+    "config": "config/params_finetune_round17r_focused.json",
+    "epochs": 1500,
+    "batch_size": 24576,
+    "mini_batch_size": 6144,
+    "max_parallel": 12,
+    "drug_smiles_path": "data/GDSC_drug_merge_pubchem_dropNA_MACCS_AACDR_extended.csv"
+  },
+  "references": {
+    "round13_best": 0.6112395039184843,
+    "round15_best": 0.6083,
+    "round16_best": 0.6068,
+    "round17c_best_own_plus_summary": 0.586836
+  },
+  "stage17r_a": {
+    "enabled": true,
+    "purpose": "18-class-clean feature extraction smoke",
+    "models": [
+      "r13_exp_008_control",
+      "r13_exp_008",
+      "r15c_exp_005",
+      "r15c_exp_024"
+    ],
+    "feature_modes": [
+      "none",
+      "own_plus_summary",
+      "own_proto_context_projected_16",
+      "own_proto_delta_projected_8",
+      "minimal_source_only_min_margin"
+    ],
+    "max_jobs": 20
+  },
+  "stage17r_b": {
+    "enabled": true,
+    "purpose": "focused 3-seed rerun",
+    "candidates": [
+      ["r13_exp_008_control", "own_plus_summary"],
+      ["r13_exp_008", "own_plus_summary"],
+      ["r15c_exp_005", "own_plus_summary"],
+      ["r15c_exp_024", "own_plus_summary"],
+      ["r13_exp_008", "own_proto_context_projected_16"],
+      ["r13_exp_008", "own_proto_delta_projected_8"],
+      ["r13_exp_008", "minimal_source_only_min_margin"]
+    ],
+    "seeds": [101, 202, 303],
+    "max_combos": 6
+  },
+  "stage17r_c": {
+    "enabled": true,
+    "purpose": "optional focused hyperparameter refinement",
+    "top_k_from_stage17r_b": 6,
+    "seeds": [101, 202, 303, 404, 505],
+    "max_combos": 6
+  },
+  "stage17r_d": {
+    "enabled": true,
+    "purpose": "10-seed confirmation",
+    "top_k_from_stage17r_c": 5,
+    "seeds": [101, 202, 303, 404, 505, 606, 707, 808, 909, 1001]
+  },
+  "stage17r_f": {
+    "enabled": true,
+    "purpose": "final 18-class prototype tSNE export",
+    "models": ["r13_exp_008", "r13_exp_035_control"]
+  }
+}

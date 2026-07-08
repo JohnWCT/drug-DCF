@@ -10,6 +10,10 @@ FINETUNE_BATCH_SIZE="${FINETUNE_BATCH_SIZE:-24576}"
 FINETUNE_MINI_BATCH_SIZE="${FINETUNE_MINI_BATCH_SIZE:-6144}"
 FINETUNE_EPOCHS="${FINETUNE_EPOCHS:-1500}"
 DRUG_SMILES_PATH="${DRUG_SMILES_PATH:-data/GDSC_drug_merge_pubchem_dropNA_MACCS_AACDR_extended.csv}"
+FINETUNE_RERUN_ARGS=()
+if [[ "${ROUND17_RERUN_COMPLETED:-0}" == "1" ]]; then
+  FINETUNE_RERUN_ARGS+=(--rerun-completed)
+fi
 
 echo "========== ROUND17 STAGE 17A START $(date -u +%Y-%m-%dT%H:%M:%SZ) =========="
 r17_notify --event stage-start --stage 17A
@@ -33,7 +37,8 @@ python3 tools/optimization_runner.py finetune \
   --mini-batch-size "${FINETUNE_MINI_BATCH_SIZE}" \
   --epochs "${FINETUNE_EPOCHS}" \
   --max-parallel "${FINETUNE_PARALLEL}" \
-  --round13-mode
+  --round13-mode \
+  "${FINETUNE_RERUN_ARGS[@]}"
 
 python3 tools/optimization_runner.py aggregate \
   --run-dir "${ROUND17_ROOT}/stage17a"

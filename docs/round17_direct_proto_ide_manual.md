@@ -247,6 +247,8 @@ minimal_source_only
 
 ### 4.2 17F tSNE 輸出（規格保留）
 
+僅繪製 **pretrain 訓練的 18 類癌症**（與 `metadata/cancer_type_mapping.json` 一致）。`extract_round12_prototypes.py` 與 `visualize_round17_prototype_tsne.py` 皆讀取 checkpoint metadata，過濾 latent 樣本與 prototype；非訓練類型（如 Engineered、Fibroblast）不納入。
+
 ```text
 prototype_tsne_samples_and_prototypes.png
 prototype_tsne_samples_and_prototypes.pdf
@@ -254,7 +256,7 @@ prototype_tsne_coordinates.csv
 prototype_tsne_metadata.json
 ```
 
-source / target prototype 以不同色星號標註；missing target prototype 不畫 target star。
+source / target prototype 以不同色星號標註（各 18 顆）；樣本僅含 18 類癌症對應的 CCLE / TCGA latent。
 
 ---
 

@@ -18,7 +18,11 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 from tools.analyze_cancer_prototypes import analyze_model
-from tools.round9_diagnostics_common import find_latent_paths, load_latent_domain_frame, resolve_path
+from tools.round9_diagnostics_common import (
+    load_checkpoint_cancer_type_mapping,
+    load_trainable_latent_domain_frame,
+    resolve_path,
+)
 
 
 def _prototype_matrix(vectors: List[Tuple[str, np.ndarray]], cancer_names: List[str], dim: int) -> Tuple[np.ndarray, np.ndarray]:
@@ -41,18 +45,23 @@ def extract_prototypes_from_checkpoint(
     min_target: int = 2,
 ) -> Dict:
     checkpoint_dir = resolve_path(checkpoint_dir)
+    mapping = load_checkpoint_cancer_type_mapping(checkpoint_dir)
+    cancer_names = list(mapping["cancer_names"])
+    name_to_id = dict(mapping["name_to_id"])
+    id_to_name = {int(k): str(v) for k, v in mapping["id_to_name"].items()}
+
+    frame = load_trainable_latent_domain_frame(checkpoint_dir)
     model = {"model_id": os.path.basename(checkpoint_dir), "checkpoint_dir": checkpoint_dir}
     by_cancer, summary, src_df, tgt_df = analyze_model(
-        model, metrics=["cosine", "euclidean"], min_source=min_source, min_target=min_target
+        model,
+        metrics=["cosine", "euclidean"],
+        min_source=min_source,
+        min_target=min_target,
+        frame=frame,
     )
 
-    frame = load_latent_domain_frame(checkpoint_dir)
     z_cols = [c for c in frame.columns if c.startswith("z")]
     latent_dim = len(z_cols)
-
-    cancer_names = sorted(by_cancer["cancer_type"].astype(str).unique().tolist())
-    if not cancer_names:
-        cancer_names = sorted(frame["cancer_type"].astype(str).unique().tolist())
 
     source_vectors: List[Tuple[str, np.ndarray]] = []
     target_vectors: List[Tuple[str, np.ndarray]] = []
@@ -67,9 +76,13 @@ def extract_prototypes_from_checkpoint(
     source_mat, source_init = _prototype_matrix(source_vectors, cancer_names, latent_dim)
     target_mat, target_init = _prototype_matrix(target_vectors, cancer_names, latent_dim)
 
-    id_to_name = {i: name for i, name in enumerate(cancer_names)}
-    name_to_id = {name: i for i, name in enumerate(cancer_names)}
-    mapping = {"id_to_name": id_to_name, "name_to_id": name_to_id, "cancer_names": cancer_names}
+    mapping = {
+        "id_to_name": id_to_name,
+        "name_to_id": name_to_id,
+        "cancer_names": cancer_names,
+        "num_cancer_types": len(cancer_names),
+        "mapping_source": "checkpoint_metadata",
+    }
 
     metrics = {
         "model_id": os.path.basename(checkpoint_dir),

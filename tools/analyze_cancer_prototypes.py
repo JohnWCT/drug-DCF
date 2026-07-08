@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 import pandas as pd
@@ -33,8 +33,15 @@ def _prototype(vectors: np.ndarray) -> np.ndarray:
     return vectors.mean(axis=0)
 
 
-def analyze_model(model: dict, metrics: List[str], min_source: int, min_target: int):
-    frame = load_latent_domain_frame(model["checkpoint_dir"])
+def analyze_model(
+    model: dict,
+    metrics: List[str],
+    min_source: int,
+    min_target: int,
+    frame: Optional[pd.DataFrame] = None,
+):
+    if frame is None:
+        frame = load_latent_domain_frame(model["checkpoint_dir"])
     z_cols = [c for c in frame.columns if c.startswith("z")]
     by_cancer_rows = []
     source_vectors = []

@@ -19,7 +19,12 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from tools.round9_diagnostics_common import load_json, resolve_path
+from tools.round9_diagnostics_common import (
+    _load_cancer_maps,
+    load_json,
+    normalize_proto_cancer_type_mapping,
+    resolve_path,
+)
 
 
 def _load_pickle(path: str) -> dict:
@@ -41,15 +46,24 @@ def _collect_points(
     source_initialized: Optional[np.ndarray],
     target_initialized: Optional[np.ndarray],
     id_to_name: Dict[int, str],
-    sample_info: Optional[pd.DataFrame],
+    allowed_cancer_types: Sequence[str],
+    ccle_map: pd.Series,
+    tcga_map: pd.Series,
     max_source_samples: int,
     max_target_samples: int,
     rng: np.random.Generator,
 ) -> Tuple[np.ndarray, List[dict]]:
+    from tools.pretrain_common import tcga_three_segment_key
+
+    allowed = {str(x) for x in allowed_cancer_types}
     rows: List[dict] = []
     feats: List[np.ndarray] = []
 
-    source_ids = list(source_latent.keys())
+    source_ids = [
+        sid
+        for sid in source_latent.keys()
+        if sid in ccle_map.index and str(ccle_map.loc[sid]) in allowed
+    ]
     src_idx = _subsample_indices(len(source_ids), max_source_samples, rng)
     for i in src_idx:
         sid = source_ids[i]
@@ -60,7 +74,7 @@ def _collect_points(
                 "point_id": f"source_sample::{sid}",
                 "point_type": "sample",
                 "domain": "source",
-                "cancer_type": "",
+                "cancer_type": str(ccle_map.loc[sid]),
                 "sample_id": sid,
                 "is_source_prototype": 0,
                 "is_target_prototype": 0,
@@ -68,18 +82,25 @@ def _collect_points(
             }
         )
 
-    target_ids = list(target_latent.keys())
+    target_ids = []
+    for sid in target_latent.keys():
+        patient = tcga_three_segment_key(sid)
+        if patient not in tcga_map.index:
+            continue
+        if str(tcga_map.loc[patient]) in allowed:
+            target_ids.append(sid)
     tgt_idx = _subsample_indices(len(target_ids), max_target_samples, rng)
     for i in tgt_idx:
         sid = target_ids[i]
         vec = np.asarray(target_latent[sid], dtype=np.float64).reshape(-1)
+        patient = tcga_three_segment_key(sid)
         feats.append(vec)
         rows.append(
             {
                 "point_id": f"target_sample::{sid}",
                 "point_type": "sample",
                 "domain": "target",
-                "cancer_type": "",
+                "cancer_type": str(tcga_map.loc[patient]),
                 "sample_id": sid,
                 "is_source_prototype": 0,
                 "is_target_prototype": 0,
@@ -159,7 +180,12 @@ def run_prototype_tsne(
     os.makedirs(outdir, exist_ok=True)
     tsne_cfg = tsne_cfg or {}
     rng = np.random.default_rng(int(tsne_cfg.get("random_state", 17)))
-    id_to_name = {int(k): str(v) for k, v in (cancer_type_mapping or {}).get("id_to_name", {}).items()}
+    mapping = normalize_proto_cancer_type_mapping(cancer_type_mapping or {})
+    id_to_name = {int(k): str(v) for k, v in mapping.get("id_to_name", {}).items()}
+    allowed_cancer_types = list(mapping.get("cancer_names", []))
+    if not allowed_cancer_types:
+        allowed_cancer_types = [id_to_name[i] for i in sorted(id_to_name.keys())]
+    ccle_map, tcga_map = _load_cancer_maps()
 
     feats, rows = _collect_points(
         source_latent,
@@ -169,7 +195,9 @@ def run_prototype_tsne(
         source_initialized,
         target_initialized,
         id_to_name,
-        None,
+        allowed_cancer_types,
+        ccle_map,
+        tcga_map,
         max_source_samples,
         max_target_samples,
         rng,
@@ -247,6 +275,8 @@ def run_prototype_tsne(
         "n_points": int(len(coord_df)),
         "n_source_prototypes": int(len(src_p)),
         "n_target_prototypes": int(len(tgt_p)),
+        "num_trainable_cancer_types": len(allowed_cancer_types),
+        "trainable_cancer_types": allowed_cancer_types,
         "missing_target_prototypes_skipped": int(len(target_prototypes) - len(tgt_p)),
         "coordinates_csv": coord_path,
         "png": png_path,
@@ -260,10 +290,18 @@ def run_prototype_tsne(
 
 
 def _resolve_checkpoint_from_manifest_row(row: pd.Series, settings: dict) -> str:
-    checkpoint = str(row.get("checkpoint_dir", "")).strip()
+    checkpoint = str(row.get("checkpoint_dir", row.get("pretrain_dir", ""))).strip()
     if checkpoint and os.path.isdir(resolve_path(checkpoint)):
         return resolve_path(checkpoint)
-    model_key = str(row.get("model_id", ""))
+    model_key = str(row.get("model_id", row.get("model_key", ""))).strip()
+    try:
+        from tools.round17r_18class_config_builder import ROUND17R_MODEL_SPECS
+
+        if model_key in ROUND17R_MODEL_SPECS:
+            spec = ROUND17R_MODEL_SPECS[model_key]
+            return os.path.join(resolve_path(settings[spec["checkpoint_root_key"]]), "pretrain", spec["checkpoint_subdir"])
+    except ImportError:
+        pass
     from tools.round17_direct_proto_config_builder import ROUND17_MODEL_SPECS
 
     if model_key in ROUND17_MODEL_SPECS:
@@ -301,10 +339,15 @@ def run_batch_from_manifest(
         from tools.extract_round13_proto_features import find_latent_paths
         from tools.extract_round12_prototypes import extract_prototypes_from_checkpoint
 
+        proto_cache_dir = os.path.join(model_out, "_proto_cache")
+        if os.path.isdir(proto_cache_dir):
+            import shutil
+
+            shutil.rmtree(proto_cache_dir)
         source_pkl, target_pkl = find_latent_paths(checkpoint_dir)
         source_latent = _load_pickle(source_pkl)
         target_latent = _load_pickle(target_pkl) if target_pkl and os.path.isfile(target_pkl) else {}
-        proto = extract_prototypes_from_checkpoint(checkpoint_dir, outdir=os.path.join(model_out, "_proto_cache"))
+        proto = extract_prototypes_from_checkpoint(checkpoint_dir, outdir=proto_cache_dir)
         meta = run_prototype_tsne(
             source_latent=source_latent,
             target_latent=target_latent,

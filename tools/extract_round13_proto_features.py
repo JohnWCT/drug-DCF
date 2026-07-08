@@ -42,6 +42,8 @@ from tools.round9_diagnostics_common import (
     _load_cancer_maps,
     _load_latent_dict,
     find_latent_paths,
+    load_checkpoint_cancer_type_mapping,
+    normalize_proto_cancer_type_mapping,
     resolve_path,
     tcga_three_segment_key,
 )
@@ -72,28 +74,130 @@ def _sample_cancer_id(sample_id: str, domain: str, ccle_map: pd.Series, tcga_map
     return int(name_to_id.get(cancer, -1))
 
 
-def _load_or_extract_prototypes(checkpoint_dir: str, proto_cache_dir: str, strict: bool) -> Dict:
+DEFAULT_REQUIRE_N_TRAINABLE_CANCER_TYPES = 18
+
+
+def _assert_18class_mapping(
+    mapping: Dict,
+    *,
+    require_n: int = DEFAULT_REQUIRE_N_TRAINABLE_CANCER_TYPES,
+    context: str = "",
+) -> None:
+    n = int(mapping.get("num_cancer_types", len(mapping.get("cancer_names", []))))
+    source = str(mapping.get("mapping_source", ""))
+    if source and source != "checkpoint_metadata":
+        raise ValueError(
+            f"Prototype mapping must come from checkpoint_metadata, got {source!r}"
+            + (f" ({context})" if context else "")
+        )
+    if n != int(require_n):
+        raise ValueError(
+            f"n_trainable_cancer_types={n} but require_n_trainable_cancer_types={require_n}"
+            + (f" ({context})" if context else "")
+        )
+
+
+def _prototype_qc_fields(
+    mapping: Dict,
+    source_initialized: Optional[np.ndarray],
+    target_initialized: Optional[np.ndarray],
+) -> Dict:
+    src_init = (
+        np.asarray(source_initialized, dtype=bool)
+        if source_initialized is not None
+        else np.array([], dtype=bool)
+    )
+    tgt_init = (
+        np.asarray(target_initialized, dtype=bool)
+        if target_initialized is not None
+        else np.array([], dtype=bool)
+    )
+    return {
+        "prototype_class_source": "checkpoint_metadata",
+        "n_trainable_cancer_types": int(mapping.get("num_cancer_types", len(mapping.get("cancer_names", [])))),
+        "source_prototypes_used": int(src_init.sum()) if len(src_init) else 0,
+        "target_prototypes_used": int(tgt_init.sum()) if len(tgt_init) else 0,
+        "uses_legacy_28class_cache": False,
+    }
+
+
+def _write_prototype_qc_artifacts(
+    outdir: str,
+    mapping: Dict,
+    source_initialized: Optional[np.ndarray],
+    target_initialized: Optional[np.ndarray],
+) -> None:
+    os.makedirs(outdir, exist_ok=True)
+    with open(os.path.join(outdir, "cancer_type_mapping.json"), "w", encoding="utf-8") as f:
+        json.dump(mapping, f, indent=2)
+    cancer_names = list(mapping.get("cancer_names", []))
+    src_init = (
+        np.asarray(source_initialized, dtype=bool)
+        if source_initialized is not None
+        else np.zeros(len(cancer_names), dtype=bool)
+    )
+    tgt_init = (
+        np.asarray(target_initialized, dtype=bool)
+        if target_initialized is not None
+        else np.zeros(len(cancer_names), dtype=bool)
+    )
+    rows = []
+    for i, name in enumerate(cancer_names):
+        rows.append(
+            {
+                "cancer_id": i,
+                "cancer_type": name,
+                "source_initialized": bool(src_init[i]) if i < len(src_init) else False,
+                "target_initialized": bool(tgt_init[i]) if i < len(tgt_init) else False,
+            }
+        )
+    pd.DataFrame(rows).to_csv(os.path.join(outdir, "prototype_coverage.csv"), index=False)
+
+
+def _load_or_extract_prototypes(
+    checkpoint_dir: str,
+    proto_cache_dir: str,
+    strict: bool,
+    require_n_trainable_cancer_types: int = DEFAULT_REQUIRE_N_TRAINABLE_CANCER_TYPES,
+) -> Dict:
     cache_dir = resolve_path(proto_cache_dir)
     required = [
         "source_anchor_prototypes.pt",
         "target_prototypes.pt",
         "cancer_type_mapping.json",
     ]
+    checkpoint_mapping = load_checkpoint_cancer_type_mapping(checkpoint_dir)
+    _assert_18class_mapping(
+        checkpoint_mapping,
+        require_n=require_n_trainable_cancer_types,
+        context=checkpoint_dir,
+    )
+    expected_n = int(checkpoint_mapping["num_cancer_types"])
     if all(os.path.isfile(os.path.join(cache_dir, f)) for f in required):
-        import torch
-
-        src = torch.load(os.path.join(cache_dir, "source_anchor_prototypes.pt"), map_location="cpu")
-        tgt = torch.load(os.path.join(cache_dir, "target_prototypes.pt"), map_location="cpu")
         with open(os.path.join(cache_dir, "cancer_type_mapping.json"), encoding="utf-8") as f:
-            mapping = json.load(f)
-        return {
-            "source_anchor_prototypes": src["prototypes"].numpy(),
-            "target_prototypes": tgt["prototypes"].numpy(),
-            "source_initialized": src["initialized"].numpy().astype(bool),
-            "target_initialized": tgt["initialized"].numpy().astype(bool),
-            "cancer_type_mapping": mapping,
-        }
+            mapping = normalize_proto_cancer_type_mapping(json.load(f))
+        cache_ok = (
+            int(mapping.get("num_cancer_types", 0)) == expected_n
+            and mapping.get("mapping_source") == "checkpoint_metadata"
+        )
+        if cache_ok:
+            import torch
+
+            src = torch.load(os.path.join(cache_dir, "source_anchor_prototypes.pt"), map_location="cpu")
+            tgt = torch.load(os.path.join(cache_dir, "target_prototypes.pt"), map_location="cpu")
+            return {
+                "source_anchor_prototypes": src["prototypes"].numpy(),
+                "target_prototypes": tgt["prototypes"].numpy(),
+                "source_initialized": src["initialized"].numpy().astype(bool),
+                "target_initialized": tgt["initialized"].numpy().astype(bool),
+                "cancer_type_mapping": mapping,
+            }
     payload = extract_prototypes_from_checkpoint(checkpoint_dir, outdir=cache_dir)
+    _assert_18class_mapping(
+        payload["cancer_type_mapping"],
+        require_n=require_n_trainable_cancer_types,
+        context=checkpoint_dir,
+    )
     if strict and int(payload["prototype_metrics"]["source_initialized_count"]) == 0:
         raise ValueError(f"No initialized source anchors for {checkpoint_dir}")
     return payload
@@ -269,6 +373,20 @@ def build_combined_latent_dicts_own_proto(
         "projection_fit_domain": "source_only" if proj_dim > 0 else None,
         "projection_metadata": projection_metadata,
     }
+    metadata.update(
+        _prototype_qc_fields(
+            mapping,
+            proto.get("source_initialized"),
+            proto.get("target_initialized"),
+        )
+    )
+    _assert_18class_mapping(mapping, context=outdir)
+    _write_prototype_qc_artifacts(
+        outdir,
+        mapping,
+        proto.get("source_initialized"),
+        proto.get("target_initialized"),
+    )
     with open(os.path.join(outdir, "feature_names.json"), "w", encoding="utf-8") as f:
         json.dump(full_feature_names, f, indent=2)
     with open(os.path.join(outdir, "feature_metadata.json"), "w", encoding="utf-8") as f:
@@ -457,6 +575,20 @@ def build_combined_latent_dicts_delta_replacement(
         "projection_fit_domain": "source_only" if row_meta.get("uses_projection") else None,
         "projection_metadata": projection_metadata,
     }
+    metadata.update(
+        _prototype_qc_fields(
+            mapping,
+            proto.get("source_initialized"),
+            proto.get("target_initialized"),
+        )
+    )
+    _assert_18class_mapping(mapping, context=outdir)
+    _write_prototype_qc_artifacts(
+        outdir,
+        mapping,
+        proto.get("source_initialized"),
+        proto.get("target_initialized"),
+    )
     with open(os.path.join(outdir, "feature_names.json"), "w", encoding="utf-8") as f:
         json.dump(full_feature_names, f, indent=2)
     with open(os.path.join(outdir, "feature_metadata.json"), "w", encoding="utf-8") as f:
@@ -626,6 +758,20 @@ def build_combined_latent_dicts_round17_standalone(
         "projection_fit_domain": "source_only" if row_meta.get("uses_projection") else None,
         "projection_metadata": projection_metadata,
     }
+    metadata.update(
+        _prototype_qc_fields(
+            mapping,
+            proto.get("source_initialized"),
+            proto.get("target_initialized"),
+        )
+    )
+    _assert_18class_mapping(mapping, context=outdir)
+    _write_prototype_qc_artifacts(
+        outdir,
+        mapping,
+        proto.get("source_initialized"),
+        proto.get("target_initialized"),
+    )
     with open(os.path.join(outdir, "feature_names.json"), "w", encoding="utf-8") as f:
         json.dump(full_feature_names, f, indent=2)
     with open(os.path.join(outdir, "feature_metadata.json"), "w", encoding="utf-8") as f:
@@ -824,6 +970,20 @@ def build_combined_latent_dicts(
         "n_tcga_samples": len(combined_tcga),
         "scaler": scaler_payload,
     }
+    metadata.update(
+        _prototype_qc_fields(
+            mapping,
+            proto.get("source_initialized"),
+            proto.get("target_initialized"),
+        )
+    )
+    _assert_18class_mapping(mapping, context=outdir)
+    _write_prototype_qc_artifacts(
+        outdir,
+        mapping,
+        proto.get("source_initialized"),
+        proto.get("target_initialized"),
+    )
     with open(os.path.join(outdir, "feature_names.json"), "w", encoding="utf-8") as f:
         json.dump(feature_names, f, indent=2)
     with open(os.path.join(outdir, "feature_metadata.json"), "w", encoding="utf-8") as f:
