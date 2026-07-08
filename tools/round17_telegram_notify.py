@@ -121,6 +121,22 @@ def notify_stage_done(stage: str, manifest: Optional[Path] = None) -> None:
     )
 
 
+def notify_stage17f_done(outdir: Optional[Path] = None) -> None:
+    root = _round17_root()
+    viz = outdir or (root / "visualizations" / "prototype_tsne")
+    models: list[str] = []
+    if viz.is_dir():
+        for child in sorted(viz.iterdir()):
+            if child.is_dir() and (child / "prototype_tsne_coordinates.csv").is_file():
+                models.append(child.name)
+    lines = ["[Round 17] Stage 17F 完成", f"輸出: {viz}", f"models: {len(models)}"]
+    if models:
+        lines.append(", ".join(models))
+    else:
+        lines.append("（未找到 tSNE 座標檔）")
+    _notify("\n".join(lines))
+
+
 def notify_stage_fail(stage: str, reason: str) -> None:
     stage = stage.upper()
     root = _round17_root()
@@ -129,7 +145,7 @@ def notify_stage_fail(stage: str, reason: str) -> None:
     _notify(
         f"[Round 17] Stage {stage} 失敗\n"
         f"原因: {reason}\n"
-        f"目前: 成功 {stats['success']} | 失敗 {stats['failed']} | 總計 {stats['total']}"
+        f"目前: 成功 {stats['success']} | 失敗 {stats['failed']} | 總計: {stats['total']}"
     )
 
 
@@ -157,12 +173,14 @@ def main() -> int:
             "stage-start",
             "stage-done",
             "stage-fail",
+            "stage17f-done",
         ),
     )
     parser.add_argument("--stage", default=None, help="Stage id, e.g. 17A")
     parser.add_argument("--stages", default=None, help="Comma-separated pipeline stages for start/done events")
     parser.add_argument("--reason", default="", help="Failure reason")
     parser.add_argument("--manifest", default=None, help="Optional manifest path for stage-done")
+    parser.add_argument("--outdir", default=None, help="Optional Stage 17F visualization outdir")
     args = parser.parse_args()
 
     if args.event == "pipeline-start":
@@ -184,6 +202,9 @@ def main() -> int:
         if not args.stage:
             raise SystemExit("--stage is required")
         notify_stage_fail(args.stage, args.reason or "unknown error")
+    elif args.event == "stage17f-done":
+        outdir = Path(args.outdir) if args.outdir else None
+        notify_stage17f_done(outdir)
     return 0
 
 

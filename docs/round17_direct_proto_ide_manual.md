@@ -3,7 +3,7 @@
 ## Direct Prototype Representation Optimization + 5-target TCGA Inference + Prototype tSNE
 
 本文件為 Round 17 的 IDE 實作與執行手冊。  
-**Phase 0（17D–17E 基礎設施）已完成**；**Phase 1+ Stage 17A–C 已完成**（2026-07-07）；**17F tSNE 待執行**。
+**Phase 0（17D–17E 基礎設施）已完成**；**Phase 1+ Stage 17A–C + 17F 已完成**（2026-07-08）。
 
 ---
 
@@ -19,7 +19,7 @@ Round 17D-E:
   5-target TCGA inference expansion          ← Phase 0 已完成
 
 Round 17F:
-  Prototype-aware tSNE visualization         ← 工具已備，待執行
+  Prototype-aware tSNE visualization         ← 已完成（2026-07-08）
 ```
 
 Round 17 的主方法目標是繼續優化 direct prototype representation：
@@ -382,7 +382,16 @@ Step 5: Stage 17C 10-seed confirmation
   已內建 Telegram `stage-start` / `stage-done` 通知。
 - `tools/run_round17_pipeline.sh` 已內建 pipeline start/done 與 stage fail 通知。
 
-### 9.4 後續（17F）
+### 9.4 Stage 17F 完成（prototype tSNE）
+
+已於 2026-07-08 執行 `tools/run_round17_prototype_tsne_stage17f.sh`：
+
+| Model | 點數 | source proto | target proto | 輸出 |
+|-------|------|--------------|--------------|------|
+| `r13_exp_008` | 4176 | 28 | 20（skip 8 missing） | `visualizations/prototype_tsne/r13_exp_008/` |
+| `r13_exp_035_control` | 4176 | 28 | 20（skip 8 missing） | `visualizations/prototype_tsne/r13_exp_035_control/` |
+
+每個 model 目錄含：`prototype_tsne_coordinates.csv`、`.png`、`.pdf`、`prototype_tsne_metadata.json`。
 
 ```bash
 docker exec -w /workspace/DAPL DAPL bash tools/run_round17_prototype_tsne_stage17f.sh
@@ -390,4 +399,4 @@ docker exec -w /workspace/DAPL DAPL bash tools/run_round17_prototype_tsne_stage1
 
 ---
 
-*文件版本：Phase 0 + Stage17A–C + drug-macro 基準更新（2026-07-08）*
+*文件版本：Round 17 全階段完成（17A–C + 17F，2026-07-08）*

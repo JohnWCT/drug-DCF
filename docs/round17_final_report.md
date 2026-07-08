@@ -2,7 +2,7 @@
 
 **Run:** `result/optimization_runs/round17_direct_proto`  
 **Pipeline:** Stage 17A → 17B → 17C（含 Telegram stage 通知）  
-**Final status:** ALL_DONE（17A **1440/1440**；17B **30/30**；17C **50/50**；`failed=0`）
+**Final status:** ALL_DONE（17A **1440/1440**；17B **30/30**；17C **50/50**；17F **2/2** models；`failed=0`）
 
 ## Timeline
 
@@ -12,6 +12,7 @@
 | Stage 17A feature sweep | 2026-06-30 ~ 2026-07-07 | 1440 finetune jobs；`max-parallel=22` |
 | Stage 17B head search | 2026-07-07 | 30 jobs（`concat_mlp`）；3 筆 `r13_exp_035_control` 初跑失敗後重跑成功 |
 | Stage 17C 10-seed confirm | 2026-07-07 | 5 candidates × 10 seeds = 50 jobs |
+| Stage 17F prototype tSNE | 2026-07-08 | `r13_exp_008`、`r13_exp_035_control` 各產出 png/pdf/csv |
 | Code fix | `287dd73` | `r13_exp_035_control` model key 解析修正（避免 17B/17C `model_select` 路徑錯誤） |
 
 ## References
@@ -29,6 +30,7 @@
 | 17A feature optimization | 1440 | **1440/1440** | 4 models × 多 feature modes × combos × 3 seeds |
 | 17B prototype head | 30 | **30/30** | Top-10 from 17A × `concat_mlp` × 3 seeds |
 | 17C confirmation | 50 | **50/50** | Top-5 from 17B × 10 seeds |
+| 17F prototype tSNE | 2 models | **2/2** | coordinates + png + pdf per model |
 
 **GPU 參數（正式跑）：** `FINETUNE_PARALLEL=22`，`FINETUNE_BATCH_SIZE=24576`，`FINETUNE_MINI_BATCH_SIZE=6144`，`FINETUNE_EPOCHS=1500`
 
@@ -37,6 +39,7 @@
 - `reports_stage17a/round17_top_candidates.csv`
 - `reports_stage17b/round17_top_candidates.csv`
 - `reports_stage17c/round17_top_candidates.csv`
+- `visualizations/prototype_tsne/{model}/prototype_tsne_*`
 
 ## Downstream（Stage 17C 最終）
 
@@ -120,17 +123,26 @@ mean_5target_drug_macro_auc =
 | AACDR 5-target 是否改變排序？ | `aacdr_*` 單獨看仍多為 `own_plus_summary` 居前；`tcga_only3` / `dapl` 則 minimal / projected 較強 |
 | 是否重現 Round 13？ | **未達**（gap ≈ 0.022 on best 10-seed historical） |
 
+## Stage 17F（prototype tSNE）
+
+| Model | n_points | source prototypes | target prototypes plotted | missing target skipped |
+|-------|----------|-------------------|---------------------------|------------------------|
+| `r13_exp_008` | 4176 | 28 | 20 | 8 |
+| `r13_exp_035_control` | 4176 | 28 | 20 | 8 |
+
+輸出目錄：`result/optimization_runs/round17_direct_proto/visualizations/prototype_tsne/<model>/`
+
 ## 已知問題與修復
 
 | 問題 | 修復 |
 |------|------|
 | `r13_exp_035_control` 在 17B 被誤解析為 `r13_exp_035`，導致 `Missing model_select_path` | `287dd73`：config builder 改為最長匹配 + `model_select` 路徑驗證；3 筆 17B job 已重跑成功 |
+| sklearn 1.0 `TSNE` 不支援 `max_iter` | `visualize_round17_prototype_tsne.py` 自動 fallback 至 `n_iter` |
 
-## 待辦（未執行）
+## 未來可選
 
-- **Stage 17F**：prototype-aware tSNE（`tools/run_round17_prototype_tsne_stage17f.sh`）
 - 17B 進階 head（`two_tower_proto` / `proto_film`）待 `step1` classifier 接線
 
 ---
 
-*Generated from `reports_stage17c/` aggregate on 2026-07-08; drug-macro rankings from `stage17a/aggregate/aggregate_scores.csv`.*
+*Generated from `reports_stage17c/` aggregate + Stage 17F visualizations on 2026-07-08.*

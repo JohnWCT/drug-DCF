@@ -176,14 +176,18 @@ def run_prototype_tsne(
     )
     feats = np.nan_to_num(feats, nan=0.0, posinf=0.0, neginf=0.0)
 
-    tsne = TSNE(
-        n_components=2,
-        random_state=int(tsne_cfg.get("random_state", 17)),
-        perplexity=min(int(tsne_cfg.get("perplexity", 30)), max(2, len(feats) - 1)),
-        init=str(tsne_cfg.get("init", "pca")),
-        learning_rate=tsne_cfg.get("learning_rate", "auto"),
-        max_iter=int(tsne_cfg.get("max_iter", 1000)),
-    )
+    tsne_kwargs = {
+        "n_components": 2,
+        "random_state": int(tsne_cfg.get("random_state", 17)),
+        "perplexity": min(int(tsne_cfg.get("perplexity", 30)), max(2, len(feats) - 1)),
+        "init": str(tsne_cfg.get("init", "pca")),
+        "learning_rate": tsne_cfg.get("learning_rate", "auto"),
+    }
+    max_iter = int(tsne_cfg.get("max_iter", 1000))
+    try:
+        tsne = TSNE(**tsne_kwargs, max_iter=max_iter)
+    except TypeError:
+        tsne = TSNE(**tsne_kwargs, n_iter=max_iter)
     emb = tsne.fit_transform(feats)
 
     coord_df = pd.DataFrame(rows)
