@@ -2,7 +2,8 @@
 
 **Run:** `result/optimization_runs/round17_direct_proto`  
 **Pipeline:** Stage 17A → 17B → 17C（含 Telegram stage 通知）  
-**Final status:** ALL_DONE（17A **1440/1440**；17B **30/30**；17C **50/50**；17F **2/2** models；`failed=0`）
+**Pre-18class status:** ALL_DONE（17A **1440/1440**；17B **30/30**；17C **50/50**；17F **2/2** models；`failed=0`）  
+**18-class-clean status:** 完整 17A 重跑已暫停；改走 **Round 17R**（見下方 §Round 17R）
 
 ## Timeline
 
@@ -271,14 +272,40 @@ r15c_exp_005_none
 | sklearn 1.0 `TSNE` 不支援 `max_iter` | `visualize_round17_prototype_tsne.py` 自動 fallback 至 `n_iter` |
 | tSNE / prototype cache 使用 metadata 全量癌症（含 Engineered 等 28 類） | 改為讀取 checkpoint `metadata/cancer_type_mapping.json`（18 類）；17F 已重跑 |
 
-## 18 類 prototype 修正後重跑（目前暫停）
+## 18 類 prototype 修正後重跑（已改走 Round 17R）
 
-因 prototype feature 曾基於 28 類 cache，原規劃重跑 Stage **17A → 17B → 17C**（feature extraction + finetune + evaluation）。目前已先暫停重跑流程；本報告現階段結論仍基於 `reports_stage17*_pre18class_fix_*` 的已完成結果。
+因 prototype feature 曾基於 28 類 cache，原規劃重跑 Stage **17A → 17B → 17C**（1440 jobs）。完整重跑已暫停（manifest：`1404 pending` + `36 failed`）；改以 **Round 17R** focused rerun 取代。
+
+本報告 §Downstream 結論仍基於 `reports_stage17*_pre18class_fix_*`；18-class-clean 最新數字見 Round 17R 報告。
+
+## Round 17R（18-class-clean focused）
+
+**Run:** `result/optimization_runs/round17r_18class`  
+**完整報告：** `docs/round17r_18class_final_report.md`
+
+| Stage | 狀態 | 說明 |
+|-------|------|------|
+| 17R-A feature smoke | ✅ **20/20** | 18-class QC 全通過 |
+| 17R-B focused finetune | ✅ **126/126** | 7 candidates × 6 combos × 3 seeds |
+| 17R-C refine | ⏳ 待跑 | gate 已滿足（best AUC 0.6074 ≥ 0.595） |
+| 17R-D 10-seed confirm | ⏳ 待跑 | — |
+| 17R-F tSNE | ⏳ 待跑 | — |
+
+### 17R-B 關鍵結果（vs Round 13）
+
+| 指標 | Pre-18class 17C best | 17R-B best（18-class-clean） |
+|------|----------------------|------------------------------|
+| Best historical AUC | 0.5892（`context_16`） | **0.6074**（`r15c_exp_024_own_plus_summary`） |
+| vs Round 13（0.6112） | −0.0220 | **−0.0039** |
+| Top feature family | mixed | **own_plus_summary**（Top-4 全佔） |
 
 ```bash
-docker exec -w /workspace/DAPL DAPL bash tools/prepare_round17_18class_rerun.sh
-docker exec -w /workspace/DAPL DAPL bash tools/run_round17_pipeline.sh
+# 繼續 Round 17R
+docker exec -w /workspace/DAPL DAPL bash -lc \
+  'FINETUNE_PARALLEL=20 bash tools/run_round17r_stage17r_c_refine.sh'
 ```
+
+樣本覆蓋統計：`docs/round17r_18class_dataset_sample_usage.md`
 
 ## 未來可選
 
@@ -286,4 +313,4 @@ docker exec -w /workspace/DAPL DAPL bash tools/run_round17_pipeline.sh
 
 ---
 
-*Generated from `reports_stage17c_pre18class_fix_20260708T035033Z/` aggregate + Stage 17F visualizations on 2026-07-08.*
+*Generated from `reports_stage17c_pre18class_fix_20260708T035033Z/` aggregate + Stage 17F visualizations; Round 17R status updated 2026-07-11.*

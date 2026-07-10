@@ -21,7 +21,13 @@ DEFAULT_ROOT = Path("result/optimization_runs/round17_direct_proto")
 
 
 def _round17_root() -> Path:
-    return Path(os.environ.get("ROUND17_ROOT", str(DEFAULT_ROOT)))
+    return Path(os.environ.get("ROUND17R_ROOT") or os.environ.get("ROUND17_ROOT", str(DEFAULT_ROOT)))
+
+
+def _prefix(stage: Optional[str] = None) -> str:
+    if stage and str(stage).upper().startswith("17R"):
+        return "[Round 17R]"
+    return "[Round 17]"
 
 
 def _manifests(root: Path) -> Dict[str, Path]:
@@ -30,6 +36,10 @@ def _manifests(root: Path) -> Dict[str, Path]:
         "17A": manifests / "stage17a_finetune_dispatch_manifest.csv",
         "17B": manifests / "stage17b_finetune_dispatch_manifest.csv",
         "17C": manifests / "stage17c_finetune_dispatch_manifest.csv",
+        "17R-A": manifests / "stage17r_a_proto_feature_manifest.csv",
+        "17R-B": manifests / "stage17r_b_finetune_dispatch_manifest.csv",
+        "17R-C": manifests / "stage17r_c_finetune_dispatch_manifest.csv",
+        "17R-D": manifests / "stage17r_d_finetune_dispatch_manifest.csv",
     }
 
 
@@ -95,7 +105,7 @@ def notify_stage_start(stage: str) -> None:
     root = _round17_root()
     path = _manifests(root).get(stage)
     stats = _summarize_manifest(path)
-    lines = [f"[Round 17] Stage {stage} 開始"]
+    lines = [f"{_prefix(stage)} Stage {stage} 開始"]
     if stats["total"] > 0:
         lines.append(f"manifest jobs: {stats['total']}")
         lines.append(
@@ -116,7 +126,7 @@ def notify_stage_done(stage: str, manifest: Optional[Path] = None) -> None:
     elif stats["success"] < stats["total"]:
         status = "結束（未跑滿）"
     _notify(
-        f"[Round 17] Stage {stage} {status}\n"
+        f"{_prefix(stage)} Stage {stage} {status}\n"
         f"成功: {stats['success']} | 失敗: {stats['failed']} | 總計: {stats['total']}"
     )
 
@@ -143,7 +153,7 @@ def notify_stage_fail(stage: str, reason: str) -> None:
     path = _manifests(root).get(stage)
     stats = _summarize_manifest(path)
     _notify(
-        f"[Round 17] Stage {stage} 失敗\n"
+        f"{_prefix(stage)} Stage {stage} 失敗\n"
         f"原因: {reason}\n"
         f"目前: 成功 {stats['success']} | 失敗 {stats['failed']} | 總計: {stats['total']}"
     )

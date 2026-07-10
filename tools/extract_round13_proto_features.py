@@ -41,6 +41,7 @@ from tools.prototype_response_features import (
 from tools.round9_diagnostics_common import (
     _load_cancer_maps,
     _load_latent_dict,
+    filter_latent_dict_by_cancer_types,
     find_latent_paths,
     load_checkpoint_cancer_type_mapping,
     normalize_proto_cancer_type_mapping,
@@ -72,6 +73,29 @@ def _sample_cancer_id(sample_id: str, domain: str, ccle_map: pd.Series, tcga_map
             return -1
         cancer = str(tcga_map.loc[patient])
     return int(name_to_id.get(cancer, -1))
+
+
+def _filter_latents_to_trainable(
+    ccle_latent: Dict[str, np.ndarray],
+    tcga_latent: Dict[str, np.ndarray],
+    mapping: Dict,
+    ccle_map: Optional[pd.Series] = None,
+    tcga_map: Optional[pd.Series] = None,
+) -> Tuple[Dict[str, np.ndarray], Dict[str, np.ndarray]]:
+    allowed = list(mapping.get("cancer_names") or mapping.get("name_to_id", {}).keys())
+    if not allowed:
+        raise ValueError("cancer_type_mapping missing cancer_names/name_to_id")
+    if ccle_map is None or tcga_map is None:
+        ccle_map, tcga_map = _load_cancer_maps()
+    filtered_ccle = filter_latent_dict_by_cancer_types(
+        ccle_latent, "source", allowed, ccle_map=ccle_map, tcga_map=tcga_map
+    )
+    filtered_tcga = filter_latent_dict_by_cancer_types(
+        tcga_latent, "target", allowed, ccle_map=ccle_map, tcga_map=tcga_map
+    )
+    if not filtered_ccle:
+        raise ValueError("No CCLE latents remain after filtering to trainable cancer types")
+    return filtered_ccle, filtered_tcga
 
 
 DEFAULT_REQUIRE_N_TRAINABLE_CANCER_TYPES = 18
@@ -231,6 +255,9 @@ def build_combined_latent_dicts_own_proto(
     mapping = proto["cancer_type_mapping"]
     name_to_id = mapping.get("name_to_id", {})
     ccle_map, tcga_map = _load_cancer_maps()
+    ccle_latent, tcga_latent = _filter_latents_to_trainable(
+        ccle_latent, tcga_latent, mapping, ccle_map=ccle_map, tcga_map=tcga_map
+    )
 
     ccle_ids = [_sample_cancer_id(sid, "source", ccle_map, tcga_map, name_to_id) for sid in ccle_latent.keys()]
     ccle_z = np.stack([ccle_latent[sid] for sid in ccle_latent.keys()], axis=0)
@@ -422,6 +449,9 @@ def build_combined_latent_dicts_delta_replacement(
     mapping = proto["cancer_type_mapping"]
     name_to_id = mapping.get("name_to_id", {})
     ccle_map, tcga_map = _load_cancer_maps()
+    ccle_latent, tcga_latent = _filter_latents_to_trainable(
+        ccle_latent, tcga_latent, mapping, ccle_map=ccle_map, tcga_map=tcga_map
+    )
 
     ccle_ids = [_sample_cancer_id(sid, "source", ccle_map, tcga_map, name_to_id) for sid in ccle_latent.keys()]
     ccle_z = np.stack([ccle_latent[sid] for sid in ccle_latent.keys()], axis=0)
@@ -624,6 +654,9 @@ def build_combined_latent_dicts_round17_standalone(
     mapping = proto["cancer_type_mapping"]
     name_to_id = mapping.get("name_to_id", {})
     ccle_map, tcga_map = _load_cancer_maps()
+    ccle_latent, tcga_latent = _filter_latents_to_trainable(
+        ccle_latent, tcga_latent, mapping, ccle_map=ccle_map, tcga_map=tcga_map
+    )
 
     ccle_ids = [_sample_cancer_id(sid, "source", ccle_map, tcga_map, name_to_id) for sid in ccle_latent.keys()]
     ccle_z = np.stack([ccle_latent[sid] for sid in ccle_latent.keys()], axis=0)
@@ -806,6 +839,9 @@ def build_combined_latent_dicts(
     mapping = proto["cancer_type_mapping"]
     name_to_id = mapping.get("name_to_id", {})
     ccle_map, tcga_map = _load_cancer_maps()
+    ccle_latent, tcga_latent = _filter_latents_to_trainable(
+        ccle_latent, tcga_latent, mapping, ccle_map=ccle_map, tcga_map=tcga_map
+    )
 
     feature_mode = str(feature_mode).lower()
     if is_round17_standalone_mode(feature_mode):

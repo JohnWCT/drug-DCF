@@ -4,7 +4,19 @@
 
 ## 0. Round 17R 定位
 
-Round 17 已完成，但目前不直接進入新方法 Round 18。
+Round 17 pre-18class pipeline 已完成；18-class-clean 確認改由 Round 17R 進行，目前不直接進入新方法 Round 18。
+
+### 執行狀態（2026-07-11）
+
+| Stage | 狀態 |
+|-------|------|
+| 17R-A | ✅ 完成（20 features，QC 全通過） |
+| 17R-B | ✅ 完成（126/126 jobs；best AUC **0.6074**） |
+| 17R-C | ⏳ 待跑（gate 已滿足） |
+| 17R-D | ⏳ 待跑 |
+| 17R-F | ⏳ 待跑 |
+
+彙整報告：`docs/round17r_18class_final_report.md`
 
 Round 17R 的定位是：
 
@@ -251,3 +263,11 @@ docker exec -w /workspace/DAPL DAPL bash tools/run_round17r_stage17r_f_tsne.sh
 ## 10. 一句話總結
 
 Round 17R 不是再探索新方法，而是把 Round 17 的關鍵候選在 18-class-clean prototype universe 下重跑，用 focused hyperparameter 與 seed confirmation 決定是否進入 final validation。
+
+---
+
+## 附錄：樣本數實況
+
+實際保留/剔除樣本統計已整理於：
+
+- `docs/round17r_18class_dataset_sample_usage.md`
