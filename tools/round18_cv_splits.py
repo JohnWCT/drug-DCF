@@ -7,7 +7,10 @@ from typing import Any, Dict, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import StratifiedGroupKFold
+
+from tools.round18_sklearn_compat import require_stratified_group_kfold
+
+StratifiedGroupKFold = require_stratified_group_kfold()
 
 
 def _ensure_binary_labels(labels: pd.Series) -> pd.Series:
@@ -28,7 +31,8 @@ def build_internal_test_and_development(
 ) -> Tuple[pd.DataFrame, pd.DataFrame, Dict[str, Any]]:
     """Use StratifiedGroupKFold fold0 as locked internal test; rest = development."""
     df = response_df.reset_index(drop=True).copy()
-    df["_row_id"] = np.arange(len(df), dtype=int)
+    if "_row_id" not in df.columns:
+        df["_row_id"] = np.arange(len(df), dtype=int)
     y = _ensure_binary_labels(df[label_column])
     groups = df[group_column].astype(str)
 
@@ -47,6 +51,7 @@ def build_internal_test_and_development(
     meta = {
         "internal_test_split_method": f"StratifiedGroupKFold_{n_splits}fold_fold{test_fold}",
         "internal_test_split_seed": split_seed,
+        "selected_internal_test_fold": int(test_fold),
         "group_column": group_column,
         "stratification_column": label_column,
         "n_total_rows": int(len(df)),
@@ -267,35 +272,99 @@ def build_split_qc_reports(
     }
 
 
+def choose_internal_test_fold(
+    response_df: pd.DataFrame,
+    *,
+    group_column: str = "ModelID",
+    label_column: str = "Label",
+    split_seed: int = 42,
+    n_splits: int = 10,
+    target_fraction: float = 0.10,
+) -> Tuple[int, Dict[str, Any]]:
+    """Pick the StratifiedGroupKFold fold closest to target_fraction (~10%)."""
+    df = response_df.reset_index(drop=True).copy()
+    y = _ensure_binary_labels(df[label_column])
+    groups = df[group_column].astype(str)
+    splitter = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=split_seed)
+    best_fold = 0
+    best_abs = 1e9
+    fold_stats = []
+    for fold_id, (_, test_idx) in enumerate(splitter.split(df, y, groups)):
+        frac = float(len(test_idx) / max(len(df), 1))
+        abs_err = abs(frac - target_fraction)
+        fold_stats.append({"fold_id": fold_id, "fraction": frac, "abs_err": abs_err})
+        if abs_err < best_abs:
+            best_abs = abs_err
+            best_fold = fold_id
+    return best_fold, {"candidate_folds": fold_stats, "selected_fold": best_fold, "target_fraction": target_fraction}
+
+
+def validate_internal_test_fraction(fraction: float) -> Dict[str, Any]:
+    """Hard fail outside 5–15%; warn outside 7–13%."""
+    status = "ok"
+    if fraction < 0.05 or fraction > 0.15:
+        raise AssertionError(
+            f"internal_test_row_fraction={fraction:.4f} outside hard range [0.05, 0.15]"
+        )
+    if fraction < 0.07 or fraction > 0.13:
+        status = "warn"
+    return {"status": status, "fraction": float(fraction)}
+
+
 def write_round18_splits(
     response_path: str,
     outdir: str,
     *,
     group_column: str = "ModelID",
     label_column: str = "Label",
-    drug_column: str = "mapped_name",
+    drug_column: str = "DRUG_NAME",
     split_seed: int = 42,
     screening_folds: int = 3,
     formal_folds: int = 5,
+    require_eligible: bool = True,
 ) -> Dict[str, str]:
-    """Build all Round 18 split artifacts under outdir/splits."""
+    """
+    Build Round 18 split artifacts under outdir/splits.
+
+    If require_eligible=True (default), response_path must be the eligible table
+    (round18_eligible_response.csv), not the raw GDSC response.
+    """
     out = Path(outdir)
     splits_dir = out / "splits"
     splits_dir.mkdir(parents=True, exist_ok=True)
 
     response = pd.read_csv(response_path)
+    if require_eligible:
+        required_cols = {"_row_id", group_column, label_column, "has_latent", "has_smiles", "graph_valid"}
+        missing = required_cols - set(response.columns)
+        if missing:
+            raise ValueError(
+                f"Eligible response missing columns {sorted(missing)}. "
+                "Build with tools.round18_eligible_data.build_round18_eligible_response first."
+            )
+        if not bool(response["has_latent"].all() and response["has_smiles"].all() and response["graph_valid"].all()):
+            raise AssertionError("Eligible response contains invalid rows")
+
     if drug_column not in response.columns:
-        for alt in ("mapped_name", "drug_name", "DRUG_NAME"):
+        for alt in ("DRUG_NAME", "mapped_name", "drug_name"):
             if alt in response.columns:
                 drug_column = alt
                 break
 
-    internal_test, development, meta = build_internal_test_and_development(
+    test_fold, fold_choice = choose_internal_test_fold(
         response,
         group_column=group_column,
         label_column=label_column,
         split_seed=split_seed,
     )
+    internal_test, development, meta = build_internal_test_and_development(
+        response,
+        group_column=group_column,
+        label_column=label_column,
+        split_seed=split_seed,
+        test_fold=test_fold,
+    )
+    frac_check = validate_internal_test_fraction(meta["internal_test_row_fraction"])
     meta.update(
         {
             "screening_cv_folds": screening_folds,
@@ -303,6 +372,10 @@ def write_round18_splits(
             "cv_split_seed": split_seed,
             "drug_column": drug_column,
             "response_data_path": str(response_path),
+            "eligible_only": bool(require_eligible),
+            "internal_test_fold_selection": fold_choice,
+            "internal_test_fraction_qc": frac_check,
+            "selected_internal_test_fold": int(test_fold),
         }
     )
 

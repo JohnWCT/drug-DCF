@@ -63,10 +63,7 @@ def forward_round18_batch(
     drug_batch,
     residual_mode: str = "pure",
 ) -> torch.Tensor:
-    """
-    drug_batch: PyG Batch
-    omics: [B, omics_dim]
-    """
+    """Return fusion representation (not logits)."""
     family = architecture_family.lower()
     needs_nodes = family in {"cross_attention", "atom_cross_attention", "c0", "c1"}
     if needs_nodes:
@@ -123,7 +120,7 @@ def train_one_epoch(
         drug_batch = batch["drug_batch"].to(device)
 
         with autocast(enabled=amp_enabled and device.type == "cuda"):
-            logits = forward_round18_batch(
+            fusion_repr = forward_round18_batch(
                 gin=gin,
                 fusion=fusion,
                 architecture_family=architecture_family,
@@ -131,8 +128,9 @@ def train_one_epoch(
                 drug_batch=drug_batch,
                 residual_mode=residual_mode,
             )
-            if head is not None:
-                logits = head(logits)
+            if head is None:
+                raise ValueError("Round 18 requires a separate response_head")
+            logits = head(fusion_repr)
             loss = loss_fn(logits, labels, weights)
             loss = loss / max(accumulation_steps, 1)
 
@@ -177,7 +175,7 @@ def evaluate_predictions(
         drug_batch = batch["drug_batch"].to(device)
         drugs = batch.get("drug_name", ["NA"] * labels.size(0))
         with autocast(enabled=amp_enabled and device.type == "cuda"):
-            logits = forward_round18_batch(
+            fusion_repr = forward_round18_batch(
                 gin=gin,
                 fusion=fusion,
                 architecture_family=architecture_family,
@@ -185,13 +183,18 @@ def evaluate_predictions(
                 drug_batch=drug_batch,
                 residual_mode=residual_mode,
             )
-            if head is not None:
-                logits = head(logits)
+            if head is None:
+                raise ValueError("Round 18 requires a separate response_head")
+            logits = head(fusion_repr)
             probs = torch.sigmoid(logits)
+        row_ids = batch.get("_row_id", [None] * labels.size(0))
+        model_ids = batch.get("ModelID", [None] * labels.size(0))
         for i in range(labels.size(0)):
             drug = drugs[i] if isinstance(drugs, (list, tuple)) else str(drugs[i])
             rows.append(
                 {
+                    "_row_id": int(row_ids[i]) if row_ids[i] is not None else -1,
+                    "ModelID": str(model_ids[i]) if model_ids[i] is not None else "",
                     "DRUG_NAME": str(drug),
                     "Label": int(labels[i].item()),
                     "logit": float(logits[i].item()),
@@ -271,7 +274,7 @@ def run_synthetic_smoke_train(
 ) -> Dict[str, Any]:
     """End-to-end smoke: build models, train a few steps, evaluate."""
     from drugmodels.ginconv import GINConvNet
-    from tools.round18_fusion_models import build_fusion_model
+    from tools.round18_fusion_models import build_fusion_and_head
 
     device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
     set_round18_seeds(101)
@@ -287,30 +290,28 @@ def run_synthetic_smoke_train(
 
     family = architecture_family.lower()
     if family in {"pooled_transformer", "transformer"}:
-        fusion = build_fusion_model(
+        fusion, head = build_fusion_and_head(
             "pooled_transformer",
             omics_dim=omics_dim,
             graph_dim=32,
             transformer_cfg={"d_model": 64, "n_heads": 4, "num_layers": 1, "dim_feedforward": 128},
-        ).to(device)
+        )
     elif family in {"cross_attention", "c0", "c1"}:
         mode = "pooled_residual" if family == "c1" or residual_mode == "pooled_residual" else "pure"
-        fusion = build_fusion_model(
+        fusion, head = build_fusion_and_head(
             "cross_attention",
             omics_dim=omics_dim,
             residual_mode=mode,
             cross_attn_cfg={"d_model": 64, "n_heads": 4, "num_layers": 1, "dim_feedforward": 128},
-        ).to(device)
+        )
         residual_mode = mode
     else:
-        fusion = build_fusion_model("pooled_mlp", omics_dim=omics_dim, graph_dim=32).to(device)
+        fusion, head = build_fusion_and_head("pooled_mlp", omics_dim=omics_dim, graph_dim=32)
+    fusion = fusion.to(device)
+    head = head.to(device)
 
-    # Fusion includes response head; optimize GIN + fusion only
     optimizer = torch.optim.AdamW(
-        [
-            {"params": [p for p in gin.parameters() if p.requires_grad], "lr": 1e-4},
-            {"params": [p for p in fusion.parameters() if p.requires_grad], "lr": 3e-4},
-        ],
+        build_param_groups(gin, fusion, head, gin_lr=1e-4, fusion_lr=3e-4, head_lr=3e-4, weight_decay=1e-4),
         weight_decay=1e-4,
     )
 
@@ -323,7 +324,7 @@ def run_synthetic_smoke_train(
     train_stats = train_one_epoch(
         gin=gin,
         fusion=fusion,
-        head=None,
+        head=head,
         dataloader=loader,
         optimizer=optimizer,
         scaler=scaler,
@@ -343,7 +344,7 @@ def run_synthetic_smoke_train(
     eval_out = evaluate_predictions(
         gin=gin,
         fusion=fusion,
-        head=None,
+        head=head,
         dataloader=_SyntheticLoader([eval_batch]),
         device=device,
         architecture_family=architecture_family,

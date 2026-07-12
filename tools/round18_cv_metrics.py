@@ -142,3 +142,20 @@ def early_stop_score(
         "score_name": "Global_AUC",
         "fallback_used": True,
     }
+
+
+def metrics_to_jsonable(metrics):
+    """Drop DataFrame fields so metrics can be JSON-serialized."""
+    out = {}
+    for k, v in dict(metrics).items():
+        if isinstance(v, pd.DataFrame):
+            out[k + "_records"] = v.to_dict(orient="records")
+            continue
+        if hasattr(v, "item") and not isinstance(v, (bytes, str)):
+            try:
+                out[k] = v.item()
+                continue
+            except Exception:
+                pass
+        out[k] = v
+    return out

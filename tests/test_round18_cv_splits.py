@@ -36,7 +36,7 @@ def test_internal_test_disjoint_and_reproducible():
     assert set(t1["ModelID"]).isdisjoint(set(d1["ModelID"]))
     assert list(t1["_row_id"]) == list(t2["_row_id"])
     assert m1["n_internal_test_rows"] == m2["n_internal_test_rows"]
-    assert 0.05 <= m1["internal_test_row_fraction"] <= 0.25
+    assert 0.05 <= m1["internal_test_row_fraction"] <= 0.15
 
 
 def test_screening_folds_no_modelid_overlap():

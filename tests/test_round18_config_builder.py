@@ -33,3 +33,31 @@ def test_builder_18b_manifest_job_count(tmp_path):
     assert result["n_jobs"] == 45
     assert len(df) == 45
     assert set(df["architecture_family"]) == {"pooled_mlp", "pooled_transformer"}
+
+
+def test_builder_18c_manifest_exists(tmp_path):
+    outdir = tmp_path / "round18c"
+    result = build_round18_configs(
+        "config/round18_architecture_settings.json",
+        str(outdir),
+        "18c",
+    )
+    import pandas as pd
+    df = pd.read_csv(result["manifest"])
+    assert result["n_jobs"] > 0
+    assert set(df["architecture_family"]) == {"cross_attention"}
+    assert set(df["residual_mode"]) == {"pure", "pooled_residual"}
+
+
+def test_builder_18b_renames_historical_mask(tmp_path):
+    outdir = tmp_path / "round18b_hist"
+    result = build_round18_configs(
+        "config/round18_architecture_settings.json",
+        str(outdir),
+        "18b",
+    )
+    import pandas as pd
+    df = pd.read_csv(result["manifest"])
+    ids = set(df["transformer_config_id"].dropna().astype(str))
+    assert "P0_historical_hparams_corrected_mask" in ids
+    assert "P0_historical" not in ids

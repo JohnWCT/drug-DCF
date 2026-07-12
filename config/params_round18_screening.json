@@ -28,6 +28,8 @@
       "use_mask": true,
       "use_positional_encoding": false,
       "attn_out_mlp": true,
+      "attn_out_activation": "GELU",
+      "ffn_activation": "ReLU",
       "global_lr": 0.001
     },
     {

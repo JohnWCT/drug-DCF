@@ -12,6 +12,17 @@ mkdir -p "${LOG_DIR}" "${OUTDIR}"
 
 echo "========== ROUND18 STAGE 18A SETUP SMOKE START $(date -u +%Y-%m-%dT%H:%M:%SZ) =========="
 
+echo "[18A] Round-18 sklearn pin check"
+python - <<'PY'
+import sklearn
+from sklearn.model_selection import StratifiedGroupKFold
+
+print("sklearn:", sklearn.__version__)
+print(StratifiedGroupKFold)
+major, minor = (int(x) for x in sklearn.__version__.split(".")[:2])
+assert (major, minor) >= (1, 3), sklearn.__version__
+PY
+
 echo "[18A] py_compile"
 python -m py_compile \
   tools/cross_attention_switch.py \
@@ -23,6 +34,9 @@ python -m py_compile \
   tools/round18_config_builder.py \
   tools/round18_train_loop.py \
   tools/round18_prediction_ensemble.py \
+  tools/round18_eligible_data.py \
+  tools/round18_dataset.py \
+  tools/round18_sklearn_compat.py \
   step1_finetune_latent_pipeline_round18_cv.py \
   drugmodels/ginconv.py \
   tools/transformer_switch.py
@@ -30,11 +44,23 @@ python -m py_compile \
 echo "[18A] pytest round18 unit tests"
 pytest tests/test_round18_*.py -q
 
-echo "[18A] build splits + manifests"
+echo "[18A] build eligible + splits"
 python tools/round18_config_builder.py \
   --settings "${SETTINGS}" \
   --outdir "${OUTDIR}" \
   --stage 18a
+
+echo "[18A] real-data smoke (1-2 batches)"
+python step1_finetune_latent_pipeline_round18_cv.py \
+  --mode data_smoke \
+  --outdir "${OUTDIR}" \
+  --architecture-family pooled_mlp \
+  --omics-mode own_plus_summary \
+  --fold-id 0 \
+  --micro-batch-size 8 \
+  --accumulation-steps 2 \
+  --max-batches 2 \
+  --result-dir "${OUTDIR}/data_smoke"
 
 echo "[18A] GIN / CrossAttention / OOM live smoke"
 python - <<'PY'
@@ -46,7 +72,7 @@ from torch_geometric.data import Batch, Data
 
 from drugmodels.ginconv import GINConvNet
 from tools.cross_attention_switch import CrossAttentionSwitch
-from tools.round18_fusion_models import build_fusion_model
+from tools.round18_fusion_models import build_fusion_and_head
 from tools.round18_oom_runner import probe_micro_batch, write_resource_metadata
 
 # GIN API smoke
@@ -57,7 +83,6 @@ assert gin.training
 graphs = []
 for n in (4, 6, 5):
     x = torch.randn(n, 78)
-    # simple chain edges
     src = torch.arange(0, n - 1)
     dst = torch.arange(1, n)
     edge_index = torch.stack([torch.cat([src, dst]), torch.cat([dst, src])], dim=0)
@@ -83,30 +108,29 @@ mask[:, 6:] = True
 upd, attn = ca(q, kv, key_padding_mask=mask, return_attention=True)
 assert upd.shape == (3, 1, 64)
 assert attn.shape == (2, 3, 4, 1, 8)
-# padding attention ~ 0
 pad_attn = attn[..., 6:].abs().max().item()
 assert pad_attn < 1e-5, pad_attn
-# valid atoms sum ~ 1 per head
 valid_sum = attn[..., :6].sum(dim=-1)
 assert torch.allclose(valid_sum, torch.ones_like(valid_sum), atol=1e-4)
 print("CrossAttention smoke OK", upd.shape, attn.shape)
 
-# Fusion families smoke
+# Fusion families smoke (representation + separate head)
 omics = torch.randn(3, 43)
-mlp = build_fusion_model("pooled_mlp", omics_dim=43, graph_dim=32)
-logits = mlp(omics, legacy)
+mlp, head = build_fusion_and_head("pooled_mlp", omics_dim=43, graph_dim=32)
+logits = head(mlp(omics, legacy))
 assert logits.shape == (3,)
 
-tf = build_fusion_model(
+tf, head = build_fusion_and_head(
     "pooled_transformer",
     omics_dim=43,
     graph_dim=32,
     transformer_cfg={"d_model": 64, "n_heads": 4, "num_layers": 1, "dim_feedforward": 128},
 )
-logits = tf(omics, legacy)
+assert tf.metadata()["effective_use_mask"] is False
+logits = head(tf(omics, legacy))
 assert logits.shape == (3,)
 
-cross = build_fusion_model(
+cross, head = build_fusion_and_head(
     "cross_attention",
     omics_dim=43,
     graph_dim=32,
@@ -114,7 +138,7 @@ cross = build_fusion_model(
     residual_mode="pooled_residual",
     cross_attn_cfg={"d_model": 64, "n_heads": 4, "num_layers": 1, "dim_feedforward": 128},
 )
-logits = cross(omics, out["node_embeddings"], out["batch_index"], graph_embedding=legacy)
+logits = head(cross(omics, out["node_embeddings"], out["batch_index"], graph_embedding=legacy))
 assert logits.shape == (3,)
 print("Fusion smoke OK")
 
@@ -137,7 +161,11 @@ print("OOM probe OK", probe)
 meta = json.loads(Path("result/optimization_runs/round18_architecture/splits/split_metadata.json").read_text())
 assert meta["n_development_rows"] > 0
 assert meta["n_internal_test_rows"] > 0
+assert meta.get("eligible_only") is True
 print("Split metadata OK", meta["internal_test_row_fraction"])
+elig = json.loads(Path("result/optimization_runs/round18_architecture/data/round18_data_eligibility_summary.json").read_text())
+assert elig["n_eligible_rows"] > 0
+print("Eligible summary OK", elig["n_eligible_rows"])
 print("ALL 18A LIVE SMOKES PASSED")
 PY
 
