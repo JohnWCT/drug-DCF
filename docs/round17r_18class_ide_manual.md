@@ -6,17 +6,17 @@
 
 Round 17 pre-18class pipeline 已完成；18-class-clean 確認改由 Round 17R 進行，目前不直接進入新方法 Round 18。
 
-### 執行狀態（2026-07-11）
+### 執行狀態（2026-07-12）
 
 | Stage | 狀態 |
 |-------|------|
 | 17R-A | ✅ 完成（20 features，QC 全通過） |
-| 17R-B | ✅ 完成（126/126 jobs；best AUC **0.6074**） |
-| 17R-C | ⏳ 待跑（gate 已滿足） |
-| 17R-D | ⏳ 待跑 |
-| 17R-F | ⏳ 待跑 |
+| 17R-B | ✅ 完成（126/126；peak AUC **0.6074**） |
+| 17R-C | ✅ 完成（180/180） |
+| 17R-D | ✅ 完成（50/50；10-seed best **0.5915**，`own_plus_summary`） |
+| 17R-F | ✅ 完成（`r13_exp_008` tSNE） |
 
-彙整報告：`docs/round17r_18class_final_report.md`
+**ALL_DONE。** 彙整報告（含各資料集 Top-5 + 策略）：`docs/round17r_18class_final_report.md`
 
 Round 17R 的定位是：
 
