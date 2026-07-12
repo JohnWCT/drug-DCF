@@ -1,0 +1,106 @@
+{
+  "round": "round18",
+  "purpose": "Grouped-CV drug-omics transformer and atom cross-attention benchmark",
+  "drug_smiles_path": "data/GDSC_drug_merge_pubchem_dropNA_MACCS_AACDR_extended.csv",
+  "response_data_path": "data/GDSC2_fitted_dose_response_MaxScreen_raw.csv",
+  "feature_root": "result/optimization_runs/round17r_18class/features",
+  "feature_model_key": "r13_exp_008",
+  "model_seed": 101,
+  "dataloader_seed": 101,
+  "split_seed": 42,
+  "internal_test": {
+    "enabled": true,
+    "method": "stratified_group_10fold_fold0",
+    "group_column": "ModelID",
+    "label_column": "Label",
+    "locked_until_final": true
+  },
+  "screening_cv": {
+    "n_splits": 3,
+    "max_epochs": 500,
+    "early_stop_patience": 50,
+    "early_stop_start_epoch": 30
+  },
+  "formal_cv": {
+    "n_splits": 5,
+    "max_epochs": 1500,
+    "early_stop_patience": 100,
+    "early_stop_start_epoch": 50
+  },
+  "selection": {
+    "primary_metric": "CV_DrugMacro_AUC",
+    "tie_breaker_metric": "CV_DrugMacro_AUPRC",
+    "fallback_metric": "CV_Global_AUC"
+  },
+  "robust_drug_metric": {
+    "min_samples": 10,
+    "min_positive": 2,
+    "min_negative": 2,
+    "min_valid_drugs_for_early_stop": 3
+  },
+  "omics_modes": [
+    "none",
+    "own_plus_summary",
+    "own_proto_context_projected_16"
+  ],
+  "gin": {
+    "input_dim": 78,
+    "hidden_dim": 32,
+    "num_layers": 5,
+    "jk_mode": "last",
+    "pool": "max",
+    "dropout": 0.1,
+    "train_mode": "end_to_end_from_scratch"
+  },
+  "response_head": {
+    "hidden_dim": 128,
+    "activation": "relu",
+    "dropout": 0.1
+  },
+  "optimizer": {
+    "gin_lr": 0.0001,
+    "fusion_lr": 0.0003,
+    "head_lr": 0.0003,
+    "weight_decay": 0.0001,
+    "grad_clip_max_norm": 1.0
+  },
+  "oom": {
+    "amp": true,
+    "target_effective_batch": 1024,
+    "micro_batch_candidates": [512, 256, 128, 64, 32],
+    "max_retries": 4,
+    "jobs_per_gpu": 1
+  },
+  "tcga": {
+    "run_only_after_lock": true,
+    "ensemble_method": "probability_mean",
+    "require_all_five_folds": true,
+    "eval_targets": [
+      {
+        "key": "gdsc_intersect13",
+        "path": "data/TCGA/PMID27354694_DR_OMICS_ad_intersect_pretrain_gdsc_intersect13.csv"
+      },
+      {
+        "key": "tcga_only3",
+        "path": "data/TCGA/PMID27354694_DR_OMICS_ad_intersect_pretrain_tcga_only3.csv"
+      },
+      {
+        "key": "dapl",
+        "path": "data/TCGA/TCGA_drug_response_from_DAPL.csv"
+      },
+      {
+        "key": "aacdr_tcga_only",
+        "path": "data/TCGA/TCGA_AACDR_response_final_with_smiles_intersect_pretrain_tcga_only.csv"
+      },
+      {
+        "key": "aacdr_gdsc_intersect",
+        "path": "data/TCGA/TCGA_AACDR_response_final_with_smiles_intersect_pretrain_gdsc_intersect.csv"
+      }
+    ]
+  },
+  "interpretability": {
+    "enabled_for_final_model_only": true,
+    "attention_output": true,
+    "atom_masking": true
+  }
+}

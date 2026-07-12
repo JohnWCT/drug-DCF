@@ -89,46 +89,72 @@ class GINConvNet(torch.nn.Module):
         # Output layers
         self.fc1_xd = Linear(jk_output_dim, output_dim)
         self.out = nn.Linear(output_dim, output_dim)
+        self.node_dim = jk_output_dim
+        self.output_dim = output_dim
 
-    def forward(self, data, pretrain_flag=False):
-        x, edge_index = data.x, data.edge_index
-        # 安全地獲取 batch 信息，如果不存在則為 None
-        batch = getattr(data, 'batch', None)
-        
-        # Store intermediate representations for JK
+    def encode_nodes(self, x, edge_index):
+        """Encode atom nodes through GIN + JK (before pooling)."""
         x_list = []
-        
-        # Forward through GINConv layers
         for i in range(self.num_layers):
             x = self.convs[i](x, edge_index)
             x = self.relu(x)
-            
             if self.use_batch_norm and self.bns[i] is not None:
                 x = self.bns[i](x)
-            
             x_list.append(x)
-        
-        # Apply JK mechanism
-        if self.jk is not None and self.jk_mode != 'last':
-            # Use PyTorch Geometric JK to combine representations from all layers
-            x = self.jk(x_list)
-        elif self.jk_mode == 'sum':
-            # Manual implementation of sum JK
-            x = torch.stack(x_list, dim=0).sum(dim=0)
-        else:
-            # Use only the last layer (original behavior)
-            x = x_list[-1]
-        
-        # Global pooling
-        if self.pool_type in ['add', 'max', 'mean']:
-            x = self.pool(x, batch=batch)
-        else:  # attention or set2set
-            x = self.pool(x, batch=batch)
-        
-        x = self.relu(self.fc1_xd(x))
+
+        if self.jk is not None and self.jk_mode != "last":
+            return self.jk(x_list)
+        if self.jk_mode == "sum":
+            return torch.stack(x_list, dim=0).sum(dim=0)
+        return x_list[-1]
+
+    def pool_graph(self, node_embeddings, batch=None):
+        """Global pool node embeddings to graph-level features (pre-projection)."""
+        return self.pool(node_embeddings, batch=batch)
+
+    def project_graph(self, pooled):
+        """Apply legacy graph projection head (fc + dropout + out)."""
+        x = self.relu(self.fc1_xd(pooled))
         x = self.dropout(x)
-        x = self.out(x)
-        return x
+        return self.out(x)
+
+    def forward(
+        self,
+        data,
+        pretrain_flag=False,
+        return_node_embeddings: bool = False,
+        return_graph_embedding: bool = True,
+    ):
+        """
+        Default path preserves Round 1–17 behavior (projected graph embedding).
+
+        When return_node_embeddings=True, returns a dict with:
+          - node_embeddings: [N, node_dim] after JK
+          - batch_index: data.batch
+          - graph_embedding: projected graph embedding (or None)
+          - pooled_raw: pre-projection pooled features (or None)
+        """
+        del pretrain_flag  # retained for call-site compatibility
+        x, edge_index = data.x, data.edge_index
+        batch = getattr(data, "batch", None)
+
+        node_embeddings = self.encode_nodes(x, edge_index)
+
+        pooled_raw = None
+        graph_embedding = None
+        if return_graph_embedding or not return_node_embeddings:
+            pooled_raw = self.pool_graph(node_embeddings, batch=batch)
+            graph_embedding = self.project_graph(pooled_raw)
+
+        if not return_node_embeddings:
+            return graph_embedding
+
+        return {
+            "node_embeddings": node_embeddings,
+            "batch_index": batch,
+            "graph_embedding": graph_embedding if return_graph_embedding else None,
+            "pooled_raw": pooled_raw if return_graph_embedding else None,
+        }
 
 '''
 DRpreter
