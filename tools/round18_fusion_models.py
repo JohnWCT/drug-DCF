@@ -81,12 +81,12 @@ class PooledTransformerFusion(nn.Module):
             dropout=dropout,
             attn_dropout=attn_dropout,
             temperature=temperature,
-            use_mask=use_mask,
+            use_mask=False,  # Round 18: fixed 2 tokens, disable auto-pad / mask fill
             use_positional_encoding=False,
             attn_out_mlp=attn_out_mlp,
         )
         self.head = Round18ResponseHead(d_model, hidden_dim=head_hidden, dropout=head_dropout)
-        self.use_mask = use_mask
+        self.use_mask = False
 
     def forward(self, omics_vector: Tensor, graph_embedding: Tensor) -> Tensor:
         omics_tok = self.omics_proj(omics_vector)
@@ -95,10 +95,9 @@ class PooledTransformerFusion(nn.Module):
         type_ids = torch.tensor([0, 1], device=tokens.device).unsqueeze(0).expand(tokens.size(0), -1)
         tokens = tokens + self.token_type(type_ids)
 
-        # Explicit all-false mask: do NOT use auto pad detection from token values
-        B = tokens.size(0)
-        attn_mask = torch.zeros(B, 2, 2, dtype=torch.bool, device=tokens.device)
-        encoded, _ = self.encoder(tokens, attn_mask=attn_mask)
+        # Two dense tokens: no padding. Avoid TransformerSwitch masked_fill(-1e9)
+        # which overflows under AMP float16 even when the mask is all-False.
+        encoded, _ = self.encoder(tokens, attn_mask=None)
         updated_cls = encoded[:, 0, :]
         return self.head(updated_cls)
 

@@ -1,0 +1,18 @@
+{
+  "finetune_combos": [
+    {
+      "combo_id": 0,
+      "combo_name": "formal_default",
+      "gin_lr": 0.0001,
+      "fusion_lr": 0.0003,
+      "head_lr": 0.0003,
+      "weight_decay": 0.0001,
+      "dropout": 0.1,
+      "target_effective_batch": 1024,
+      "requested_micro_batch": 512,
+      "epochs": 1500,
+      "early_stop_patience": 100,
+      "early_stop_start_epoch": 50
+    }
+  ]
+}

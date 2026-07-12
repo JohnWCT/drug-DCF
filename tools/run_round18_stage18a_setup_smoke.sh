@@ -21,18 +21,14 @@ python -m py_compile \
   tools/round18_cv_metrics.py \
   tools/round18_oom_runner.py \
   tools/round18_config_builder.py \
+  tools/round18_train_loop.py \
+  tools/round18_prediction_ensemble.py \
+  step1_finetune_latent_pipeline_round18_cv.py \
   drugmodels/ginconv.py \
   tools/transformer_switch.py
 
 echo "[18A] pytest round18 unit tests"
-pytest tests/test_round18_cv_splits.py \
-  tests/test_round18_gin_node_output.py \
-  tests/test_round18_cross_attention.py \
-  tests/test_round18_fusion_models.py \
-  tests/test_round18_robust_drug_macro.py \
-  tests/test_round18_oom_retry.py \
-  tests/test_round18_config_builder.py \
-  -q
+pytest tests/test_round18_*.py -q
 
 echo "[18A] build splits + manifests"
 python tools/round18_config_builder.py \
