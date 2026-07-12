@@ -18,6 +18,9 @@ if [[ ! -f "${OUTDIR}/data/round18_eligible_response.csv" ]]; then
   python tools/round18_config_builder.py --settings "${SETTINGS}" --outdir "${OUTDIR}" --stage 18a
 fi
 
+echo "[18B] feature ModelID coverage preflight"
+python tools/round18_feature_coverage.py --settings "${SETTINGS}" --outdir "${OUTDIR}"
+
 python tools/round18_config_builder.py \
   --settings "${SETTINGS}" \
   --outdir "${OUTDIR}" \

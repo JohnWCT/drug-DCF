@@ -462,6 +462,7 @@ def train_fold(args: argparse.Namespace) -> dict:
                 "fallback_used": val_out["early_stop"].get("fallback_used"),
             }
             history.append(row)
+            pd.DataFrame(history).to_csv(result_dir / "train_history.csv", index=False)
             improved = score > best_score
             if improved:
                 best_score = score

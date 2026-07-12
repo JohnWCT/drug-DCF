@@ -223,12 +223,21 @@ def build_stage18c_manifest(settings: dict, screening: dict, outdir: str) -> Dic
     return {"stage": "18c", "manifest": str(path), "n_jobs": len(rows)}
 
 
-def build_stage18d_manifest(settings: dict, outdir: str, locked_selection_path: Optional[str] = None) -> Dict[str, Any]:
+def build_stage18d_manifest(
+    settings: dict,
+    outdir: str,
+    locked_selection_path: Optional[str] = None,
+    allow_placeholder: bool = False,
+) -> Dict[str, Any]:
     manifests = Path(outdir) / "manifests"
     manifests.mkdir(parents=True, exist_ok=True)
     lock_path = Path(locked_selection_path or Path(outdir) / "reports" / "round18_locked_selection.json")
     if not lock_path.is_file():
-        # Placeholder candidates until analyzer exists
+        if not allow_placeholder:
+            raise FileNotFoundError(
+                f"Missing {lock_path}; Stage 18D requires locked selection from analyzer. "
+                "Pass --allow-placeholder-for-smoke only for dry smoke manifests."
+            )
         candidates = [
             {"architecture_family": "pooled_mlp", "omics_mode": "own_plus_summary", "architecture_id": "pooled_mlp__own_plus_summary"},
             {"architecture_family": "pooled_transformer", "omics_mode": "own_plus_summary", "architecture_id": "pooled_transformer__P2_standard128__own_plus_summary", "transformer_config_id": "P2_standard128"},
@@ -239,6 +248,8 @@ def build_stage18d_manifest(settings: dict, outdir: str, locked_selection_path: 
     else:
         lock = load_json(str(lock_path))
         candidates = lock.get("formal_candidates", [])
+        if not candidates:
+            raise ValueError(f"Lock file has empty formal_candidates: {lock_path}")
         lock_source = str(lock_path)
 
     n_folds = int(settings["formal_cv"]["n_splits"])
@@ -319,7 +330,13 @@ def build_stage18f_manifest(settings: dict, outdir: str) -> Dict[str, Any]:
     return {"stage": "18f", "manifest": str(path), "n_jobs": len(rows)}
 
 
-def build_round18_configs(settings_path: str, outdir: str, stage: str) -> Dict[str, Any]:
+def build_round18_configs(
+    settings_path: str,
+    outdir: str,
+    stage: str,
+    *,
+    allow_placeholder_for_smoke: bool = False,
+) -> Dict[str, Any]:
     settings = load_json(settings_path)
     screening_path = Path("config/params_round18_screening.json")
     screening = load_json(str(screening_path)) if screening_path.exists() else {}
@@ -330,11 +347,21 @@ def build_round18_configs(settings_path: str, outdir: str, stage: str) -> Dict[s
     if not (Path(outdir) / "splits" / "split_metadata.json").exists():
         build_stage18a(settings, outdir)
     if stage_n in {"18b", "b"}:
-        return build_stage18b_manifest(settings, screening, outdir)
+        from tools.round18_feature_coverage import assert_round18_feature_coverage
+
+        coverage = assert_round18_feature_coverage(settings)
+        cov_path = Path(outdir) / "data" / "round18_feature_coverage_preflight.json"
+        cov_path.parent.mkdir(parents=True, exist_ok=True)
+        cov_path.write_text(json.dumps(coverage, indent=2), encoding="utf-8")
+        out = build_stage18b_manifest(settings, screening, outdir)
+        out["feature_coverage"] = str(cov_path)
+        return out
     if stage_n in {"18c", "c"}:
         return build_stage18c_manifest(settings, screening, outdir)
     if stage_n in {"18d", "d"}:
-        return build_stage18d_manifest(settings, outdir)
+        return build_stage18d_manifest(
+            settings, outdir, allow_placeholder=allow_placeholder_for_smoke
+        )
     if stage_n in {"18e", "e"}:
         return build_stage18e_manifest(settings, outdir)
     if stage_n in {"18f", "f"}:
@@ -347,8 +374,18 @@ def main() -> None:
     parser.add_argument("--settings", default="config/round18_architecture_settings.json")
     parser.add_argument("--outdir", default="result/optimization_runs/round18_architecture")
     parser.add_argument("--stage", required=True, choices=["18a", "18b", "18c", "18d", "18e", "18f", "a", "b", "c", "d", "e", "f"])
+    parser.add_argument(
+        "--allow-placeholder-for-smoke",
+        action="store_true",
+        help="Allow Stage 18D placeholder candidates when lock file is missing (smoke only).",
+    )
     args = parser.parse_args()
-    out = build_round18_configs(args.settings, args.outdir, args.stage)
+    out = build_round18_configs(
+        args.settings,
+        args.outdir,
+        args.stage,
+        allow_placeholder_for_smoke=args.allow_placeholder_for_smoke,
+    )
     print(json.dumps(out, indent=2, default=str))
 
 
