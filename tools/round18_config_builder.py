@@ -193,34 +193,102 @@ def build_stage18b_manifest(settings: dict, screening: dict, outdir: str) -> Dic
 
 
 def build_stage18c_manifest(settings: dict, screening: dict, outdir: str) -> Dict[str, Any]:
+    """
+    Stage 18C-A: cross-attention × residual × omics × 3fold.
+
+    Omics include own_plus_summary and context16 (not none in the main 48-job grid).
+    Optional follow-up: top-2 × none × 3fold = +6 jobs (built separately).
+    """
     manifests = Path(outdir) / "manifests"
     manifests.mkdir(parents=True, exist_ok=True)
     n_folds = int(settings["screening_cv"]["n_splits"])
+    cross_attention_omics_modes = [
+        "own_plus_summary",
+        "own_proto_context_projected_16",
+    ]
     rows: List[dict] = []
-    # first screen: own_plus_summary × pure/residual × configs
     for cfg in screening.get("cross_attention_configs", []):
         cfg_id = cfg["config_id"]
         for residual_mode in ("pure", "pooled_residual"):
-            for fold_id in range(n_folds):
-                arch = f"cross_attn__{cfg_id}__{residual_mode}__own_plus_summary"
-                rows.append(
-                    _base_job(
-                        job_id=f"18c_{cfg_id}_{residual_mode}_own_plus_summary_f{fold_id}",
-                        stage="18c",
-                        architecture_id=arch,
-                        architecture_family="cross_attention",
-                        omics_mode="own_plus_summary",
-                        settings=settings,
-                        outdir=outdir,
-                        fold_id=fold_id,
-                        cv_type="screening_3fold",
-                        transformer_config_id=cfg_id,
-                        residual_mode=residual_mode,
+            for omics_mode in cross_attention_omics_modes:
+                for fold_id in range(n_folds):
+                    arch = f"cross_attn__{cfg_id}__{residual_mode}__{omics_mode}"
+                    rows.append(
+                        _base_job(
+                            job_id=f"18c_{cfg_id}_{residual_mode}_{omics_mode}_f{fold_id}",
+                            stage="18c",
+                            architecture_id=arch,
+                            architecture_family="cross_attention",
+                            omics_mode=omics_mode,
+                            settings=settings,
+                            outdir=outdir,
+                            fold_id=fold_id,
+                            cv_type="screening_3fold",
+                            transformer_config_id=cfg_id,
+                            residual_mode=residual_mode,
+                        )
                     )
-                )
     path = manifests / "stage18c_cross_attention_manifest.csv"
     pd.DataFrame(rows).to_csv(path, index=False)
-    return {"stage": "18c", "manifest": str(path), "n_jobs": len(rows)}
+    return {
+        "stage": "18c",
+        "manifest": str(path),
+        "n_jobs": len(rows),
+        "omics_modes": cross_attention_omics_modes,
+        "note": "18C-A grid excludes none; add top2×none×3fold after ranking",
+    }
+
+
+def build_stage18c_none_followup_manifest(
+    settings: dict,
+    outdir: str,
+    *,
+    top_candidates: Optional[List[dict]] = None,
+    locked_selection_path: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    18C-B follow-up: top cross-attention candidates × none × 3 folds.
+
+    top_candidates entries need architecture_family=cross_attention fields:
+      architecture_id, transformer_config_id, residual_mode
+    """
+    manifests = Path(outdir) / "manifests"
+    manifests.mkdir(parents=True, exist_ok=True)
+    if top_candidates is None:
+        lock_path = Path(locked_selection_path or Path(outdir) / "reports" / "round18_18c_top_for_none.json")
+        if not lock_path.is_file():
+            raise FileNotFoundError(
+                f"Missing {lock_path}; provide top_candidates or write 18C top-for-none file first"
+            )
+        top_candidates = load_json(str(lock_path)).get("top_cross_attention_for_none", [])
+    if len(top_candidates) < 1:
+        raise ValueError("Need at least one top cross-attention candidate for none follow-up")
+
+    n_folds = int(settings["screening_cv"]["n_splits"])
+    rows: List[dict] = []
+    for cand in top_candidates[:2]:
+        cfg_id = cand.get("transformer_config_id") or ""
+        residual_mode = cand.get("residual_mode") or "pure"
+        for fold_id in range(n_folds):
+            arch = f"cross_attn__{cfg_id}__{residual_mode}__none"
+            rows.append(
+                _base_job(
+                    job_id=f"18c_{cfg_id}_{residual_mode}_none_f{fold_id}",
+                    stage="18c",
+                    architecture_id=arch,
+                    architecture_family="cross_attention",
+                    omics_mode="none",
+                    settings=settings,
+                    outdir=outdir,
+                    fold_id=fold_id,
+                    cv_type="screening_3fold",
+                    transformer_config_id=cfg_id,
+                    residual_mode=residual_mode,
+                )
+            )
+    path = manifests / "stage18c_none_followup_manifest.csv"
+    pd.DataFrame(rows).to_csv(path, index=False)
+    return {"stage": "18c_none_followup", "manifest": str(path), "n_jobs": len(rows)}
 
 
 def build_stage18d_manifest(

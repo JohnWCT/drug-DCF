@@ -44,9 +44,11 @@ def test_builder_18c_manifest_exists(tmp_path):
     )
     import pandas as pd
     df = pd.read_csv(result["manifest"])
-    assert result["n_jobs"] > 0
+    assert result["n_jobs"] == 48
+    assert len(df) == 48
     assert set(df["architecture_family"]) == {"cross_attention"}
     assert set(df["residual_mode"]) == {"pure", "pooled_residual"}
+    assert set(df["omics_mode"]) == {"own_plus_summary", "own_proto_context_projected_16"}
 
 
 def test_builder_18b_renames_historical_mask(tmp_path):
