@@ -10,9 +10,14 @@ OUTDIR="${ROUND18_ROOT:-result/optimization_runs/round18_architecture}"
 SMOKE_ONLY="${SMOKE_ONLY:-1}"
 LIMIT_JOBS="${LIMIT_JOBS:-}"
 JOB_FILTER="${JOB_FILTER:-}"
+MAX_JOBS_PER_GPU="${MAX_JOBS_PER_GPU:-20}"
+ROUND18_NUM_WORKERS="${ROUND18_NUM_WORKERS:-0}"
+export ROUND18_NUM_WORKERS
+export ROUND18_PIN_MEMORY="${ROUND18_PIN_MEMORY:-1}"
 
 echo "========== ROUND18 STAGE 18B POOLED SCREEN START $(date -u +%Y-%m-%dT%H:%M:%SZ) =========="
 echo "SMOKE_ONLY=${SMOKE_ONLY}"
+echo "MAX_JOBS_PER_GPU=${MAX_JOBS_PER_GPU} ROUND18_NUM_WORKERS=${ROUND18_NUM_WORKERS}"
 
 if [[ ! -f "${OUTDIR}/data/round18_eligible_response.csv" ]]; then
   python tools/round18_config_builder.py --settings "${SETTINGS}" --outdir "${OUTDIR}" --stage 18a
@@ -76,8 +81,8 @@ else
   python tools/round18_oom_runner.py dispatch \
     --manifest "${OUTDIR}/manifests/stage18b_screening_manifest.csv" \
     --pipeline step1_finetune_latent_pipeline_round18_cv.py \
-    --max-jobs-per-gpu 1 \
-    --micro-batch-candidates 512,256,128,64,32 \
+    --max-jobs-per-gpu "${MAX_JOBS_PER_GPU}" \
+    --micro-batch-candidates "${MICRO_BATCH_CANDIDATES:-1024,512,256,128,64,32}" \
     "${EXTRA[@]}"
 fi
 

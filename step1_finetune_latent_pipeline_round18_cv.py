@@ -172,12 +172,16 @@ def _make_loaders(
         feature_dir=feature_dir,
         drug_smiles_path=drug_smiles_path,
     )
+    n_workers = int(__import__("os").environ.get("ROUND18_NUM_WORKERS", "8"))
+    pin = bool(int(__import__("os").environ.get("ROUND18_PIN_MEMORY", "1")))
     train_loader = DataLoader(
         train_ds,
         batch_size=micro_batch_size,
         shuffle=True,
         collate_fn=round18_graph_collate_fn,
-        num_workers=0,
+        num_workers=n_workers,
+        pin_memory=pin,
+        persistent_workers=(n_workers > 0),
     )
     val_loader = None
     if include_val:
@@ -193,7 +197,9 @@ def _make_loaders(
             batch_size=micro_batch_size,
             shuffle=False,
             collate_fn=round18_graph_collate_fn,
-            num_workers=0,
+            num_workers=n_workers,
+            pin_memory=pin,
+            persistent_workers=(n_workers > 0),
         )
     return train_loader, val_loader, train_ds
 
