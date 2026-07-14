@@ -1,0 +1,83 @@
+{
+  "round": "round19",
+  "baseline_round": "round18e",
+  "selection_uses_tcga": false,
+  "model_seed": 101,
+  "dataloader_seed": 101,
+  "screening_split_seed": 42,
+  "confirmation_split_seeds": [52, 62, 72],
+  "drug_smiles_path": "data/GDSC_drug_merge_pubchem_dropNA_MACCS_AACDR_extended.csv",
+  "response_data_path": "data/GDSC2_fitted_dose_response_MaxScreen_raw.csv",
+  "feature_root": "result/optimization_runs/round17r_18class/features",
+  "feature_model_key": "r13_exp_008",
+  "round19_feature_out_root": "result/optimization_runs/round19_factorial/features",
+  "outdir": "result/optimization_runs/round19_factorial",
+  "forbid_hybrid_drug_features": true,
+  "omics_modes": [
+    "z_only",
+    "z_plus_summary",
+    "z_plus_context16",
+    "z_plus_summary_context16"
+  ],
+  "domain_generalization_omics_controls": [
+    "z_plus_source_proto_features"
+  ],
+  "omics_ids": {
+    "O0": {"display_name": "z_only", "dim": 64},
+    "O1": {"display_name": "z_plus_summary", "dim": 75},
+    "O2": {"display_name": "z_plus_context16", "dim": 80},
+    "O3": {"display_name": "z_plus_summary_context16", "dim": 91},
+    "O4": {"display_name": "z_plus_source_proto_features", "dim": 71}
+  },
+  "drug_representations": {
+    "D0": {"type": "gin", "node_hidden_dim": 32, "graph_output_dim": 32, "edge_features": false},
+    "D1": {"type": "gin", "node_hidden_dim": 64, "graph_output_dim": 32, "edge_features": false},
+    "D2": {"type": "gin", "node_hidden_dim": 64, "graph_output_dim": 64, "edge_features": false},
+    "D3": {"type": "gine", "node_hidden_dim": 64, "graph_output_dim": 64, "edge_features": true, "edge_dim": 12},
+    "D4": {"type": "maccs", "output_dim": 64, "graph_encoder": false, "input_dim": 166}
+  },
+  "predictors": {
+    "P0": "pooled_mlp",
+    "P1": "compact_pooled_transformer",
+    "P2": "pure_atom_cross_attention"
+  },
+  "compatible_cells": [
+    ["D0", "P0"], ["D0", "P1"], ["D0", "P2"],
+    ["D1", "P0"], ["D1", "P1"],
+    ["D2", "P0"], ["D2", "P1"], ["D2", "P2"],
+    ["D3", "P0"], ["D3", "P1"], ["D3", "P2"],
+    ["D4", "P0"], ["D4", "P1"]
+  ],
+  "stage19a_smoke_cells": [
+    {"drug": "D0", "predictor": "P0", "omics": "O1"},
+    {"drug": "D1", "predictor": "P1", "omics": "O3"},
+    {"drug": "D2", "predictor": "P2", "omics": "O3"},
+    {"drug": "D3", "predictor": "P2", "omics": "O1"},
+    {"drug": "D4", "predictor": "P1", "omics": "O3"}
+  ],
+  "screening_cv": {
+    "n_splits": 3,
+    "max_epochs": 500,
+    "early_stop_patience": 50,
+    "early_stop_start_epoch": 30
+  },
+  "response_head": {
+    "hidden_dim": 128,
+    "activation": "relu",
+    "dropout": 0.1
+  },
+  "optimizer": {
+    "encoder_lr": 0.0001,
+    "fusion_lr": 0.0003,
+    "head_lr": 0.0003,
+    "weight_decay": 0.0001,
+    "grad_clip_max_norm": 1.0
+  },
+  "oom": {
+    "amp": true,
+    "target_effective_batch": 1024,
+    "micro_batch_candidates": [512, 256, 128, 64, 32],
+    "max_retries": 4,
+    "jobs_per_gpu": 1
+  }
+}
