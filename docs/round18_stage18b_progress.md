@@ -90,7 +90,7 @@ Source: `reports/round18_screening_architecture_ranking.csv` (via `tools/analyze
 1. ~~Run Stage **18C** …~~ **DONE**
 2. ~~`--write-lock` for formal candidates~~ **DONE**
 3. ~~Stage **18D** formal 5CV~~ **DONE**
-4. ~~**18E** internal + TCGA ensemble eval~~ **DONE**（external success = false；見 final report）
+4. ~~**18E** internal + TCGA ensemble eval~~ **DONE**（external success = false；見 [`round18_stage18e_report.md`](round18_stage18e_report.md)）
 5. **18F** attention export / masking — **尚未執行**（Round 18 全完成前的剩餘項）
 
 ---

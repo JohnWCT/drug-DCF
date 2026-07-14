@@ -1903,17 +1903,26 @@ top 2 drug-held-out CV
 
 ## 27.5 18E
 
+**Status:** DONE（2026-07-14）。結果見 [`docs/round18_stage18e_report.md`](round18_stage18e_report.md) 與 [`docs/round18_final_report.md`](round18_final_report.md)。  
+`cross_attention_external_success = false`（TCGA non-worse 2/5）。
+
 ```bash
-bash tools/run_round18_stage18e_tcga.sh
+SMOKE_ONLY=0 MAX_JOBS_PER_GPU=8 ROUND18_NUM_WORKERS=0 \
+  bash tools/run_round18_stage18e_locked_eval.sh
+
+python tools/analyze_round18_external_eval.py \
+  --outdir result/optimization_runs/round18_architecture \
+  --n-bootstrap 2000 --n-jobs 16
 ```
 
 執行：
 
 ```text
-internal test final ensemble
-5-target TCGA fold inference
+internal test final ensemble（25 jobs）
+5-target TCGA fold inference（125 jobs）
 probability ensemble
-Integrated5 report
+Integrated5 + paired bootstrap report
+verdict JSON（不得回頭改選模）
 ```
 
 ---

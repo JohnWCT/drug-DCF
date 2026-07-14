@@ -202,6 +202,8 @@ Source: `reports/round18_formal_5cv_summary.csv`（5/5 folds with AUC）
 
 ## 9. Stage 18E external evaluation（選模後）
 
+詳見獨立報告：[`docs/round18_stage18e_report.md`](round18_stage18e_report.md)。
+
 **規則：** 只用 18D checkpoints；ensemble = 5-fold 機率平均；**不**用 internal／TCGA 回頭改 architecture selection。
 
 Artifacts:
