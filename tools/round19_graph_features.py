@@ -95,18 +95,33 @@ def smile_to_graph_with_bonds(smiles: str) -> Tuple[int, List[List[float]], List
     return c_size, features, edge_index, edge_attrs
 
 
+def _edge_index_tensor(edge_index) -> torch.Tensor:
+    """Always return LongTensor of shape (2, E), including empty (2, 0)."""
+    if not edge_index:
+        return torch.empty((2, 0), dtype=torch.long)
+    # smile_to_graph returns list of [u, v] pairs → (E, 2).T → (2, E)
+    return torch.tensor(edge_index, dtype=torch.long).t().contiguous()
+
+
 def build_pyg_data(smiles: str, *, with_bonds: bool) -> Data:
     if with_bonds:
         _, features, edge_index, edge_attrs = smile_to_graph_with_bonds(smiles)
+        ei = _edge_index_tensor(edge_index)
+        if edge_attrs:
+            ea = torch.tensor(np.asarray(edge_attrs, dtype=np.float32))
+        else:
+            ea = torch.empty((0, BOND_FEATURE_DIM), dtype=torch.float32)
+        if ea.shape[0] != ei.shape[1]:
+            raise RuntimeError(f"edge_attr rows {ea.shape[0]} != edge_index cols {ei.shape[1]}")
         return Data(
             x=torch.tensor(np.asarray(features, dtype=np.float32)),
-            edge_index=torch.tensor(np.asarray(edge_index, dtype=np.int64).T),
-            edge_attr=torch.tensor(np.asarray(edge_attrs, dtype=np.float32)),
+            edge_index=ei,
+            edge_attr=ea,
         )
     _, features, edge_index = smile_to_graph(smiles)
     return Data(
         x=torch.tensor(np.asarray(features, dtype=np.float32)),
-        edge_index=torch.tensor(np.asarray(edge_index, dtype=np.int64).T),
+        edge_index=_edge_index_tensor(edge_index),
     )
 
 

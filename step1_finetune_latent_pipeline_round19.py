@@ -19,6 +19,7 @@ PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
+from tools.round18_cv_metrics import metrics_to_jsonable
 from tools.round18_dataset import subset_by_assignment
 from tools.round18_response_head import Round18ResponseHead
 from tools.round19_dataset import Round19ResponseDataset, round19_collate_fn
@@ -49,18 +50,7 @@ def _feature_dir(settings: dict, omics_id: str) -> str:
 
 
 def _metrics_jsonable(metrics: dict) -> dict:
-    out = {}
-    for k, v in metrics.items():
-        if v is None:
-            out[k] = None
-        elif hasattr(v, "item"):
-            out[k] = float(v)
-        else:
-            try:
-                out[k] = float(v)
-            except Exception:  # noqa: BLE001
-                out[k] = v
-    return out
+    return metrics_to_jsonable(metrics)
 
 
 def _assert_no_internal_overlap(val_df: pd.DataFrame, internal_test_path: Optional[str]) -> None:

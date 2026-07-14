@@ -3,7 +3,7 @@
 ## Omics Composition × Drug Representation × Predictor Integration Factorial Study
 
 **版本：** Post-Round 18E revision  
-**狀態：** Implementation specification  
+**狀態：** Stage 19A GO · **Stage 19B ALL_DONE（117/117）** — 見 [`docs/round19_stage19b_report.md`](round19_stage19b_report.md) · Stage 19C selection **尚未 lock**  
 **前置結果：** Round 18A–18E完成  
 **執行環境：** Docker container `DAPL`  
 **原則：** MACCS與GIN／GINE互斥，不建立fingerprint + graph hybrid
