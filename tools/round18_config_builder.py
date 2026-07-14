@@ -426,6 +426,8 @@ def build_round18_configs(
         return out
     if stage_n in {"18c", "c"}:
         return build_stage18c_manifest(settings, screening, outdir)
+    if stage_n in {"18c_none", "c_none", "18cb", "cb"}:
+        return build_stage18c_none_followup_manifest(settings, outdir)
     if stage_n in {"18d", "d"}:
         return build_stage18d_manifest(
             settings, outdir, allow_placeholder=allow_placeholder_for_smoke
@@ -441,7 +443,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--settings", default="config/round18_architecture_settings.json")
     parser.add_argument("--outdir", default="result/optimization_runs/round18_architecture")
-    parser.add_argument("--stage", required=True, choices=["18a", "18b", "18c", "18d", "18e", "18f", "a", "b", "c", "d", "e", "f"])
+    parser.add_argument("--stage", required=True, choices=["18a", "18b", "18c", "18c_none", "18cb", "18d", "18e", "18f", "a", "b", "c", "c_none", "cb", "d", "e", "f"])
     parser.add_argument(
         "--allow-placeholder-for-smoke",
         action="store_true",

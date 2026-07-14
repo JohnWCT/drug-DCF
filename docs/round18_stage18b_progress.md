@@ -2,6 +2,7 @@
 
 **Date:** 2026-07-13  
 **Status:** **ALL_DONE — 45/45 screening jobs complete**  
+**Downstream:** Round 18C–18D complete — see [`docs/round18_final_report.md`](round18_final_report.md).
 **Root:** `result/optimization_runs/round18_architecture/`
 
 ---
@@ -73,7 +74,7 @@ Source: `reports/round18_screening_architecture_ranking.csv` (via `tools/analyze
 
 - Feature ModelID coverage preflight: **937 IDs identical** across O0/O1/O2 (dims 64/75/91).
 - Stage **18D** refuses to build without `reports/round18_locked_selection.json` unless `--allow-placeholder-for-smoke`.
-- Do **not** write selection lock until Stage **18C** (cross-attention) screening is also complete, if formal candidates must include C0/C1 families.
+- Selection lock was written **after** 18C-A (48/48) + 18C-B none follow-up (6/6). Full results: `docs/round18_final_report.md`.
 
 ---
 

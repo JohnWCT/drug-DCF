@@ -4,6 +4,10 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "${ROOT}"
+# shellcheck source=tools/run_round18_notify_helpers.sh
+source "$(dirname "$0")/run_round18_notify_helpers.sh"
+CURRENT_STAGE="18C-A"
+trap 'r18_notify --event stage-fail --stage "${CURRENT_STAGE}" --reason "exit code $?"' ERR
 
 SETTINGS="${ROUND18_SETTINGS:-config/round18_architecture_settings.json}"
 OUTDIR="${ROUND18_ROOT:-result/optimization_runs/round18_architecture}"
@@ -73,6 +77,7 @@ PY
     --limit 1
 else
   echo "[18C] SMOKE_ONLY=0: dispatching 18C-A screening manifest"
+  r18_notify --event stage-start --stage "${CURRENT_STAGE}" --extra "48-job cross-attention screen; MAX_JOBS_PER_GPU=${MAX_JOBS_PER_GPU}"
   EXTRA=()
   if [[ -n "${LIMIT_JOBS}" ]]; then EXTRA+=(--limit "${LIMIT_JOBS}"); fi
   python tools/round18_oom_runner.py dispatch \
@@ -83,4 +88,5 @@ else
     "${EXTRA[@]}"
 fi
 
+r18_notify --event stage-done --stage "${CURRENT_STAGE}" --manifest "${OUTDIR}/manifests/stage18c_cross_attention_manifest.csv"
 echo "========== ROUND18 STAGE 18C DONE $(date -u +%Y-%m-%dT%H:%M:%SZ) =========="

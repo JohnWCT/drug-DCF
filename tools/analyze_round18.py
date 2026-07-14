@@ -164,10 +164,11 @@ def filter_complete_screening(
 
 
 def assert_manifests_complete_for_lock(root: Path) -> Dict[str, Dict[str, int]]:
-    """Hard gate: both 18B and 18C manifests must exist and be 100% done."""
+    """Hard gate for formal lock: 18B + 18C-A + 18C-B (none follow-up) all 100% done."""
     required_manifests = [
         root / "manifests" / "stage18b_screening_manifest.csv",
         root / "manifests" / "stage18c_cross_attention_manifest.csv",
+        root / "manifests" / "stage18c_none_followup_manifest.csv",
     ]
     completion: Dict[str, Dict[str, int]] = {}
     for manifest in required_manifests:
@@ -186,6 +187,66 @@ def assert_manifests_complete_for_lock(root: Path) -> Dict[str, Dict[str, int]]:
                 f"Cannot write lock: {manifest.name} has {n_done}/{n_total} completed jobs"
             )
     return completion
+
+
+def select_top_cross_attention_for_none(ranking: pd.DataFrame) -> List[dict]:
+    """
+    Pick best pure + best pooled_residual cross-attention for 18C-B none follow-up.
+
+    Prefer non-none omics (own_plus_summary / context16) so we do not re-select none.
+    """
+    if ranking is None or ranking.empty:
+        return []
+    complete = filter_complete_screening(ranking)
+    ca = complete[complete["architecture_family"] == "cross_attention"].copy()
+    if ca.empty:
+        return []
+    # Prefer engineered omics; fall back to any complete CA
+    preferred = ca[ca["omics_mode"].astype(str) != "none"]
+    pool = preferred if not preferred.empty else ca
+    selected: List[dict] = []
+    for residual_mode, role in (
+        ("pure", "best_pure_cross_attention"),
+        ("pooled_residual", "best_pooled_residual_cross_attention"),
+    ):
+        sub = pool[pool["residual_mode"] == residual_mode]
+        if sub.empty:
+            continue
+        row = sub.iloc[0]
+        selected.append(
+            {
+                "role": role,
+                "architecture_id": row["architecture_id"],
+                "architecture_family": row["architecture_family"],
+                "omics_mode": row["omics_mode"],
+                "transformer_config_id": row.get("transformer_config_id") or "",
+                "residual_mode": row.get("residual_mode") or "",
+                "mean_DrugMacro_AUC": row.get("mean_DrugMacro_AUC"),
+                "mean_DrugMacro_AUPRC": row.get("mean_DrugMacro_AUPRC"),
+            }
+        )
+    return selected
+
+
+def write_top_for_none(outdir: Path, ranking: pd.DataFrame) -> Optional[Path]:
+    """Write reports/round18_18c_top_for_none.json for the none-followup builder."""
+    selected = select_top_cross_attention_for_none(ranking)
+    if len(selected) < 2:
+        return None
+    reports = outdir / "reports"
+    reports.mkdir(parents=True, exist_ok=True)
+    path = reports / "round18_18c_top_for_none.json"
+    payload = {
+        "selection_rule": "best_pure_and_best_pooled_residual_cross_attention",
+        "n_candidates": len(selected),
+        "top_cross_attention_for_none": selected,
+        "notes": [
+            "Used by build_stage18c_none_followup_manifest to add none x 3fold jobs.",
+            "Does not pick overall top-2 (which may both be residual).",
+        ],
+    }
+    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return path
 
 
 def _fold_lookup(jobs: pd.DataFrame, architecture_id: str) -> Dict[int, float]:
@@ -550,6 +611,7 @@ def write_locked_selection(
 
     b18 = (completion or {}).get("stage18b_screening_manifest.csv", {})
     c18 = (completion or {}).get("stage18c_cross_attention_manifest.csv", {})
+    c18b = (completion or {}).get("stage18c_none_followup_manifest.csv", {})
 
     lock = {
         "selection_policy": "round18_explicit_5candidate",
@@ -573,6 +635,7 @@ def write_locked_selection(
         "fixed_model_seed": 101,
         "stage18b_completion": f"{b18.get('n_done', '?')}/{b18.get('n_total', '?')}",
         "stage18c_completion": f"{c18.get('n_done', '?')}/{c18.get('n_total', '?')}",
+        "stage18c_none_followup_completion": f"{c18b.get('n_done', '?')}/{c18b.get('n_total', '?')}",
         "screening_best_overall": {
             "architecture_id": best.get("architecture_id"),
             "mean_DrugMacro_AUC": best.get("mean_DrugMacro_AUC"),
@@ -607,6 +670,7 @@ def analyze_round18(
     for default, override in (
         (root / "manifests" / "stage18b_screening_manifest.csv", screening_manifest),
         (root / "manifests" / "stage18c_cross_attention_manifest.csv", cross_manifest),
+        (root / "manifests" / "stage18c_none_followup_manifest.csv", None),
         (root / "manifests" / "stage18d_formal_5cv_manifest.csv", formal_manifest),
     ):
         path = Path(override) if override else default
@@ -629,6 +693,8 @@ def analyze_round18(
     ranking.to_csv(ranking_path, index=False)
     ranking_raw_path = reports / "round18_screening_architecture_ranking_raw.csv"
     ranking_raw.to_csv(ranking_raw_path, index=False)
+
+    top_for_none_path = write_top_for_none(root, ranking_raw)
 
     paired, residual_effect, omics_interaction = build_cross_attention_paired_deltas(screening)
     paired_path = reports / "round18_cross_attention_paired_deltas.csv"
@@ -749,6 +815,7 @@ def analyze_round18(
         "n_ranking": int(len(ranking)),
         "formal_candidates": formal_candidates,
         "completion": completion,
+        "top_for_none": str(top_for_none_path) if top_for_none_path else None,
     }
 
 
