@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-14  
 **Status:** **ALL_DONE — 117/117 jobs done，0 failed**  
-**Stage gate:** Stage 19B = **GO complete**；Stage 19C selection 前需另做交互分析與 candidate list（本報告已含主效果對比，**尚未寫 selection lock**）  
+**Stage gate:** Stage 19B = **GO complete**；**Stage 19C = ALL_DONE（54/54）** — 見 [`docs/round19_stage19c_report.md`](round19_stage19c_report.md)；**Formal selection lock = NO-GO**（19D proposal READY，待人工審查）  
 **Root:** `result/optimization_runs/round19_factorial/`  
 **Docker:** container `DAPL`，workdir `/workspace/DAPL`
 
@@ -154,7 +154,7 @@ result/optimization_runs/round19_factorial/
 | 3 folds / cell；DrugMacro 有效 | **GO** |
 | 無 TCGA／internal selection | **GO** |
 | O2 全 cell 比較完成 | **GO** |
-| Stage 19C candidate list / selection lock | **NO-GO（尚未做）** |
+| Stage 19C candidate list / selection lock | **IN_PROGRESS — candidate lock tooling ready；formal lock NO-GO** |
 | 19D repeated 5CV | **NO-GO** |
 | 依本輪結果加 GIN128 / JK-cat | **NO-GO（無充分瓶頸證據）** |
 

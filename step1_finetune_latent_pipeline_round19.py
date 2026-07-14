@@ -8,7 +8,7 @@ import os
 import sys
 import traceback
 from pathlib import Path
-from typing import Dict, Optional, Set
+from typing import Dict, Optional, Set, Tuple
 
 import pandas as pd
 import torch
@@ -22,6 +22,7 @@ if PROJECT_ROOT not in sys.path:
 from tools.round18_cv_metrics import metrics_to_jsonable
 from tools.round18_dataset import subset_by_assignment
 from tools.round18_response_head import Round18ResponseHead
+from tools.round19_context_controls import build_partition_permutation, validate_context_shuffle
 from tools.round19_dataset import Round19ResponseDataset, round19_collate_fn
 from tools.round19_drug_encoders import assert_no_hybrid, build_drug_encoder
 from tools.round19_feature_builder import OMICS_ALIAS, resolve_omics_dim
@@ -112,6 +113,9 @@ def _make_loaders(
     with_bonds: bool,
     micro_batch_size: int,
     max_rows: Optional[int] = None,
+    omics_id: Optional[str] = None,
+    train_context_permutation: Optional[Dict[str, str]] = None,
+    val_context_permutation: Optional[Dict[str, str]] = None,
 ):
     eligible = pd.read_csv(response_path)
     assignments = pd.read_csv(split_assignment)
@@ -126,6 +130,8 @@ def _make_loaders(
         drug_smiles_path=drug_smiles_path,
         encoder_type=encoder_type,
         with_bonds=with_bonds,
+        context_permutation=train_context_permutation,
+        omics_id=omics_id,
     )
     val_ds = Round19ResponseDataset(
         val_df,
@@ -135,6 +141,8 @@ def _make_loaders(
         with_bonds=with_bonds,
         graph_cache=train_ds.graph_cache,
         maccs_by_drug=train_ds.maccs_by_drug,
+        context_permutation=val_context_permutation,
+        omics_id=omics_id,
     )
     train_loader = DataLoader(
         train_ds, batch_size=micro_batch_size, shuffle=True, num_workers=0, collate_fn=round19_collate_fn
@@ -230,6 +238,46 @@ def run_data_smoke(args: argparse.Namespace) -> dict:
     return summary
 
 
+def _build_context_perms(
+    assignments: pd.DataFrame,
+    fold_id: int,
+    train_seed: int,
+    val_seed: int,
+) -> Tuple[Dict[str, str], Dict[str, str], dict]:
+    fold = int(fold_id)
+    train_mids = sorted(
+        set(
+            assignments[
+                (assignments["fold_id"].astype(int) == fold)
+                & (assignments["split_role"].astype(str) == "train")
+            ]["ModelID"].astype(str)
+        )
+    )
+    val_mids = sorted(
+        set(
+            assignments[
+                (assignments["fold_id"].astype(int) == fold)
+                & (assignments["split_role"].astype(str) == "val")
+            ]["ModelID"].astype(str)
+        )
+    )
+    train_perm = build_partition_permutation(train_mids, int(train_seed))
+    val_perm = build_partition_permutation(val_mids, int(val_seed))
+    validate_context_shuffle(train_perm, train_mids)
+    validate_context_shuffle(val_perm, val_mids)
+    meta = {
+        "context_control": "shuffled",
+        "shuffle_unit": "ModelID",
+        "shuffle_scope": "within_partition",
+        "train_shuffle_seed": int(train_seed),
+        "validation_shuffle_seed": int(val_seed),
+        "derangement": True,
+        "n_train_modelids": len(train_mids),
+        "n_val_modelids": len(val_mids),
+    }
+    return train_perm, val_perm, meta
+
+
 def train_fold(args: argparse.Namespace) -> dict:
     settings = _load_settings(args.settings)
     set_round18_seeds(int(args.model_seed or settings.get("model_seed", 101)))
@@ -245,9 +293,27 @@ def train_fold(args: argparse.Namespace) -> dict:
         raise SystemExit("train_fold forbids --max-batches unless --allow-max-batches")
 
     try:
+        assignments = pd.read_csv(args.split_assignment)
+        train_context_perm = None
+        val_context_perm = None
+        shuffle_meta = None
+        control_type = str(getattr(args, "control_type", "none") or "none")
+        feature_dir = _feature_dir(settings, args.omics_id)
+        if control_type == "context_shuffle":
+            if args.omics_id not in {"O2", "O3"}:
+                raise SystemExit("context_shuffle requires omics_id O2 or O3")
+            if args.train_shuffle_seed is None or args.val_shuffle_seed is None:
+                raise SystemExit("context_shuffle requires --train-shuffle-seed and --val-shuffle-seed")
+            train_context_perm, val_context_perm, shuffle_meta = _build_context_perms(
+                assignments,
+                int(args.fold_id),
+                int(args.train_shuffle_seed),
+                int(args.val_shuffle_seed),
+            )
+
         train_loader, val_loader, train_ds, val_ds, assignments = _make_loaders(
             response_path=args.response_path,
-            feature_dir=_feature_dir(settings, args.omics_id),
+            feature_dir=feature_dir,
             drug_smiles_path=settings["drug_smiles_path"],
             split_assignment=args.split_assignment,
             fold_id=int(args.fold_id),
@@ -255,6 +321,9 @@ def train_fold(args: argparse.Namespace) -> dict:
             with_bonds=with_bonds,
             micro_batch_size=int(args.micro_batch_size),
             max_rows=None,
+            omics_id=args.omics_id,
+            train_context_permutation=train_context_perm,
+            val_context_permutation=val_context_perm,
         )
         assert train_ds.omics_dim == resolve_omics_dim(args.omics_id)
         encoder, fusion, head, enc_type, drug_cfg = _build_encoder_fusion_head(
@@ -376,6 +445,7 @@ def train_fold(args: argparse.Namespace) -> dict:
             "drug_id": args.drug_id,
             "predictor_id": args.predictor_id,
             "omics_id": args.omics_id,
+            "control_type": control_type,
             "encoder_type": enc_type,
             "best_epoch": best_epoch,
             "best_score": best_score,
@@ -387,6 +457,11 @@ def train_fold(args: argparse.Namespace) -> dict:
             "effective_batch": int(args.micro_batch_size) * int(args.accumulation_steps),
         }
         (result_dir / "train_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+        if shuffle_meta is not None:
+            (result_dir / "context_shuffle_metadata.json").write_text(
+                json.dumps(shuffle_meta, indent=2), encoding="utf-8"
+            )
+            summary["context_shuffle_metadata"] = shuffle_meta
         peak = float(torch.cuda.max_memory_allocated() / (1024**2)) if device.type == "cuda" else None
         (result_dir / "runtime_resource_summary.json").write_text(
             json.dumps(
@@ -455,6 +530,9 @@ def main() -> None:
     parser.add_argument("--disable-amp", action="store_true")
     parser.add_argument("--pilot", action="store_true")
     parser.add_argument("--cpu", action="store_true")
+    parser.add_argument("--control-type", default="none", choices=["none", "context_shuffle"])
+    parser.add_argument("--train-shuffle-seed", type=int, default=None)
+    parser.add_argument("--val-shuffle-seed", type=int, default=None)
     args = parser.parse_args()
     if args.mode == "data_smoke":
         if not args.max_batches:

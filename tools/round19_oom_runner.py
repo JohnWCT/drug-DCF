@@ -141,6 +141,13 @@ def _build_round19_cmd(
         cmd.extend(["--early-stop-patience", str(int(float(job["early_stop_patience"])))])
     if job.get("early_stop_start_epoch"):
         cmd.extend(["--early-stop-start-epoch", str(int(float(job["early_stop_start_epoch"])))])
+    control_type = str(job.get("control_type") or "none")
+    if control_type and control_type != "none":
+        cmd.extend(["--control-type", control_type])
+    if job.get("train_shuffle_seed") not in (None, ""):
+        cmd.extend(["--train-shuffle-seed", str(int(float(job["train_shuffle_seed"])))])
+    if job.get("validation_shuffle_seed") not in (None, ""):
+        cmd.extend(["--val-shuffle-seed", str(int(float(job["validation_shuffle_seed"])))])
     return cmd
 
 

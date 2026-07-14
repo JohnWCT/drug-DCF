@@ -17,6 +17,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
+from tools.round19_context_controls import shuffle_seeds_for_fold
 from tools.round19_cv_splits import link_or_reuse_round18_eligible, link_or_reuse_round18_splits
 from tools.round19_feature_builder import OMICS_ALIAS, build_round19_feature_set
 from tools.round19_fusion_models import COMPATIBLE_CELLS, assert_compatible
@@ -174,6 +175,172 @@ def build_stage19b_manifest(
     return df
 
 
+def _load_candidate_lock(path: str) -> dict:
+    payload = _load_json(Path(path))
+    if payload.get("lock_type") != "stage19c_candidate_lock":
+        raise ValueError(f"Expected stage19c_candidate_lock, got {payload.get('lock_type')}")
+    return payload
+
+
+def _feature_dir_for_omics(settings: dict, root: Path, omics_id: str) -> str:
+    feature_root = Path(settings.get("round19_feature_out_root", root / "features"))
+    return str(feature_root / OMICS_ALIAS[omics_id])
+
+
+def _base_manifest_row(
+    settings: dict,
+    root: Path,
+    *,
+    drug_id: str,
+    pred_id: str,
+    omics_id: str,
+    fold_id: int,
+    split_seed: int,
+    model_seed: int,
+    role: Optional[str] = None,
+    control_type: str = "none",
+    context_control: str = "none",
+    train_shuffle_seed: Optional[int] = None,
+    validation_shuffle_seed: Optional[int] = None,
+) -> dict:
+    dfields = _drug_fields(settings, drug_id)
+    suffix = ""
+    if control_type == "context_shuffle":
+        suffix = "__ctx_shuffle"
+    job_id = f"{drug_id}__{pred_id}__{omics_id}__fold{fold_id}{suffix}"
+    row = {
+        "job_id": job_id,
+        "drug_representation_id": drug_id,
+        "predictor_id": pred_id,
+        "drug_id": drug_id,
+        "omics_id": omics_id,
+        "omics_display_name": OMICS_ALIAS[omics_id],
+        "fold_id": fold_id,
+        "control_type": control_type,
+        "context_control": context_control,
+        "shuffle_unit": "ModelID" if control_type == "context_shuffle" else "",
+        "shuffle_scope": "within_partition" if control_type == "context_shuffle" else "",
+        "train_shuffle_seed": train_shuffle_seed if train_shuffle_seed is not None else "",
+        "validation_shuffle_seed": validation_shuffle_seed if validation_shuffle_seed is not None else "",
+        "split_strategy": "modelid_grouped_screening_3fold",
+        "split_seed": split_seed,
+        "model_seed": model_seed,
+        "feature_dir": _feature_dir_for_omics(settings, root, omics_id),
+        "result_dir": str(root / "stage19c" / job_id),
+        "role": role or "",
+        **dfields,
+    }
+    assert_job_metadata(row)
+    return row
+
+
+def build_stage19c_manifest(
+    settings: dict,
+    outdir: str,
+    candidate_lock: dict,
+    *,
+    include_context_controls: bool = True,
+) -> pd.DataFrame:
+    """Build Stage 19C manifest: selected cells × O0/O4 + optional shuffle controls."""
+    root = Path(outdir)
+    manifests = root / "manifests"
+    manifests.mkdir(parents=True, exist_ok=True)
+    split_seed = int(settings.get("screening_split_seed", 42))
+    model_seed = int(settings.get("model_seed", 101))
+
+    unique_cells = candidate_lock.get("unique_cells") or candidate_lock.get("selected_cells")
+    if not unique_cells:
+        raise ValueError("candidate lock missing unique_cells")
+
+    seen = set()
+    cells: List[dict] = []
+    for c in unique_cells:
+        d = str(c["drug_id"])
+        p = str(c["predictor_id"])
+        key = (d, p)
+        if key in seen:
+            continue
+        seen.add(key)
+        cells.append(
+            {
+                "drug_id": d,
+                "predictor_id": p,
+                "role": c.get("primary_role") or c.get("role") or "",
+            }
+        )
+
+    rows: List[dict] = []
+    for cell in cells:
+        for omics_id in ("O0", "O4"):
+            for fold_id in range(3):
+                rows.append(
+                    _base_manifest_row(
+                        settings,
+                        root,
+                        drug_id=cell["drug_id"],
+                        pred_id=cell["predictor_id"],
+                        omics_id=omics_id,
+                        fold_id=fold_id,
+                        split_seed=split_seed,
+                        model_seed=model_seed,
+                        role=str(cell.get("role") or ""),
+                        control_type="none",
+                        context_control="none",
+                    )
+                )
+
+    if include_context_controls:
+        controls = candidate_lock.get("context_shuffle_controls") or {}
+        atom = controls.get("atom_cell") or {"drug_id": "D0", "predictor_id": "P2"}
+        pooled = controls.get("pooled_cell") or candidate_lock.get("best_pooled_for_shuffle") or {}
+        control_cells = [
+            (str(atom["drug_id"]), str(atom["predictor_id"])),
+            (str(pooled["drug_id"]), str(pooled["predictor_id"])),
+        ]
+        for drug_id, pred_id in control_cells:
+            for omics_id in ("O2", "O3"):
+                for fold_id in range(3):
+                    train_seed, val_seed = shuffle_seeds_for_fold(fold_id)
+                    rows.append(
+                        _base_manifest_row(
+                            settings,
+                            root,
+                            drug_id=drug_id,
+                            pred_id=pred_id,
+                            omics_id=omics_id,
+                            fold_id=fold_id,
+                            split_seed=split_seed,
+                            model_seed=model_seed,
+                            control_type="context_shuffle",
+                            context_control="shuffled",
+                            train_shuffle_seed=train_seed,
+                            validation_shuffle_seed=val_seed,
+                        )
+                    )
+
+    df = pd.DataFrame(rows)
+    validate_compatible_manifest(df)
+    if not df["job_id"].is_unique:
+        raise AssertionError("job_id not unique")
+    if not df["result_dir"].is_unique:
+        raise AssertionError("result_dir not unique")
+
+    n_selected = len(cells)
+    expected_core = n_selected * 2 * 3
+    core = df[df["control_type"] == "none"]
+    ctrl = df[df["control_type"] == "context_shuffle"]
+    assert_expected_job_count(core, expected_core, label="stage19c_core")
+    if include_context_controls:
+        assert_expected_job_count(ctrl, 12, label="stage19c_controls")
+        assert_expected_job_count(df, expected_core + 12, label="stage19c_total")
+    else:
+        assert_expected_job_count(df, expected_core, label="stage19c_total")
+
+    path = manifests / "stage19c_manifest.csv"
+    df.to_csv(path, index=False)
+    return df
+
+
 def build_stage19a(settings: dict, outdir: str) -> Dict[str, Any]:
     root = Path(outdir)
     root.mkdir(parents=True, exist_ok=True)
@@ -237,7 +404,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Round 19 config builder")
     parser.add_argument("--settings", default="config/round19_factorial_settings.json")
     parser.add_argument("--outdir", default=None)
-    parser.add_argument("--stage", default="19a", choices=["19a", "19b_manifest"])
+    parser.add_argument("--stage", default="19a", choices=["19a", "19b_manifest", "19c"])
+    parser.add_argument("--candidate-lock", default=None)
+    parser.add_argument("--include-context-controls", action="store_true")
     args = parser.parse_args()
     settings = _load_json(Path(args.settings))
     outdir = args.outdir or settings.get("outdir", "result/optimization_runs/round19_factorial")
@@ -247,6 +416,26 @@ def main() -> None:
     elif args.stage == "19b_manifest":
         df = build_stage19b_manifest(settings, outdir)
         print(json.dumps({"n_jobs": int(len(df)), "path": "manifests/stage19b_drug_predictor_manifest.csv"}))
+    elif args.stage == "19c":
+        if not args.candidate_lock:
+            raise SystemExit("--stage 19c requires --candidate-lock")
+        lock = _load_candidate_lock(args.candidate_lock)
+        df = build_stage19c_manifest(
+            settings,
+            outdir,
+            lock,
+            include_context_controls=args.include_context_controls,
+        )
+        print(
+            json.dumps(
+                {
+                    "n_jobs": int(len(df)),
+                    "n_core": int(len(df[df.control_type == "none"])),
+                    "n_controls": int(len(df[df.control_type == "context_shuffle"])),
+                    "path": "manifests/stage19c_manifest.csv",
+                }
+            )
+        )
     else:
         raise SystemExit(f"Unsupported stage {args.stage}")
 

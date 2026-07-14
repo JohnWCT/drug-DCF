@@ -28,6 +28,8 @@ class Round19ResponseDataset(Dataset):
         with_bonds: bool = False,
         maccs_by_drug: Optional[Dict[str, np.ndarray]] = None,
         graph_cache: Optional[Dict[str, Data]] = None,
+        context_permutation: Optional[Dict[str, str]] = None,
+        omics_id: Optional[str] = None,
         group_column: str = "ModelID",
         label_column: str = "Label",
         drug_column: str = "DRUG_NAME",
@@ -55,6 +57,8 @@ class Round19ResponseDataset(Dataset):
         self.smiles_lookup = load_smiles_lookup(drug_smiles_path)
         self.graph_cache = graph_cache if graph_cache is not None else {}
         self.maccs_by_drug = maccs_by_drug
+        self.context_permutation = context_permutation
+        self.omics_id = str(omics_id) if omics_id is not None else None
 
         if self.encoder_type == "maccs":
             drugs = sorted(set(self.df[self.drug_column].astype(str)))
@@ -95,7 +99,17 @@ class Round19ResponseDataset(Dataset):
         mid = str(row[self.group_column])
         if mid not in self.latent:
             raise KeyError(f"Missing omics for ModelID={mid}")
-        omics = torch.tensor(np.asarray(self.latent[mid], dtype=np.float32))
+        omics_arr = np.asarray(self.latent[mid], dtype=np.float32)
+        if self.context_permutation is not None:
+            from tools.round19_context_controls import apply_context_permutation
+
+            donor_mid = self.context_permutation.get(mid, mid)
+            if donor_mid not in self.latent:
+                raise KeyError(f"Missing donor omics for ModelID={donor_mid}")
+            donor_arr = np.asarray(self.latent[donor_mid], dtype=np.float32)
+            oid = self.omics_id or self.feature_meta.get("omics_id", "O2")
+            omics_arr = apply_context_permutation(omics_arr, donor_arr, oid)
+        omics = torch.tensor(omics_arr)
         drug_name = str(row[self.drug_column])
         item = {
             "_row_id": int(row["_row_id"]),
