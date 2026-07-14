@@ -114,12 +114,13 @@ def build_stage19b_manifest(
     omics_ids: Optional[List[str]] = None,
     n_folds: int = 3,
 ) -> pd.DataFrame:
-    """13 compatible cells × anchor omics × folds (default O1/O3 × 3 = 78)."""
+    """13 compatible cells × anchor omics × folds (default O1/O2/O3 × 3 = 117)."""
     root = Path(outdir)
     manifests = root / "manifests"
     manifests.mkdir(parents=True, exist_ok=True)
-    omics_ids = omics_ids or ["O1", "O3"]
+    omics_ids = omics_ids or list(settings.get("stage19b_omics_anchors") or ["O1", "O2", "O3"])
     split_seed = int(settings.get("screening_split_seed", 42))
+    model_seed = int(settings.get("model_seed", 101))
     rows = []
     for drug_id, pred_id in COMPATIBLE_CELLS:
         assert_compatible(drug_id, pred_id)
@@ -140,6 +141,7 @@ def build_stage19b_manifest(
                     "fold_id": fold_id,
                     "split_strategy": "modelid_grouped_screening_3fold",
                     "split_seed": split_seed,
+                    "model_seed": model_seed,
                     "feature_dir": feature_dir,
                     "result_dir": str(root / "stage19b" / job_id),
                     **dfields,
@@ -148,6 +150,23 @@ def build_stage19b_manifest(
                 rows.append(row)
     df = pd.DataFrame(rows)
     validate_compatible_manifest(df)
+    bad = df[(df.drug_representation_id == "D1") & (df.predictor_id == "P2")]
+    if len(bad):
+        raise AssertionError(f"D1×P2 must be 0, got {len(bad)}")
+    bad = df[(df.drug_representation_id == "D4") & (df.predictor_id == "P2")]
+    if len(bad):
+        raise AssertionError(f"D4×P2 must be 0, got {len(bad)}")
+    if set(omics_ids) == {"O1", "O2", "O3"}:
+        for d, p in COMPATIBLE_CELLS:
+            n = int(len(df[(df.drug_representation_id == d) & (df.predictor_id == p)]))
+            if n != 9:
+                raise AssertionError(f"{d}×{p} expected 9 jobs (3 omics × 3 folds), got {n}")
+    if not df["job_id"].is_unique:
+        raise AssertionError("job_id not unique")
+    if not df["result_dir"].is_unique:
+        raise AssertionError("result_dir not unique")
+    if set(df["fold_id"].astype(int)) != {0, 1, 2}:
+        raise AssertionError(f"fold IDs must be {{0,1,2}}, got {set(df['fold_id'])}")
     expected = len(COMPATIBLE_CELLS) * len(omics_ids) * int(n_folds)
     assert_expected_job_count(df, expected, label="stage19b")
     path = manifests / "stage19b_drug_predictor_manifest.csv"

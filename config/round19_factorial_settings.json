@@ -198,5 +198,25 @@
       "graph_encoder": false,
       "input_dim": 166
     }
+  },
+  "stage19b_omics_anchors": ["O1", "O2", "O3"],
+  "stage19b_expected_jobs": 117,
+  "stage19b_pilot_cells": [
+    {"drug": "D0", "predictor": "P0", "omics": "O1", "purpose": "baseline_mlp"},
+    {"drug": "D1", "predictor": "P1", "omics": "O3", "purpose": "node64_graph32_pooled"},
+    {"drug": "D2", "predictor": "P1", "omics": "O3", "purpose": "node64_graph64_pooled"},
+    {"drug": "D2", "predictor": "P2", "omics": "O2", "purpose": "gin64_atom_xattn_o2"},
+    {"drug": "D3", "predictor": "P2", "omics": "O3", "purpose": "gine_atom_xattn"},
+    {"drug": "D4", "predictor": "P1", "omics": "O2", "purpose": "maccs_o2"}
+  ],
+  "pilot": {
+    "fold_id": 0,
+    "max_epochs": 80,
+    "early_stop_patience": 20,
+    "early_stop_start_epoch": 10,
+    "micro_batch_size": 64,
+    "accumulation_steps": 16,
+    "result_subdir": "stage19b_pilot",
+    "write_formal_job_status": false
   }
 }

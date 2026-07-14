@@ -17,9 +17,9 @@ def settings():
 
 
 def test_build_stage19b_manifest_count(settings, tmp_path):
-    df = build_stage19b_manifest(settings, str(tmp_path), omics_ids=["O1", "O3"], n_folds=3)
+    df = build_stage19b_manifest(settings, str(tmp_path), omics_ids=["O1", "O2", "O3"], n_folds=3)
     validate_compatible_manifest(df)
-    assert_expected_job_count(df, len(COMPATIBLE_CELLS) * 2 * 3)
+    assert_expected_job_count(df, len(COMPATIBLE_CELLS) * 3 * 3)
     assert df["job_id"].is_unique
     assert "node_hidden_dim" in df.columns
     assert "split_seed" in df.columns

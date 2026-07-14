@@ -46,4 +46,4 @@ def test_stage19b_manifest_count_if_present():
         pytest.skip("19b manifest not built yet")
     df = pd.read_csv(path)
     validate_compatible_manifest(df)
-    assert_expected_job_count(df, len(COMPATIBLE_CELLS) * 2 * 3)
+    assert_expected_job_count(df, len(COMPATIBLE_CELLS) * 3 * 3)

@@ -849,10 +849,13 @@ O1代表較簡單的prototype summary輸入；O3代表Round 18 CV champion使用
 
 ```text
 13 compatible drug-predictor cells
-× 2 omics anchors
+× 3 omics modes（O1 / O2 / O3）
 × 3 folds
-= 78 jobs
+= 117 jobs
 ```
+
+O1 = Z + summary；O2 = Z + context16（本輪關鍵新模式）；O3 = Z + summary + context16。
+O0／O4 不進 19B 主矩陣（O0 留 19C；O4 為 source-only control）。
 
 固定：
 
@@ -988,11 +991,10 @@ O3
 = 84 jobs
 ```
 
-O1與O3已在19B完成，可直接重用，因此通常新增：
+O1／O2／O3已在19B完成，可直接重用；通常新增主要是O0：
 
 ```text
-7 × 2 × 3
-= 42 jobs
+最多約 7 × 1 × 3 = 21 jobs（O0）
 ```
 
 ## 19C source-only control
@@ -1561,9 +1563,9 @@ tests/test_round19_analyzer_effects.py
 
 ```text
 13 compatible cells
-× 2 omics
+× 3 omics（O1/O2/O3）
 × 3 folds
-= 78
+= 117
 ```
 
 ## 19C核心
@@ -1575,7 +1577,7 @@ tests/test_round19_analyzer_effects.py
 = 84
 ```
 
-其中O1／O3可重用，新增約42。
+其中 O1／O2／O3 已在 19B 完成，可直接重用；通常新增主要是 O0。
 
 Controls：
 
@@ -1851,9 +1853,10 @@ feature與graph schema QC全部通過
 GO：
 
 ```text
-78/78完成
+117/117完成（O1/O2/O3 全 cell）
 每個cell有3個有效fold
 無資料族群差異
+不得在 O2 未完成前選定 best drug／predictor 或寫 lock
 ```
 
 ## Gate 19C
