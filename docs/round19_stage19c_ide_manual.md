@@ -4,6 +4,7 @@
 
 **前置狀態：** Round 19B 117-job factorial screening 完成  
 **19B commit：** `c3c41f9`  
+**19C 狀態：** **ALL_DONE（54/54）** — 見 [`docs/round19_stage19c_report.md`](round19_stage19c_report.md)  
 **執行環境：** Docker container `DAPL`（`/workspace/DAPL`）  
 **主要選擇指標：** 3-fold mean DrugMacro AUC  
 **Tie-breaker：** DrugMacro AUPRC  
