@@ -1,10 +1,25 @@
 # Round 18 Final Report — Architecture Screening
 
 **Date:** 2026-07-14  
-**Status:** **ALL_DONE through Stage 18D**  
+**Status:** **18A–18E DONE；18F NOT DONE → Round 18 整體尚未全部完成**  
 **Root:** `result/optimization_runs/round18_architecture/`  
-**Pipeline:** 18A → 18B → 18C-A → 18C-B → lock → 18D（含 Telegram stage 通知）  
+**Pipeline:** 18A → 18B → 18C-A → 18C-B → lock → 18D → **18E**（18F 待做）  
 **Docker:** `docker exec -w /workspace/DAPL DAPL ...`（`ROUND18_NUM_WORKERS=0`）
+
+---
+
+## 0. Round 18 completion verdict
+
+| 問題 | 答案 |
+|------|------|
+| 選模／formal CV 是否完成？ | **是**（18A–18D） |
+| 鎖定 5 candidates 後的 external eval（internal + TCGA ensemble）是否完成？ | **是**（18E） |
+| 可解釋性／attention export（18F）是否完成？ | **否**（`export_attention` 仍為 stub） |
+| Round 18 是否可宣告全部完成？ | **否** — 差 Stage **18F** |
+
+**18E 外部成功判定（固定規則，未回頭改選模）：**  
+`cross_attention_external_success = false`  
+（internal X3_pure 勝過 MLP，但 5 個 TCGA DrugMacro 目標中僅 **2/5** non-worse；門檻為 ≥3/5）
 
 ---
 
@@ -20,7 +35,8 @@
 
 - atom-level attention 是否優於 early pooling？  
 - 若優於，是來自 **atom–omics interaction**，還是 **pooled GIN residual shortcut**？  
-- 提升是否依賴 **prototype engineered omics（context16）**？
+- 提升是否依賴 **prototype engineered omics（context16）**？  
+- formal CV 優勢能否落到 **held-out internal test** 與 **TCGA response**（選模後才評估）？
 
 選擇規則：只用 screening / formal CV 的 **DrugMacro AUC**；**不使用** internal test 與 TCGA response labels 做選模。
 
@@ -36,8 +52,12 @@
 | 18C-B none follow-up | **6/6** | DONE |
 | Selection lock | `round18_locked_selection.json` | DONE（需 45+48+6） |
 | 18D formal 5CV | **25/25** | DONE |
+| 18E internal ensemble infer | **25/25** | DONE |
+| 18E TCGA ensemble infer | **125/125** | DONE |
+| 18E analyze（metrics + paired bootstrap） | reports + verdict | DONE |
+| 18F attention export / masking | — | **NOT DONE** |
 
-Lock 條件已記錄：`18B 45/45`、`18C-A 48/48`、`18C-B 6/6`；`internal_test_used=false`，`tcga_used=false`；split seed **42**、model seed **101**。
+Lock 條件：`18B 45/45`、`18C-A 48/48`、`18C-B 6/6`；`internal_test_used=false`，`tcga_used=false`；split seed **42**、model seed **101**。
 
 ---
 
@@ -52,6 +72,7 @@ Lock 條件已記錄：`18B 45/45`、`18C-A 48/48`、`18C-B 6/6`；`internal_tes
 | Screening CV | 3-fold，ModelID-grouped |
 | Formal CV | 5-fold，ModelID-grouped |
 | Primary metric | mean **DrugMacro AUC** |
+| 18E ensemble | 5-fold probability **mean**（禁止 best-fold） |
 | Ops | process-level OOM retry；`/dev/shm=64MB` → workers=0 |
 
 ### Stage contents
@@ -62,6 +83,7 @@ Lock 條件已記錄：`18B 45/45`、`18C-A 48/48`、`18C-B 6/6`；`internal_tes
 | **18C-A** | X0–X3 × {pure, pooled_residual} × {own_plus_summary, context16} × 3 folds = **48** |
 | **18C-B** | best pure + best residual × **none** × 3 folds = **6** |
 | **18D** | 5 locked candidates × 5 folds = **25** |
+| **18E** | 5 candidates ×（internal + 5 TCGA targets）× 5 folds = **25 + 125** |
 
 18C-B **不**取 cross-attn 總榜前兩名（可能兩個都是 residual），固定選：
 
@@ -178,26 +200,112 @@ Source: `reports/round18_formal_5cv_summary.csv`（5/5 folds with AUC）
 
 ---
 
-## 9. Scientific conclusions
+## 9. Stage 18E external evaluation（選模後）
 
-1. **Atom-level cross-attention + context16** 在 3-fold screening 與 5-fold formal 皆優於 MLP baseline 與 P3 pooled Transformer。  
-2. 優勢 **不是** 單純來自 pooled GIN residual：formal 上 pure ≈ residual；none 上 residual 甚至更差。  
-3. 優勢 **與 omics representation 強交互**：context16 ≫ own_plus ≫ none（對 X3）。  
-4. 因此 Round 18 的核心發現是 **architecture × representation interaction**，而非「任何 Transformer 都贏 MLP」。  
-5. P1（較小）在 formal 5CV 可能比 P3 更穩，值得保留為 efficient pooled 對照。
+**規則：** 只用 18D checkpoints；ensemble = 5-fold 機率平均；**不**用 internal／TCGA 回頭改 architecture selection。
+
+Artifacts:
+
+- `reports/round18_internal_test_summary.csv`  
+- `reports/round18_five_target_tcga_summary.csv`  
+- `reports/round18_integrated5_summary.csv`  
+- `reports/round18e_paired_bootstrap_deltas.csv`  
+- `reports/round18e_success_verdict.json`
+
+### 9.1 Internal held-out test（ensemble）
+
+| Rank | Architecture | DrugMacro AUC | Global AUC |
+|------|--------------|---------------|------------|
+| 1 | P3 × context16 | **0.6131** | 0.8586 |
+| 2 | X3 residual × context16 | 0.6110 | 0.8579 |
+| 3 | X3 pure × context16 | 0.6056 | **0.8632** |
+| 4 | P1 × context16 | 0.5905 | 0.8244 |
+| 5 | MLP × own_plus_summary | 0.5358 | 0.7705 |
+
+**判讀：**
+
+- X3 pure **明顯勝過** MLP（DrugMacro ≈ +0.070；paired bootstrap P(Δ>0)≈0.9995）。  
+- 相對 P3／residual，DrugMacro 略差或持平（bootstrap CI 含 0）。  
+- Internal 支持「cross-attn + context16 ≫ MLP」，但 **champion 未必仍是 X3 pure**（P3 在此切面最高）。
+
+### 9.2 TCGA five-target DrugMacro AUC
+
+| Target | MLP | P3 | P1 | X3 pure | X3 res | X3 vs MLP |
+|--------|-----|----|----|---------|--------|-----------|
+| gdsc_intersect13 | **0.5415** | 0.4902 | 0.4624 | 0.4593 | 0.4951 | worse |
+| tcga_only3 | **0.5508** | 0.4023 | 0.4321 | 0.3584 | 0.4059 | worse |
+| dapl | **0.5154** | 0.4628 | 0.4181 | 0.4620 | 0.4095 | worse |
+| aacdr_tcga_only | 0.5183 | 0.4450 | 0.5018 | **0.5340** | 0.4492 | non-worse |
+| aacdr_gdsc_intersect | 0.5178 | 0.5667 | 0.5267 | **0.5601** | 0.5559 | non-worse |
+
+X3 pure vs MLP：**2/5** non-worse（未達 ≥3/5 成功門檻）。
+
+### 9.3 Integrated5（5 TCGA 目標平均 DrugMacro AUC）
+
+| Rank | Architecture | Integrated5 DrugMacro |
+|------|--------------|------------------------|
+| 1 | **MLP × own_plus_summary** | **0.5288** |
+| 2 | X3 pure × context16 | 0.4748 |
+| 3 | P3 × context16 | 0.4734 |
+| 4 | P1 × context16 | 0.4682 |
+| 5 | X3 residual × context16 | 0.4631 |
+
+TCGA 整體平均上 **MLP 反而最佳**；formal／internal 的 Transformer／cross-attn 優勢 **未外推**到這五個 TCGA response sets。
+
+### 9.4 Paired bootstrap（X3 pure − comparator，DrugMacro AUC）
+
+重點（mean Δ；95% CI；P(Δ>0)）：
+
+| Contrast | internal_test | 解讀 |
+|----------|---------------|------|
+| X3 pure − MLP | +0.065 [+0.024, +0.108]；P≈0.9995 | 穩健勝過 MLP |
+| X3 pure − P3 | −0.006 [−0.031, +0.019]；P≈0.31 | 無穩定勝 P3 |
+| X3 pure − residual | −0.005 [−0.032, +0.021]；P≈0.35 | pure≈residual |
+
+TCGA 上相對 MLP：多數目標 mean Δ **為負**（尤其 `tcga_only3`、`gdsc_intersect13`）；僅 AACDR 相關子集傾向非負。
+
+### 9.5 18E success verdict
+
+```json
+{
+  "cross_attention_external_success": false,
+  "notes": [
+    "internal X3_pure=0.6056 vs MLP=0.5358; TCGA non-worse=2/5",
+    "internal residual=0.6110 (delta vs pure=0.0054)"
+  ],
+  "prefer_pure_for_18F": true
+}
+```
+
+若仍做 18F，鎖定對象維持 formal champion：**X3 pure × context16**（residual 無外部加分）。
 
 ---
 
-## 10. Ops notes
+## 10. Scientific conclusions（更新至 18E）
+
+1. **Screening／formal CV：** atom-level cross-attention + **context16** 優於 MLP 與多數 pooled Transformer；優勢來自 **architecture × omics representation**，不是 residual shortcut alone。  
+2. **Omics 依賴：** context16 ≫ own_plus ≫ none；none follow-up 否定「純 atom attention 即可」。  
+3. **Residual：** formal 與 internal 上 pure ≈ residual；不支持「主要靠 GIN pooled residual」。  
+4. **Internal held-out：** X3／P3 皆遠勝 MLP，確認 in-domain generalization 對 cross-attn／Transformer+context16 有利。  
+5. **TCGA external：** 固定成功規則下 **未通過**（2/5 non-worse；Integrated5 MLP 最高）。formal／internal 增益 **未能穩定外推**到 TCGA response labels。  
+6. **Round 18 核心結論應分成兩層：**  
+   - **方法層（CV／internal）：** cross-attn + context16 是合理的 in-domain 架構贏家；  
+   - **外部臨床／TCGA 層：** 目前 **不能**宣告 cross-attention external success。  
+7. Round 18 **尚未全部完成**：缺 **18F**（attention 可解釋性／masking）。
+
+---
+
+## 11. Ops notes
 
 - 18B 曾因過度平行出現 SIGKILL；workers=0 後可提高 packing。  
-- 18C-A 最終以 `MAX_JOBS_PER_GPU=8` 完成；18C-B 用 6；18D 用 8。  
+- 18C-A／18D／18E 多用 `MAX_JOBS_PER_GPU=8`；18C-B 用 6。  
 - Telegram：`tools/round18_telegram_notify.py` + stage scripts 的 `r18_notify`。  
-- `--write-lock` 硬性要求 18B+18C-A+18C-B 全部完成。
+- `--write-lock` 硬性要求 18B+18C-A+18C-B 全部完成。  
+- 18E analyze：paired bootstrap 為 96 jobs（4 pairs × 6 targets × 4 metrics）；改 `ProcessPoolExecutor`（`--n-jobs`，預設約 16）後約 **4 分鐘**完成（先前單執行緒過慢）。
 
 ---
 
-## 11. Key paths
+## 12. Key paths
 
 ```
 result/optimization_runs/round18_architecture/
@@ -206,21 +314,36 @@ result/optimization_runs/round18_architecture/
     stage18c_cross_attention_manifest.csv
     stage18c_none_followup_manifest.csv
     stage18d_formal_5cv_manifest.csv
+    stage18e_internal_test_manifest.csv
+    stage18e_tcga_manifest.csv
   reports/
     round18_locked_selection.json
     round18_18c_top_for_none.json
     round18_screening_architecture_ranking.csv
     round18_formal_5cv_summary.csv
-    round18_cross_attention_paired_deltas.csv
-    round18_residual_effect_summary.csv
-    round18_omics_architecture_interaction.csv
-    round18_final_report.md
+    round18_internal_test_summary.csv
+    round18_five_target_tcga_summary.csv
+    round18_integrated5_summary.csv
+    round18e_paired_bootstrap_deltas.csv
+    round18e_success_verdict.json
+  stage18e_internal/ ...
+  stage18e_tcga/ ...
 ```
+
+Code（18E）：
+
+- `tools/run_round18_stage18e_locked_eval.sh`  
+- `tools/analyze_round18_external_eval.py`  
+- `tools/round18_tcga_dataset.py`  
+- `tools/round18_prediction_ensemble.py`  
+- `step1_finetune_latent_pipeline_round18_cv.py`（`infer_internal_test` / `infer_tcga`）
 
 ---
 
-## 12. Suggested next steps（未執行）
+## 13. Remaining / next（未全部完成項）
 
-- 18E / 18F：internal test、TCGA ensemble、attention export（需另開，且不得回頭污染選模）。  
-- 若要以 single champion 進下游：目前 formal 最佳為 **`cross_attn__X3__pure__own_proto_context_projected_16`**。  
-- 文件披露：`own_proto_context_projected_16` 使用 unlabeled TCGA prototype context（非 TCGA response labels）。
+1. **Stage 18F（必要，才算 Round 18 全完成）：**  
+   - 對 `cross_attn__X3__pure__own_proto_context_projected_16` 做 attention export、一致性、masking ablation。  
+   - 不得用 18E／18F 結果回頭改 18D 選模。  
+2. 若探討 TCGA 失敗原因：domain shift、藥物覆蓋、標籤雜訊、omics alignment（屬後續分析，不屬本 round 選模）。  
+3. 文件披露：`own_proto_context_projected_16` 使用 unlabeled TCGA prototype context（非 TCGA response labels）。

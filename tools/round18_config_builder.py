@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import numpy as np
 import pandas as pd
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -344,7 +345,29 @@ def build_stage18d_manifest(
     return {"stage": "18d", "manifest": str(path), "n_jobs": len(rows), "lock_source": lock_source}
 
 
+def _locked_formal_candidates(lock: dict) -> List[dict]:
+    cands = lock.get("formal_candidates") or []
+    if len(cands) < 1:
+        raise ValueError("Lock file has empty formal_candidates")
+    out = []
+    for c in cands:
+        row = dict(c)
+        for key in ("transformer_config_id", "residual_mode"):
+            val = row.get(key, "")
+            if val is None or (isinstance(val, float) and np.isnan(val)):
+                row[key] = ""
+            else:
+                row[key] = "" if str(val) == "nan" else str(val)
+        out.append(row)
+    return out
+
+
 def build_stage18e_manifest(settings: dict, outdir: str) -> Dict[str, Any]:
+    """
+    Stage 18E: locked formal_candidates × (internal_test + TCGA targets) × folds.
+
+    Candidates must come only from round18_locked_selection.json.
+    """
     manifests = Path(outdir) / "manifests"
     manifests.mkdir(parents=True, exist_ok=True)
     lock_path = Path(outdir) / "reports" / "round18_locked_selection.json"
@@ -353,27 +376,94 @@ def build_stage18e_manifest(settings: dict, outdir: str) -> Dict[str, Any]:
             f"Missing {lock_path}; Stage 18E requires locked selection after 18D"
         )
     lock = load_json(str(lock_path))
-    arch = lock["architecture_id"]
-    rows = []
-    for fold_id in range(int(settings["formal_cv"]["n_splits"])):
-        for target in settings.get("tcga", {}).get("eval_targets", []):
-            rows.append(
+    candidates = _locked_formal_candidates(lock)
+    n_folds = int(settings["formal_cv"]["n_splits"])
+    drug_smiles = settings["drug_smiles_path"]
+    eligible = str(Path(outdir) / "data" / "round18_eligible_response.csv")
+
+    internal_rows: List[dict] = []
+    tcga_rows: List[dict] = []
+    for cand in candidates:
+        arch = cand["architecture_id"]
+        role = cand.get("role") or ""
+        omics = cand["omics_mode"]
+        family = cand["architecture_family"]
+        cfg_id = cand.get("transformer_config_id") or ""
+        residual = cand.get("residual_mode") or ""
+        feat = feature_dir_for_omics(settings, omics)
+        for fold_id in range(n_folds):
+            ckpt = str(
+                Path(outdir) / "stage18d" / arch / f"fold_{fold_id}" / "checkpoint.pt"
+            )
+            internal_rows.append(
                 {
-                    "job_id": f"18e_{arch}_{target['key']}_f{fold_id}",
+                    "job_id": f"18e_internal_{arch}_f{fold_id}",
                     "stage": "18e",
+                    "candidate_id": role or arch,
                     "architecture_id": arch,
-                    "omics_mode": lock.get("omics_mode", ""),
+                    "architecture_family": family,
+                    "omics_mode": omics,
+                    "transformer_config_id": cfg_id,
+                    "residual_mode": residual,
                     "fold_id": fold_id,
-                    "target_key": target["key"],
-                    "target_path": target["path"],
-                    "mode": "infer_tcga",
-                    "result_dir": str(Path(outdir) / "stage18e" / arch / target["key"] / f"fold_{fold_id}"),
+                    "target_key": "internal_test",
+                    "target_path": "",
+                    "mode": "infer_internal_test",
+                    "checkpoint_path": ckpt,
+                    "feature_dir": feat,
+                    "response_data_path": eligible,
+                    "drug_smiles_path": drug_smiles,
+                    "split_assignment": str(Path(outdir) / "splits" / "internal_test_split.csv"),
+                    "result_dir": str(Path(outdir) / "stage18e_internal" / arch / f"fold_{fold_id}"),
+                    "requested_micro_batch": 512,
+                    "model_seed": settings.get("model_seed", 101),
                     "status": "pending",
                 }
             )
-    path = manifests / "stage18e_tcga_manifest.csv"
-    pd.DataFrame(rows).to_csv(path, index=False)
-    return {"stage": "18e", "manifest": str(path), "n_jobs": len(rows)}
+            for target in settings.get("tcga", {}).get("eval_targets", []):
+                tkey = target["key"]
+                tcga_rows.append(
+                    {
+                        "job_id": f"18e_tcga_{arch}_{tkey}_f{fold_id}",
+                        "stage": "18e",
+                        "candidate_id": role or arch,
+                        "architecture_id": arch,
+                        "architecture_family": family,
+                        "omics_mode": omics,
+                        "transformer_config_id": cfg_id,
+                        "residual_mode": residual,
+                        "fold_id": fold_id,
+                        "target_key": tkey,
+                        "target_path": target["path"],
+                        "mode": "infer_tcga",
+                        "checkpoint_path": ckpt,
+                        "feature_dir": feat,
+                        "response_data_path": target["path"],
+                        "drug_smiles_path": drug_smiles,
+                        "split_assignment": "",
+                        "result_dir": str(
+                            Path(outdir) / "stage18e_tcga" / arch / tkey / f"fold_{fold_id}"
+                        ),
+                        "requested_micro_batch": 512,
+                        "model_seed": settings.get("model_seed", 101),
+                        "status": "pending",
+                    }
+                )
+
+    internal_path = manifests / "stage18e_internal_test_manifest.csv"
+    tcga_path = manifests / "stage18e_tcga_manifest.csv"
+    pd.DataFrame(internal_rows).to_csv(internal_path, index=False)
+    pd.DataFrame(tcga_rows).to_csv(tcga_path, index=False)
+    return {
+        "stage": "18e",
+        "internal_manifest": str(internal_path),
+        "tcga_manifest": str(tcga_path),
+        "n_internal_jobs": len(internal_rows),
+        "n_tcga_jobs": len(tcga_rows),
+        "n_jobs": len(internal_rows) + len(tcga_rows),
+        "n_candidates": len(candidates),
+        "lock_source": str(lock_path),
+    }
 
 
 def build_stage18f_manifest(settings: dict, outdir: str) -> Dict[str, Any]:

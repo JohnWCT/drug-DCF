@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-13  
 **Status:** **ALL_DONE — 45/45 screening jobs complete**  
-**Downstream:** Round 18C–18D complete — see [`docs/round18_final_report.md`](round18_final_report.md).
+**Downstream:** Round 18C–18E complete；**18F pending** — see [`docs/round18_final_report.md`](round18_final_report.md).
 **Root:** `result/optimization_runs/round18_architecture/`
 
 ---
@@ -87,10 +87,11 @@ Source: `reports/round18_screening_architecture_ranking.csv` (via `tools/analyze
 
 ## 7. Next steps
 
-1. Run Stage **18C** cross-attention screen (`tools/run_round18_stage18c_cross_attention_screen.sh`, `SMOKE_ONLY=0`).
-2. Re-run `tools/analyze_round18.py` on 18B+18C; then `--write-lock` for formal candidates.
-3. Stage **18D** formal 5CV from lock file only.
-4. 18E / 18F after lock (TCGA infer / interpretability still gated).
+1. ~~Run Stage **18C** …~~ **DONE**
+2. ~~`--write-lock` for formal candidates~~ **DONE**
+3. ~~Stage **18D** formal 5CV~~ **DONE**
+4. ~~**18E** internal + TCGA ensemble eval~~ **DONE**（external success = false；見 final report）
+5. **18F** attention export / masking — **尚未執行**（Round 18 全完成前的剩餘項）
 
 ---
 

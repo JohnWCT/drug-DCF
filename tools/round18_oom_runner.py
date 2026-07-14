@@ -227,23 +227,22 @@ def run_single_job_with_oom_retry(
         if attempt > max_retries:
             break
         accum = compute_accumulation_steps(target_effective_batch, int(micro_batch))
+        mode = str(job.get("mode") or "train_fold")
         cmd = [
             python_exe,
             pipeline,
             "--mode",
-            "train_fold",
+            mode,
             "--architecture-family",
             str(job["architecture_family"]),
             "--omics-mode",
             str(job["omics_mode"]),
             "--feature-dir",
             str(job["feature_dir"]),
-            "--split-assignment",
-            str(job["split_assignment"]),
             "--fold-id",
             str(job["fold_id"]),
             "--response-path",
-            str(job["response_data_path"]),
+            str(job.get("response_data_path") or job.get("target_path") or ""),
             "--drug-smiles-path",
             str(job["drug_smiles_path"]),
             "--result-dir",
@@ -255,10 +254,20 @@ def run_single_job_with_oom_retry(
             "--model-seed",
             str(job.get("model_seed", 101)),
         ]
+        if job.get("split_assignment"):
+            cmd.extend(["--split-assignment", str(job["split_assignment"])])
         if job.get("transformer_config_id"):
             cmd.extend(["--transformer-config-id", str(job["transformer_config_id"])])
         if job.get("residual_mode"):
             cmd.extend(["--residual-mode", str(job["residual_mode"])])
+        if job.get("architecture_id"):
+            cmd.extend(["--architecture-id", str(job["architecture_id"])])
+        if job.get("checkpoint_path"):
+            cmd.extend(["--checkpoint-path", str(job["checkpoint_path"])])
+        if job.get("target_path"):
+            cmd.extend(["--target-path", str(job["target_path"])])
+        if job.get("target_key"):
+            cmd.extend(["--target-key", str(job["target_key"])])
         if job.get("global_lr"):
             cmd.extend(["--global-lr", str(job["global_lr"])])
         if job.get("max_epochs"):
@@ -293,10 +302,13 @@ def run_single_job_with_oom_retry(
             status["status"] = "oom_retry"
             status["oom_retry_count"] = len(history)
             status["oom_batch_history"] = list(history)
-            # Clear any partial checkpoint before next clean process
-            ckpt = result_dir / "checkpoint.pt"
-            if ckpt.exists():
-                ckpt.unlink()
+            # Clear any partial train checkpoint before next clean process.
+            # Never delete an external checkpoint_path used by 18E inference.
+            mode = str(job.get("mode") or "train_fold")
+            if not str(mode).startswith("infer"):
+                ckpt = result_dir / "checkpoint.pt"
+                if ckpt.exists():
+                    ckpt.unlink()
             continue
 
         status["status"] = "failed"

@@ -25,6 +25,12 @@ from tools.round18_dataset import (
     round18_graph_collate_fn,
     subset_by_assignment,
 )
+from tools.round18_tcga_dataset import (
+    Round18TCGADataset,
+    make_eval_row_id,
+    prepare_tcga_response_frame,
+    round18_tcga_collate_fn,
+)
 from tools.round18_fusion_models import build_fusion_and_head
 from tools.round18_cv_metrics import metrics_to_jsonable
 from tools.round18_oom_runner import (
@@ -581,19 +587,70 @@ def evaluate_fold(args: argparse.Namespace) -> dict:
     return out["metrics"]
 
 
+def _resolve_checkpoint(args: argparse.Namespace, result_dir: Path) -> Path:
+    if getattr(args, "checkpoint_path", None):
+        ckpt_path = Path(args.checkpoint_path)
+    else:
+        ckpt_path = result_dir / "checkpoint.pt"
+    if not ckpt_path.is_file():
+        raise FileNotFoundError(f"Missing checkpoint: {ckpt_path}")
+    return ckpt_path
+
+
+def _annotate_external_predictions(
+    pred_df: pd.DataFrame,
+    *,
+    args: argparse.Namespace,
+    target_key: str,
+    patient_ids: Optional[list] = None,
+    eval_row_ids: Optional[list] = None,
+) -> pd.DataFrame:
+    df = pred_df.copy()
+    df["fold_id"] = int(args.fold_id)
+    df["target_key"] = target_key
+    df["architecture_id"] = getattr(args, "architecture_id", "") or ""
+    df["architecture_family"] = args.architecture_family
+    df["omics_mode"] = args.omics_mode
+    df["transformer_config_id"] = args.transformer_config_id or ""
+    df["residual_mode"] = args.residual_mode or ""
+    if patient_ids is not None and len(patient_ids) == len(df):
+        df["Patient_id"] = [str(x) for x in patient_ids]
+    else:
+        df["Patient_id"] = df["ModelID"].astype(str)
+    if eval_row_ids is not None and len(eval_row_ids) == len(df):
+        df["eval_row_id"] = [str(x) for x in eval_row_ids]
+    else:
+        df["eval_row_id"] = [
+            make_eval_row_id(
+                target_key=target_key,
+                patient_id=str(pid),
+                drug_name=str(drug),
+                label=int(lab),
+                source_row_id=int(rid),
+            )
+            for pid, drug, lab, rid in zip(
+                df["Patient_id"], df["DRUG_NAME"], df["Label"], df["_row_id"]
+            )
+        ]
+    df["drug_name"] = df["DRUG_NAME"].astype(str)
+    return df
+
+
 def infer_split(args: argparse.Namespace, *, split_role: str, out_name: str) -> dict:
     """Infer on internal_test rows listed in assignment or dedicated split CSV."""
     settings = _settings(args.settings)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     result_dir = Path(args.result_dir)
-    ckpt = torch.load(result_dir / "checkpoint.pt", map_location=device)
+    result_dir.mkdir(parents=True, exist_ok=True)
+    ckpt = torch.load(_resolve_checkpoint(args, result_dir), map_location=device)
 
     eligible = pd.read_csv(args.response_path)
     if args.split_assignment and Path(args.split_assignment).is_file():
-        # Prefer dedicated internal_test_split.csv when role is internal_test
         if split_role == "internal_test":
             it_path = Path(args.outdir) / "splits" / "internal_test_split.csv"
-            if it_path.is_file():
+            if Path(args.split_assignment).name == "internal_test_split.csv":
+                subset = pd.read_csv(args.split_assignment)
+            elif it_path.is_file():
                 subset = pd.read_csv(it_path)
             else:
                 assigns = pd.read_csv(args.split_assignment)
@@ -617,6 +674,7 @@ def infer_split(args: argparse.Namespace, *, split_role: str, out_name: str) -> 
         ds,
         batch_size=int(args.micro_batch_size),
         shuffle=False,
+        num_workers=int(os.environ.get("ROUND18_NUM_WORKERS", "0")),
         collate_fn=round18_graph_collate_fn,
     )
     gin, fusion, head, _ = _build_models(
@@ -639,17 +697,93 @@ def infer_split(args: argparse.Namespace, *, split_role: str, out_name: str) -> 
         architecture_family=args.architecture_family,
         residual_mode=args.residual_mode,
     )
+    preds = _annotate_external_predictions(
+        out["predictions"],
+        args=args,
+        target_key=getattr(args, "target_key", None) or "internal_test",
+    )
     pred_path = result_dir / out_name
-    out["predictions"].to_csv(pred_path, index=False)
-    print(json.dumps({"ok": True, "wrote": str(pred_path), "n": len(out["predictions"])}, indent=2))
+    preds.to_csv(pred_path, index=False)
+    (result_dir / "val_metrics.json").write_text(
+        json.dumps(metrics_to_jsonable(out["metrics"]), indent=2), encoding="utf-8"
+    )
+    print(json.dumps({"ok": True, "wrote": str(pred_path), "n": len(preds)}, indent=2))
     return {"wrote": str(pred_path), "metrics": out["metrics"]}
 
 
 def infer_tcga(args: argparse.Namespace) -> dict:
-    raise NotImplementedError(
-        "infer_tcga requires locked selection + TCGA feature alignment; "
-        "Stage 18E wiring comes after 18D lock file exists."
+    """Infer one locked-candidate fold checkpoint on one TCGA target CSV."""
+    settings = _settings(args.settings)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    result_dir = Path(args.result_dir)
+    result_dir.mkdir(parents=True, exist_ok=True)
+    ckpt = torch.load(_resolve_checkpoint(args, result_dir), map_location=device)
+
+    target_key = getattr(args, "target_key", None) or "tcga"
+    target_path = getattr(args, "target_path", None) or args.response_path
+    if not target_path:
+        raise SystemExit("infer_tcga requires --target-path or --response-path")
+
+    frame, tcga_latent, _ = prepare_tcga_response_frame(
+        target_path,
+        feature_dir=args.feature_dir,
+        drug_smiles_path=args.drug_smiles_path or settings["drug_smiles_path"],
+        target_key=target_key,
     )
+    ds = Round18TCGADataset(frame, tcga_latent=tcga_latent)
+    loader = DataLoader(
+        ds,
+        batch_size=int(args.micro_batch_size),
+        shuffle=False,
+        num_workers=int(os.environ.get("ROUND18_NUM_WORKERS", "0")),
+        collate_fn=round18_tcga_collate_fn,
+    )
+    gin, fusion, head, _ = _build_models(
+        architecture_family=args.architecture_family,
+        omics_dim=ds.omics_dim,
+        residual_mode=args.residual_mode,
+        transformer_config_id=args.transformer_config_id,
+        gin_cfg=settings["gin"],
+        device=device,
+    )
+    gin.load_state_dict(ckpt["gin"])
+    fusion.load_state_dict(ckpt["fusion"])
+    head.load_state_dict(ckpt["head"])
+    out = evaluate_predictions(
+        gin=gin,
+        fusion=fusion,
+        head=head,
+        dataloader=loader,
+        device=device,
+        architecture_family=args.architecture_family,
+        residual_mode=args.residual_mode,
+    )
+    # Re-attach eval_row_id / Patient_id from dataset order
+    patient_ids = frame["Patient_id"].astype(str).tolist()
+    eval_row_ids = frame["eval_row_id"].astype(str).tolist()
+    preds = _annotate_external_predictions(
+        out["predictions"],
+        args=args,
+        target_key=target_key,
+        patient_ids=patient_ids,
+        eval_row_ids=eval_row_ids,
+    )
+    pred_path = result_dir / "tcga_predictions.csv"
+    preds.to_csv(pred_path, index=False)
+    (result_dir / "val_metrics.json").write_text(
+        json.dumps(metrics_to_jsonable(out["metrics"]), indent=2), encoding="utf-8"
+    )
+    meta = {
+        "target_key": target_key,
+        "target_path": str(target_path),
+        "n_rows": int(len(preds)),
+        "n_miss_latent": int(frame.attrs.get("n_miss_latent", 0)),
+        "n_miss_smiles": int(frame.attrs.get("n_miss_smiles", 0)),
+        "checkpoint_path": str(_resolve_checkpoint(args, result_dir)),
+    }
+    (result_dir / "tcga_infer_meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    print(json.dumps({"ok": True, "wrote": str(pred_path), **meta}, indent=2))
+    return {"wrote": str(pred_path), "metrics": out["metrics"], "meta": meta}
 
 
 def export_attention(args: argparse.Namespace) -> dict:
@@ -687,6 +821,10 @@ def main() -> None:
     parser.add_argument("--micro-batch-size", type=int, default=32)
     parser.add_argument("--accumulation-steps", type=int, default=1)
     parser.add_argument("--result-dir", default=None)
+    parser.add_argument("--checkpoint-path", default=None)
+    parser.add_argument("--target-path", default=None)
+    parser.add_argument("--target-key", default=None)
+    parser.add_argument("--architecture-id", default="")
     parser.add_argument("--transformer-config-id", default="")
     parser.add_argument("--residual-mode", default="pure")
     parser.add_argument("--global-lr", type=float, default=None)
