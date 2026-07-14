@@ -134,13 +134,23 @@ def early_stop_score(
             "score": float(metrics["DrugMacro_AUC"]),
             "score_name": "Robust_DrugMacro_AUC",
             "fallback_used": False,
+            "fallback_reason": None,
+            "n_valid_drugs": n_valid,
         }
     if metrics.get("Global_AUC") is None:
-        return {"score": float("nan"), "score_name": "unavailable", "fallback_used": True}
+        return {
+            "score": float("nan"),
+            "score_name": "unavailable",
+            "fallback_used": True,
+            "fallback_reason": "missing_global_auc",
+            "n_valid_drugs": n_valid,
+        }
     return {
         "score": float(metrics["Global_AUC"]),
         "score_name": "Global_AUC",
         "fallback_used": True,
+        "fallback_reason": f"n_valid_auc_drugs={n_valid}<{min_valid_drugs_for_early_stop}",
+        "n_valid_drugs": n_valid,
     }
 
 
