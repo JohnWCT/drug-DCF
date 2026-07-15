@@ -223,8 +223,8 @@ metadata/round19_stage19b_baseline.json
 | O0–O4 每 selected cell × 3 folds | **GO** |
 | Context shuffle faithfulness | **GO（強）** |
 | O4 至少保留 1 候選 | **GO** |
-| Formal `round19_locked_selection.json` | **NO-GO（需人工審查 19D list）** |
-| 19D repeated 5CV | **READY to start after lock review** |
+| Formal `round19_locked_selection.json` | **NO-GO（需 19D/19E + 人工審查）** |
+| 19D repeated 5CV | **DONE（90/90）** — 見 [`docs/round19_stage19d_report.md`](round19_stage19d_report.md) |
 
 ---
 

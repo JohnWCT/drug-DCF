@@ -5,6 +5,7 @@
 **前置狀態：** Round 19B 117-job factorial screening 完成  
 **19B commit：** `c3c41f9`  
 **19C 狀態：** **ALL_DONE（54/54）** — 見 [`docs/round19_stage19c_report.md`](round19_stage19c_report.md)  
+**19D 狀態：** **ALL_DONE（90/90）** — 見 [`docs/round19_stage19d_report.md`](round19_stage19d_report.md)  
 **執行環境：** Docker container `DAPL`（`/workspace/DAPL`）  
 **主要選擇指標：** 3-fold mean DrugMacro AUC  
 **Tie-breaker：** DrugMacro AUPRC  
@@ -103,4 +104,4 @@ docker exec -w /workspace/DAPL -e PYTHONPATH=/workspace/DAPL \
 - 每個 selected cell：O0–O4 皆有 3-fold metrics（O1–O3 來自 19B）  
 - 無 TCGA / internal selection 欄位  
 
-完成後才建立 19D 4–6 candidate proposal。
+完成後建立 19D 4–6 candidate proposal；19D 已跑完，見 [](round19_stage19d_ide_manual.md)。

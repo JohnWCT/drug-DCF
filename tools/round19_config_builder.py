@@ -18,7 +18,11 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 from tools.round19_context_controls import shuffle_seeds_for_fold
-from tools.round19_cv_splits import link_or_reuse_round18_eligible, link_or_reuse_round18_splits
+from tools.round19_cv_splits import (
+    build_round19d_splits,
+    link_or_reuse_round18_eligible,
+    link_or_reuse_round18_splits,
+)
 from tools.round19_feature_builder import OMICS_ALIAS, build_round19_feature_set
 from tools.round19_fusion_models import COMPATIBLE_CELLS, assert_compatible
 from tools.round19_graph_features import (
@@ -400,13 +404,176 @@ def build_stage19a(settings: dict, outdir: str) -> Dict[str, Any]:
     return report
 
 
+def _load_candidate_proposal(path: str) -> dict:
+    payload = _load_json(Path(path))
+    if payload.get("lock_type") != "stage19d_candidate_proposal":
+        raise ValueError(f"Expected stage19d_candidate_proposal, got {payload.get('lock_type')}")
+    return payload
+
+
+def build_stage19d_manifest(
+    settings: dict,
+    outdir: str,
+    proposal: dict,
+    *,
+    split_seeds: Optional[List[int]] = None,
+    n_folds: int = 5,
+) -> pd.DataFrame:
+    """n_candidates × 3 seeds × 5 folds confirmation jobs."""
+    root = Path(outdir)
+    manifests = root / "manifests"
+    manifests.mkdir(parents=True, exist_ok=True)
+    seeds = list(split_seeds or proposal.get("split_seeds") or [52, 62, 72])
+    seeds = [int(s) for s in seeds]
+    n_folds = int(n_folds or proposal.get("n_folds") or 5)
+    model_seed = int(proposal.get("model_seed") or settings.get("model_seed", 101))
+    max_epochs = int(proposal.get("max_epochs", 1500))
+    patience = int(proposal.get("early_stop_patience", 100))
+    early_start = int(proposal.get("early_stop_start_epoch", 50))
+
+    split_paths = build_round19d_splits(root, split_seeds=seeds, n_folds=n_folds)
+    candidates = proposal.get("candidates") or []
+    if not candidates:
+        raise ValueError("proposal has no candidates")
+
+    rows = []
+    for cand in candidates:
+        drug_id = str(cand["drug_id"])
+        pred_id = str(cand["predictor_id"])
+        omics_id = str(cand["omics_id"])
+        cand_id = str(cand["candidate_id"])
+        assert_compatible(drug_id, pred_id)
+        dfields = _drug_fields(settings, drug_id)
+        for seed in seeds:
+            assign_path = split_paths[str(seed)]
+            for fold_id in range(n_folds):
+                job_id = f"{cand_id}__seed{seed}__fold{fold_id}"
+                row = {
+                    "job_id": job_id,
+                    "candidate_id": cand_id,
+                    "selection_role": cand.get("selection_role", ""),
+                    "drug_representation_id": drug_id,
+                    "drug_id": drug_id,
+                    "predictor_id": pred_id,
+                    "omics_id": omics_id,
+                    "omics_display_name": OMICS_ALIAS[omics_id],
+                    "split_seed": int(seed),
+                    "fold_id": int(fold_id),
+                    "model_seed": model_seed,
+                    "split_strategy": "modelid_grouped_confirmation_5fold",
+                    "split_assignment_path": assign_path,
+                    "feature_dir": _feature_dir_for_omics(settings, root, omics_id),
+                    "result_dir": str(root / "stage19d" / job_id),
+                    "max_epochs": max_epochs,
+                    "early_stop_patience": patience,
+                    "early_stop_start_epoch": early_start,
+                    "control_type": "none",
+                    **dfields,
+                }
+                assert_job_metadata(row)
+                rows.append(row)
+    df = pd.DataFrame(rows)
+    if not df["job_id"].is_unique:
+        raise AssertionError("19D job_id not unique")
+    if not df["result_dir"].is_unique:
+        raise AssertionError("19D result_dir not unique")
+    if set(df["split_seed"].astype(int)) != set(seeds):
+        raise AssertionError(f"split seeds mismatch: {set(df.split_seed)}")
+    if set(df["fold_id"].astype(int)) != set(range(n_folds)):
+        raise AssertionError(f"fold ids mismatch: {set(df.fold_id)}")
+    for cid, g in df.groupby("candidate_id"):
+        if len(g) != len(seeds) * n_folds:
+            raise AssertionError(f"{cid} expected {len(seeds)*n_folds} jobs, got {len(g)}")
+    # Forbidden leakage
+    bad_cols = [c for c in df.columns if any(x in c.lower() for x in ("tcga", "integrated5", "internal_test_auc"))]
+    if bad_cols:
+        raise AssertionError(f"Forbidden columns in 19D manifest: {bad_cols}")
+    expected = len(candidates) * len(seeds) * n_folds
+    assert_expected_job_count(df, expected, label="stage19d")
+    path = manifests / "stage19d_manifest.csv"
+    df.to_csv(path, index=False)
+    return df
+
+
+def write_stage19d_experiment_lock(
+    root: Path,
+    *,
+    proposal_path: Path,
+    manifest_path: Path,
+    settings_path: Path,
+) -> dict:
+    """Lock candidates, splits, seeds, and hypers before formal 19D execution."""
+    import hashlib
+
+    def _sha(p: Path) -> str:
+        h = hashlib.sha256()
+        with p.open("rb") as f:
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                h.update(chunk)
+        return h.hexdigest()
+
+    root = Path(root)
+    proposal = _load_json(proposal_path)
+    seeds = [int(s) for s in proposal.get("split_seeds", [52, 62, 72])]
+    split_hashes = {}
+    for seed in seeds:
+        p = root / "splits" / f"round19d_seed{seed}_5cv_assignments.csv"
+        if not p.is_file():
+            raise FileNotFoundError(p)
+        split_hashes[str(seed)] = _sha(p)
+    feature_hashes = {}
+    for oid in ("O0", "O1", "O2", "O3", "O4"):
+        meta = root / "features" / OMICS_ALIAS[oid] / "feature_metadata.json"
+        if meta.is_file():
+            feature_hashes[oid] = _sha(meta)
+    payload = {
+        "lock_type": "stage19d_experiment_lock",
+        "created_at_utc": datetime.now(timezone.utc).isoformat(),
+        "git_commit": os.environ.get("ROUND19_GIT_HEAD")
+        or subprocess.check_output(
+            ["git", "-c", "safe.directory=*", "rev-parse", "HEAD"],
+            cwd=PROJECT_ROOT,
+            text=True,
+        ).strip(),
+        "candidates": proposal.get("candidates"),
+        "split_seeds": seeds,
+        "model_seed": int(proposal.get("model_seed", 101)),
+        "n_folds": int(proposal.get("n_folds", 5)),
+        "max_epochs": int(proposal.get("max_epochs", 1500)),
+        "early_stop_patience": int(proposal.get("early_stop_patience", 100)),
+        "early_stop_start_epoch": int(proposal.get("early_stop_start_epoch", 50)),
+        "selection_metrics": ["DrugMacro_AUC", "DrugMacro_AUPRC"],
+        "internal_test_used": False,
+        "tcga_used": False,
+        "hashes": {
+            "candidate_proposal_sha256": _sha(proposal_path),
+            "manifest_sha256": _sha(manifest_path),
+            "settings_sha256": _sha(settings_path),
+            "eligible_response_sha256": _sha(root / "data" / "round19_eligible_response.csv"),
+            "split_assignment_sha256": split_hashes,
+            "feature_metadata_sha256": feature_hashes,
+            "drug_encoder_config_sha256": _sha(settings_path),
+        },
+    }
+    from tools.round19_selection_lock import scan_mapping_for_forbidden, write_selection_lock
+
+    scan_mapping_for_forbidden(payload)
+    out = root / "reports" / "round19_stage19d_experiment_lock.json"
+    write_selection_lock(payload, str(out))
+    return payload
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Round 19 config builder")
     parser.add_argument("--settings", default="config/round19_factorial_settings.json")
     parser.add_argument("--outdir", default=None)
-    parser.add_argument("--stage", default="19a", choices=["19a", "19b_manifest", "19c"])
+    parser.add_argument("--stage", default="19a", choices=["19a", "19b_manifest", "19c", "19d"])
     parser.add_argument("--candidate-lock", default=None)
+    parser.add_argument("--candidate-proposal", default=None)
     parser.add_argument("--include-context-controls", action="store_true")
+    parser.add_argument("--split-seeds", default="52,62,72")
+    parser.add_argument("--n-folds", type=int, default=5)
+    parser.add_argument("--write-experiment-lock", action="store_true")
     args = parser.parse_args()
     settings = _load_json(Path(args.settings))
     outdir = args.outdir or settings.get("outdir", "result/optimization_runs/round19_factorial")
@@ -436,6 +603,33 @@ def main() -> None:
                 }
             )
         )
+    elif args.stage == "19d":
+        if not args.candidate_proposal:
+            raise SystemExit("--stage 19d requires --candidate-proposal")
+        proposal = _load_candidate_proposal(args.candidate_proposal)
+        seeds = [int(x) for x in str(args.split_seeds).split(",") if x.strip()]
+        df = build_stage19d_manifest(
+            settings,
+            outdir,
+            proposal,
+            split_seeds=seeds,
+            n_folds=int(args.n_folds),
+        )
+        out = {
+            "n_jobs": int(len(df)),
+            "n_candidates": int(df.candidate_id.nunique()),
+            "path": "manifests/stage19d_manifest.csv",
+        }
+        if args.write_experiment_lock:
+            lock = write_stage19d_experiment_lock(
+                Path(outdir),
+                proposal_path=Path(args.candidate_proposal),
+                manifest_path=Path(outdir) / "manifests" / "stage19d_manifest.csv",
+                settings_path=Path(args.settings),
+            )
+            out["experiment_lock"] = "reports/round19_stage19d_experiment_lock.json"
+            out["git_commit"] = lock.get("git_commit")
+        print(json.dumps(out, indent=2))
     else:
         raise SystemExit(f"Unsupported stage {args.stage}")
 

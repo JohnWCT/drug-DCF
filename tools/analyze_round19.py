@@ -84,13 +84,15 @@ def _load_job_metrics_from_dir(root: Path, manifest_path: Path) -> pd.DataFrame:
         rows.append(
             {
                 "job_id": row.get("job_id"),
+                "candidate_id": row.get("candidate_id", ""),
                 "drug_id": row.get("drug_id") or row.get("drug_representation_id"),
                 "predictor_id": row.get("predictor_id"),
                 "omics_id": row.get("omics_id"),
                 "fold_id": int(row.get("fold_id", 0)),
+                "split_seed": int(row["split_seed"]) if pd.notna(row.get("split_seed")) else None,
                 "control_type": row.get("control_type", "none"),
                 "context_control": row.get("context_control", "none"),
-                "role": row.get("role", ""),
+                "role": row.get("role") or row.get("selection_role", ""),
                 "status": status,
                 "DrugMacro_AUC": metrics.get("DrugMacro_AUC"),
                 "DrugMacro_AUPRC": metrics.get("DrugMacro_AUPRC"),
@@ -307,9 +309,263 @@ def analyze_stage19c(outdir: str, *, require_complete: bool = False) -> dict:
     }
 
 
+def analyze_stage19d(outdir: str, *, require_complete: bool = False) -> dict:
+    """Two-level 19D stats: per split-seed 5CV means, then mean-of-means across seeds."""
+    root = Path(outdir)
+    reports = root / "reports"
+    reports.mkdir(parents=True, exist_ok=True)
+    man = root / "manifests" / "stage19d_manifest.csv"
+    metrics = _load_job_metrics_from_dir(root, man)
+    if metrics.empty:
+        raise RuntimeError("No Stage 19D metrics found")
+    assert_selection_frame_has_no_tcga(metrics)
+
+    n_total = int(len(metrics))
+    n_done = int((metrics["status"] == "done").sum())
+    if require_complete and n_done != n_total:
+        raise RuntimeError(f"Stage19D incomplete: {n_done}/{n_total}")
+    elif n_done < n_total:
+        warnings.warn(f"Stage19D partial: {n_done}/{n_total}", stacklevel=2)
+
+    done = metrics[metrics["status"] == "done"].copy()
+    # attach candidate_id from manifest if missing
+    if "candidate_id" not in done.columns or done["candidate_id"].isna().all():
+        man_df = pd.read_csv(man)
+        done = done.merge(
+            man_df[["job_id", "candidate_id", "selection_role", "split_seed"]],
+            on="job_id",
+            how="left",
+            suffixes=("", "_man"),
+        )
+        if "split_seed_man" in done.columns:
+            done["split_seed"] = done["split_seed"].fillna(done["split_seed_man"])
+
+    per_seed = (
+        done.groupby(["candidate_id", "drug_id", "predictor_id", "omics_id", "split_seed"], dropna=False)
+        .agg(
+            n_folds=("fold_id", "nunique"),
+            mean_DrugMacro_AUC=("DrugMacro_AUC", "mean"),
+            std_DrugMacro_AUC=("DrugMacro_AUC", "std"),
+            mean_DrugMacro_AUPRC=("DrugMacro_AUPRC", "mean"),
+            mean_Global_AUC=("Global_AUC", "mean"),
+        )
+        .reset_index()
+    )
+    per_seed.to_csv(reports / "round19d_per_seed_5cv_summary.csv", index=False)
+
+    cross = (
+        per_seed.groupby(["candidate_id", "drug_id", "predictor_id", "omics_id"], dropna=False)
+        .agg(
+            n_seeds=("split_seed", "nunique"),
+            mean_of_means_DrugMacro_AUC=("mean_DrugMacro_AUC", "mean"),
+            std_of_means_DrugMacro_AUC=("mean_DrugMacro_AUC", "std"),
+            min_seed_mean=("mean_DrugMacro_AUC", "min"),
+            max_seed_mean=("mean_DrugMacro_AUC", "max"),
+            mean_of_means_DrugMacro_AUPRC=("mean_DrugMacro_AUPRC", "mean"),
+        )
+        .reset_index()
+        .sort_values("mean_of_means_DrugMacro_AUC", ascending=False)
+    )
+    cross.to_csv(reports / "round19d_cross_seed_summary.csv", index=False)
+
+    # Paired seed deltas for key contrasts if both present
+    def _pair(a_id: str, b_id: str, label: str) -> pd.DataFrame:
+        a = per_seed[per_seed.candidate_id == a_id]
+        b = per_seed[per_seed.candidate_id == b_id]
+        rows = []
+        for seed in sorted(set(a.split_seed).intersection(set(b.split_seed))):
+            ra = a[a.split_seed == seed].iloc[0]
+            rb = b[b.split_seed == seed].iloc[0]
+            rows.append(
+                {
+                    "comparison": label,
+                    "split_seed": int(seed),
+                    "auc_a": float(ra.mean_DrugMacro_AUC),
+                    "auc_b": float(rb.mean_DrugMacro_AUC),
+                    "delta_auc": float(ra.mean_DrugMacro_AUC) - float(rb.mean_DrugMacro_AUC),
+                }
+            )
+        return pd.DataFrame(rows)
+
+    pairs = []
+    for a, b, lab in [
+        ("F1_primary_o2", "F0_historical_anchor", "F1_minus_F0"),
+        ("F1_primary_o2", "F2_full_omics_o3", "F1_minus_F2_o2_vs_o3"),
+        ("F1_primary_o2", "F3_best_pooled_o2", "F1_minus_F3_atom_vs_pooled"),
+        ("F1_primary_o2", "F4_source_only_o4", "F1_minus_F4_target_vs_source_only"),
+    ]:
+        if a in set(per_seed.candidate_id) and b in set(per_seed.candidate_id):
+            pairs.append(_pair(a, b, lab))
+    if pairs:
+        pair_df = pd.concat(pairs, ignore_index=True)
+        pair_df.to_csv(reports / "round19d_paired_seed_deltas.csv", index=False)
+        pair_sum = (
+            pair_df.groupby("comparison", as_index=False)
+            .agg(
+                mean_delta_auc=("delta_auc", "mean"),
+                n_pos_seeds=("delta_auc", lambda s: int((s > 0).sum())),
+                n_seeds=("delta_auc", "count"),
+            )
+        )
+        pair_sum.to_csv(reports / "round19d_paired_seed_delta_summary.csv", index=False)
+        pair_df[pair_df.comparison == "F1_minus_F2_o2_vs_o3"].to_csv(
+            reports / "round19d_o2_vs_o3.csv", index=False
+        )
+        pred = pair_df[pair_df.comparison == "F1_minus_F3_atom_vs_pooled"]
+        if not pred.empty:
+            pd.DataFrame(
+                [
+                    {
+                        "mean_F1_minus_F3": float(pred.delta_auc.mean()),
+                        "n_pos_F1": int((pred.delta_auc > 0).sum()),
+                        "n_seeds": int(len(pred)),
+                    }
+                ]
+            ).to_csv(reports / "round19d_predictor_robustness.csv", index=False)
+        src = pair_df[pair_df.comparison == "F1_minus_F4_target_vs_source_only"]
+        if not src.empty:
+            pd.DataFrame(
+                [
+                    {
+                        "mean_F1_minus_F4": float(src.delta_auc.mean()),
+                        "n_pos_F1": int((src.delta_auc > 0).sum()),
+                        "n_seeds": int(len(src)),
+                        "F4_mean_of_means": float(
+                            cross.loc[
+                                cross.candidate_id == "F4_source_only_o4",
+                                "mean_of_means_DrugMacro_AUC",
+                            ].iloc[0]
+                        )
+                        if (cross.candidate_id == "F4_source_only_o4").any()
+                        else None,
+                        "F1_mean_of_means": float(
+                            cross.loc[
+                                cross.candidate_id == "F1_primary_o2",
+                                "mean_of_means_DrugMacro_AUC",
+                            ].iloc[0]
+                        )
+                        if (cross.candidate_id == "F1_primary_o2").any()
+                        else None,
+                    }
+                ]
+            ).to_csv(reports / "round19d_source_only_robustness.csv", index=False)
+    else:
+        pair_sum = pd.DataFrame()
+
+    ranks = []
+    for seed, g in per_seed.groupby("split_seed"):
+        g = g.sort_values("mean_DrugMacro_AUC", ascending=False).reset_index(drop=True)
+        for i, row in g.iterrows():
+            ranks.append(
+                {
+                    "split_seed": int(seed),
+                    "rank": int(i + 1),
+                    "candidate_id": row.candidate_id,
+                    "mean_DrugMacro_AUC": float(row.mean_DrugMacro_AUC),
+                }
+            )
+    rank_df = pd.DataFrame(ranks)
+    if not rank_df.empty:
+        rank_df.to_csv(reports / "round19d_rank_counts.csv", index=False)
+
+    fold_rows = []
+    if {"F1_primary_o2", "F2_full_omics_o3"}.issubset(set(done.candidate_id)):
+        for seed in sorted(done.split_seed.dropna().unique()):
+            for fold in sorted(done.fold_id.dropna().unique()):
+                a = done[
+                    (done.candidate_id == "F1_primary_o2")
+                    & (done.split_seed == seed)
+                    & (done.fold_id == fold)
+                ]
+                b = done[
+                    (done.candidate_id == "F2_full_omics_o3")
+                    & (done.split_seed == seed)
+                    & (done.fold_id == fold)
+                ]
+                if len(a) == 1 and len(b) == 1:
+                    fold_rows.append(
+                        {
+                            "comparison": "F1_minus_F2",
+                            "split_seed": int(seed),
+                            "fold_id": int(fold),
+                            "auc_f1": float(a.DrugMacro_AUC.iloc[0]),
+                            "auc_f2": float(b.DrugMacro_AUC.iloc[0]),
+                            "delta_auc": float(
+                                a.DrugMacro_AUC.iloc[0] - b.DrugMacro_AUC.iloc[0]
+                            ),
+                        }
+                    )
+    pd.DataFrame(fold_rows).to_csv(reports / "round19d_paired_fold_deltas.csv", index=False)
+
+    status_csv = root / "manifests" / "stage19d_job_status.csv"
+    if status_csv.is_file():
+        sdf = pd.read_csv(status_csv)
+        res = {"n_jobs": int(len(sdf))}
+        if "status" in sdf.columns:
+            res["n_done"] = int((sdf["status"] == "done").sum())
+        if "elapsed_sec" in sdf.columns:
+            res["mean_elapsed_sec"] = float(sdf["elapsed_sec"].mean())
+            res["median_elapsed_sec"] = float(sdf["elapsed_sec"].median())
+            res["max_elapsed_sec"] = float(sdf["elapsed_sec"].max())
+        pd.DataFrame([res]).to_csv(reports / "round19d_resource_summary.csv", index=False)
+    elif not (reports / "round19d_resource_summary.csv").is_file():
+        pd.DataFrame(columns=["n_jobs"]).to_csv(reports / "round19d_resource_summary.csv", index=False)
+
+    for name in [
+        "round19d_paired_fold_deltas.csv",
+        "round19d_o2_vs_o3.csv",
+        "round19d_predictor_robustness.csv",
+        "round19d_source_only_robustness.csv",
+        "round19d_rank_counts.csv",
+        "round19d_resource_summary.csv",
+    ]:
+        path = reports / name
+        if not path.is_file():
+            pd.DataFrame(columns=["note"]).to_csv(path, index=False)
+        assert_selection_frame_has_no_tcga(pd.read_csv(path))
+
+    rank1_by_seed = {}
+    if not rank_df.empty:
+        for seed, g in rank_df.groupby("split_seed"):
+            rank1_by_seed[str(int(seed))] = str(g.sort_values("rank").iloc[0].candidate_id)
+
+    summary = {
+        "stage": "19d",
+        "n_done": n_done,
+        "n_total": n_total,
+        "n_candidates": int(cross["candidate_id"].nunique()) if not cross.empty else 0,
+        "primary_metric": "mean_of_means_DrugMacro_AUC",
+        "winner_by_mean_of_means": str(cross.iloc[0].candidate_id) if not cross.empty else None,
+        "winner_auc": float(cross.iloc[0].mean_of_means_DrugMacro_AUC) if not cross.empty else None,
+        "rank1_by_seed": rank1_by_seed,
+        "pair_summaries": pair_sum.to_dict(orient="records") if not pair_sum.empty else [],
+        "cross_seed_ranking": cross[
+            [
+                "candidate_id",
+                "drug_id",
+                "predictor_id",
+                "omics_id",
+                "mean_of_means_DrugMacro_AUC",
+                "std_of_means_DrugMacro_AUC",
+                "mean_of_means_DrugMacro_AUPRC",
+            ]
+        ].to_dict(orient="records")
+        if not cross.empty
+        else [],
+        "formal_selection_lock": "NO-GO",
+        "internal_test_used_for_selection": False,
+        "tcga_used_for_selection": False,
+        "reports_dir": str(reports),
+    }
+    (reports / "round19d_analysis_summary.json").write_text(
+        json.dumps(summary, indent=2), encoding="utf-8"
+    )
+    return summary
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--stage", default="19b", choices=["19b", "19c", "selection"])
+    parser.add_argument("--stage", default="19b", choices=["19b", "19c", "19d", "selection"])
     parser.add_argument("--outdir", default="result/optimization_runs/round19_factorial")
     parser.add_argument("--require-complete", action="store_true")
     parser.add_argument("--write-lock", action="store_true")
@@ -322,10 +578,14 @@ def main() -> None:
         out = analyze_stage19c(args.outdir, require_complete=args.require_complete)
         print(json.dumps(out, indent=2))
         return
+    if args.stage == "19d":
+        out = analyze_stage19d(args.outdir, require_complete=args.require_complete)
+        print(json.dumps(out, indent=2))
+        return
     if args.stage == "selection":
         if not args.write_lock:
             raise SystemExit("selection stage requires --write-lock after 19B/19C complete")
-        raise SystemExit("Refuse lock: Round 19B/19C results not complete (smoke guard)")
+        raise SystemExit("Refuse lock: Round 19D/19E results not complete (smoke guard)")
     raise SystemExit(f"Unsupported stage {args.stage}")
 
 
