@@ -255,7 +255,19 @@ def _task_and_cases(
         raise AssertionError(f"task_id must occur exactly once in pinned manifest: {task_id}")
     task = rows.iloc[0].to_dict()
     start, stop = int(task["case_start"]), int(task["case_stop_exclusive"])
-    cases = verified["_cases"].iloc[start:stop].copy()
+    case_pool = verified["_cases"]
+    cohort_scope = str(task.get("cohort_scope", "")).strip()
+    if cohort_scope == "tcga_exploratory":
+        case_pool = case_pool[
+            case_pool["selection_reason"].astype(str) == "tcga_exploratory"
+        ]
+    elif cohort_scope == "primary_faithfulness":
+        case_pool = case_pool[
+            case_pool["selection_reason"].astype(str) != "tcga_exploratory"
+        ]
+    elif cohort_scope:
+        raise ValueError(f"Unknown case cohort_scope: {cohort_scope}")
+    cases = case_pool.reset_index(drop=True).iloc[start:stop].copy()
     if len(cases) != int(task["case_count"]):
         raise AssertionError("task case range/count mismatch")
     digest = hashlib.sha256("\n".join(cases["eval_row_id"]).encode()).hexdigest()

@@ -18,6 +18,7 @@ from tools.omics_group_ablation import ablate_omics_blocks
 from tools.pooled_drug_occlusion import pooled_input_occlusion
 from tools.round19_atom_occlusion import batched, feature_zero_graph, matched_random_controls, rank_atom_sets
 from tools.round19_stage19f_ensemble import REQUIRED_MEMBER_IDS
+from tools.round19_stage19g_executor import _task_and_cases
 from tools.scaffold_sidechain_ablation import scaffold_sidechain_partition
 from tools.stage19g_routing_audit import audit_routing
 
@@ -105,6 +106,37 @@ def test_routing_fold_and_full_development_support(tmp_path):
     assert audited["routing_match"].all()
     assert list(audited["support_basis"]) == ["19E_fold_relative", "TCGA_full_development"]
     assert {"seen_drug", "seen_scaffold", "seen_cancer_type"} <= set(audited)
+
+
+def test_task_case_ranges_are_relative_to_their_cohort():
+    cases = pd.DataFrame(
+        [
+            {"eval_row_id": "p1", "selection_reason": "representative_stratified_random"},
+            {"eval_row_id": "t1", "selection_reason": "tcga_exploratory"},
+            {"eval_row_id": "p2", "selection_reason": "patient_conditioned"},
+            {"eval_row_id": "t2", "selection_reason": "tcga_exploratory"},
+        ]
+    )
+    digest = hashlib.sha256("t1\nt2".encode()).hexdigest()
+    verified = {
+        "_cases": cases,
+        "_manifests": {
+            "attention": pd.DataFrame(
+                [
+                    {
+                        "task_id": "tcga-task",
+                        "cohort_scope": "tcga_exploratory",
+                        "case_start": 0,
+                        "case_stop_exclusive": 2,
+                        "case_count": 2,
+                        "case_ids_sha256": digest,
+                    }
+                ]
+            )
+        },
+    }
+    _, selected = _task_and_cases(verified, "attention", "tcga-task", None)
+    assert selected["eval_row_id"].tolist() == ["t1", "t2"]
 
 
 def test_analyzer_complete_gate(tmp_path):
