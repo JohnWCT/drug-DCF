@@ -184,5 +184,11 @@ class CrossAttentionSwitch(nn.Module):
                 attn_all.append(attn)
         if return_attention:
             # [num_layers, B, H, Lq, Lk]
-            return x, torch.stack(attn_all, dim=0)
+            raw = torch.stack(attn_all, dim=0)
+            if key_padding_mask is not None:
+                # Preserve exact zeros on padding in exported eval attention.
+                raw = raw.masked_fill(
+                    key_padding_mask[None, :, None, None, :].bool(), 0.0
+                )
+            return x, raw
         return x

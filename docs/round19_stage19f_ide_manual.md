@@ -16,14 +16,16 @@
 
 ## 1. 本階段範圍
 
-第一個 19F gate 只允許：
+第一個 19F proposal gate 當時只允許：
 
 1. 由 19D repeated source CV 與 19E 三種 shift 結果產生 role proposal。
 2. 建立 deterministic scenario-aware routing policy。
 3. 驗證每個候選的 15-member checkpoint inventory。
 4. 執行 selector、guardrail、routing、ensemble completeness smoke tests。
 
-此 gate **不建立 final role lock**，也不執行 internal／TCGA post-hoc inference；須先人工審查 proposal。
+上述限制描述的是已完成的 proposal gate。人工審查後已建立 immutable schema-v1
+final role lock，並完成 lock-pinned internal／TCGA post-hoc inference；後續階段只能唯讀
+引用該 lock，不得重建、覆寫或改變任何角色。
 
 ---
 
@@ -100,4 +102,6 @@ reports/round19_stage19f_checkpoint_inventory_summary.json
 - Proposal 的輸入 hash、candidate definitions 與 15 checkpoints 完整。
 - `selection_used_internal=false`、`selection_used_tcga=false`。
 
-審查前不得建立 `round19_final_role_lock.json`，也不得開始 post-hoc inference。
+此清單是建立 lock 前的歷史審查條件。目前
+`round19_final_role_lock.json` 已核准且 `immutable=true`；`status=LOCKED` 僅可出現在
+相容 sidecar attestation，不是原始 schema-v1 lock 欄位。

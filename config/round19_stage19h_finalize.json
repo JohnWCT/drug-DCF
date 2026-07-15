@@ -1,0 +1,15 @@
+{
+  "artifact_type": "round19_stage19h_finalize_config",
+  "schema_version": 1,
+  "stage": "19H",
+  "finalize_enabled": false,
+  "status": "BLOCKED_ON_STAGE19G",
+  "require_stage19g_case_manifest": true,
+  "require_stage19g_formal_experiment_lock": true,
+  "require_local_commit": true,
+  "require_remote_sync": false,
+  "allow_remote_git_operations": false,
+  "allow_role_changes": false,
+  "allow_final_role_lock_rewrite": false,
+  "required_stage19g_gate_status": "ALL_DONE"
+}

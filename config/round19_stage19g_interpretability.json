@@ -1,0 +1,89 @@
+{
+  "artifact_type": "round19_stage19g_interpretability_config",
+  "schema_version": 1,
+  "stage": "19G",
+  "mode": "implemented_not_executed",
+  "formal_inference_enabled": false,
+  "require_formal_experiment_lock": true,
+  "allow_role_changes": false,
+  "allow_proposal_roles": false,
+  "routing_adapter": "tools/round19_stage19g_lock_adapter.py",
+  "final_role_lock": {
+    "path": "result/optimization_runs/round19_factorial/reports/round19_final_role_lock.json",
+    "schema_version": 1,
+    "immutable": true,
+    "file_sha256": "e45df23826b31822e986517311969a5b7a540eed659c1f20e847e1c7b29e24ff",
+    "payload_sha256": "7a1b1774db1665449d0e3d0641f5ba8910bea025efaa5057ac3e921391bbee71"
+  },
+  "task_protocol": {
+    "unit": "candidate_x_checkpoint_x_case_shard",
+    "case_shard_size": 32,
+    "required_members_per_candidate": 15,
+    "pin_case_config_final_lock_checkpoint_hashes": true
+  },
+  "candidate_components": {
+    "F0_historical_anchor": {
+      "drug_id": "D0",
+      "predictor_id": "P0",
+      "omics_id": "O1"
+    },
+    "F1_primary_o2": {
+      "drug_id": "D0",
+      "predictor_id": "P2",
+      "omics_id": "O2"
+    },
+    "F2_full_omics_o3": {
+      "drug_id": "D0",
+      "predictor_id": "P2",
+      "omics_id": "O3"
+    },
+    "F3_best_pooled_o2": {
+      "drug_id": "D0",
+      "predictor_id": "P0",
+      "omics_id": "O2"
+    },
+    "F4_source_only_o4": {
+      "drug_id": "D3",
+      "predictor_id": "P2",
+      "omics_id": "O4"
+    },
+    "F5_maccs_efficient": {
+      "drug_id": "D4",
+      "predictor_id": "P1",
+      "omics_id": "O2"
+    }
+  },
+  "methods": {
+    "attention": {
+      "enabled": true,
+      "scope": "actual_locked_P2_sources_only",
+      "outputs": [
+        "atom_attention",
+        "fold_attention_consistency",
+        "attention_entropy",
+        "scaffold_level_attention"
+      ]
+    },
+    "occlusion": {
+      "enabled": true,
+      "scope": "all_actual_locked_sources_role_deduplicated",
+      "outputs": [
+        "top_atom_masking",
+        "matched_random_atom_masking"
+      ]
+    },
+    "omics": {
+      "enabled": true,
+      "scope": "all_actual_locked_sources_role_deduplicated"
+    },
+    "routing": {
+      "enabled": true,
+      "scope": "all_actual_locked_sources_role_deduplicated"
+    }
+  },
+  "activation_blockers": [
+    "case selection manifest is not finalized",
+    "formal Stage 19G experiment lock does not exist",
+    "current implementation has not been committed locally"
+  ]
+}

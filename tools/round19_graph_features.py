@@ -4,7 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import torch
@@ -59,22 +59,81 @@ def bond_features(bond: Chem.Bond) -> List[float]:
     return feats
 
 
+def legacy_graph_metadata(smiles: str) -> Dict[str, Any]:
+    """Describe the exact molecule consumed by legacy ``smile_to_graph``.
+
+    This intentionally mirrors its parse/largest-fragment behavior and does not
+    canonicalize, neutralize, or otherwise change the input.
+    """
+    text = str(smiles)
+    mol = Chem.MolFromSmiles(text)
+    if mol is None:
+        raise ValueError(f"Invalid SMILES: {text!r}")
+    original_fragments = list(Chem.GetMolFrags(mol, asMols=False))
+    selected_fragment_index = 0
+    selected_original_indices = tuple(range(mol.GetNumAtoms()))
+    graph_mol = mol
+    if "." in text and original_fragments:
+        # Same stable first-max tie behavior as tools.dataprocess.smile_to_graph.
+        selected_fragment_index = max(
+            range(len(original_fragments)), key=lambda index: len(original_fragments[index])
+        )
+        selected_original_indices = tuple(original_fragments[selected_fragment_index])
+        fragment_mols = Chem.GetMolFrags(mol, asMols=True, sanitizeFrags=True)
+        graph_mol = fragment_mols[selected_fragment_index]
+
+    atoms = []
+    for graph_index, atom in enumerate(graph_mol.GetAtoms()):
+        atoms.append(
+            {
+                "graph_atom_index": graph_index,
+                "original_atom_index": int(selected_original_indices[graph_index]),
+                "symbol": atom.GetSymbol(),
+                "atomic_number": atom.GetAtomicNum(),
+                "formal_charge": atom.GetFormalCharge(),
+                "is_aromatic": atom.GetIsAromatic(),
+                "is_in_ring": atom.IsInRing(),
+                "isotope": atom.GetIsotope(),
+                "atom_map_number": atom.GetAtomMapNum(),
+            }
+        )
+    bonds = []
+    for bond_index, bond in enumerate(graph_mol.GetBonds()):
+        bonds.append(
+            {
+                "graph_bond_index": bond_index,
+                "begin_atom_index": bond.GetBeginAtomIdx(),
+                "end_atom_index": bond.GetEndAtomIdx(),
+                "bond_type": str(bond.GetBondType()),
+                "is_aromatic": bond.GetIsAromatic(),
+                "is_conjugated": bond.GetIsConjugated(),
+                "is_in_ring": bond.IsInRing(),
+                "stereo": str(bond.GetStereo()),
+            }
+        )
+    return {
+        "legacy_input_smiles": text,
+        "graph_smiles": Chem.MolToSmiles(graph_mol, canonical=False),
+        "graph_smiles_canonical_identity": Chem.MolToSmiles(graph_mol, canonical=True),
+        "desalt_applied": "." in text,
+        "fragment_count": len(original_fragments),
+        "selected_fragment_index": selected_fragment_index,
+        "selected_original_atom_indices": list(selected_original_indices),
+        "atom_metadata": atoms,
+        "bond_metadata": bonds,
+        "_graph_mol": graph_mol,
+    }
+
+
 def smile_to_graph_with_bonds(smiles: str) -> Tuple[int, List[List[float]], List[List[int]], List[List[float]]]:
     """Atom78 graph + undirected edge_attr aligned to directed edge_index."""
-    mol = Chem.MolFromSmiles(smiles)
-    if mol is None:
-        raise ValueError(f"Invalid SMILES: {smiles!r}")
-    if "." in smiles:
-        frags = Chem.GetMolFrags(mol, asMols=True, sanitizeFrags=True)
-        if frags:
-            mol = max(frags, key=lambda m: m.GetNumAtoms())
-
-    c_size, features, edge_index = smile_to_graph(Chem.MolToSmiles(mol))
-    # Rebuild bond attrs from the same mol used for atoms.
-    # smile_to_graph may have desalted; re-parse canonical desalted smiles for bond map.
-    mol2 = Chem.MolFromSmiles(Chem.MolToSmiles(mol))
-    if mol2 is None:
-        raise ValueError(f"Failed to rebuild mol for bonds: {smiles!r}")
+    metadata = legacy_graph_metadata(smiles)
+    mol2 = metadata["_graph_mol"]
+    # Call legacy with the original string so atom order and desalting semantics
+    # are exactly the same as GIN.
+    c_size, features, edge_index = smile_to_graph(smiles)
+    if c_size != mol2.GetNumAtoms():
+        raise AssertionError("legacy graph atom count disagrees with metadata molecule")
 
     undirected: Dict[Tuple[int, int], List[float]] = {}
     for bond in mol2.GetBonds():
@@ -88,10 +147,8 @@ def smile_to_graph_with_bonds(smiles: str) -> Tuple[int, List[List[float]], List
     for e1, e2 in edge_index:
         key = (int(e1), int(e2))
         if key not in undirected:
-            # Fallback zeros if topology mismatch (should be rare)
-            edge_attrs.append([0.0] * BOND_FEATURE_DIM)
-        else:
-            edge_attrs.append(undirected[key])
+            raise AssertionError(f"Legacy edge topology has no matching bond: {key}")
+        edge_attrs.append(undirected[key])
     return c_size, features, edge_index, edge_attrs
 
 
@@ -104,6 +161,7 @@ def _edge_index_tensor(edge_index) -> torch.Tensor:
 
 
 def build_pyg_data(smiles: str, *, with_bonds: bool) -> Data:
+    metadata = legacy_graph_metadata(smiles)
     if with_bonds:
         _, features, edge_index, edge_attrs = smile_to_graph_with_bonds(smiles)
         ei = _edge_index_tensor(edge_index)
@@ -113,16 +171,38 @@ def build_pyg_data(smiles: str, *, with_bonds: bool) -> Data:
             ea = torch.empty((0, BOND_FEATURE_DIM), dtype=torch.float32)
         if ea.shape[0] != ei.shape[1]:
             raise RuntimeError(f"edge_attr rows {ea.shape[0]} != edge_index cols {ei.shape[1]}")
-        return Data(
+        data = Data(
             x=torch.tensor(np.asarray(features, dtype=np.float32)),
             edge_index=ei,
             edge_attr=ea,
         )
-    _, features, edge_index = smile_to_graph(smiles)
-    return Data(
-        x=torch.tensor(np.asarray(features, dtype=np.float32)),
-        edge_index=_edge_index_tensor(edge_index),
+    else:
+        _, features, edge_index = smile_to_graph(smiles)
+        data = Data(
+            x=torch.tensor(np.asarray(features, dtype=np.float32)),
+            edge_index=_edge_index_tensor(edge_index),
+        )
+    # Plain attributes survive Data access and preserve per-encoder atom order.
+    data.legacy_input_smiles = metadata["legacy_input_smiles"]
+    data.graph_smiles = metadata["graph_smiles"]
+    data.graph_smiles_canonical_identity = metadata["graph_smiles_canonical_identity"]
+    data.graph_metadata = {key: value for key, value in metadata.items() if key != "_graph_mol"}
+    return data
+
+
+def graph_smiles_identity(smiles: str) -> str:
+    metadata = legacy_graph_metadata(smiles)
+    payload = json.dumps(
+        {
+            "input": metadata["legacy_input_smiles"],
+            "actual": metadata["graph_smiles"],
+            "canonical": metadata["graph_smiles_canonical_identity"],
+            "atom_map": metadata["selected_original_atom_indices"],
+        },
+        sort_keys=True,
+        separators=(",", ":"),
     )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:20]
 
 
 def cache_metadata(

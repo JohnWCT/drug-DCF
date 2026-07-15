@@ -1,0 +1,84 @@
+{
+  "artifact_type": "round19_stage19g_case_selection_config",
+  "schema_version": 1,
+  "stage": "19G",
+  "selection_enabled": true,
+  "selection_status": "IMPLEMENTED_NOT_EXECUTED",
+  "selection_seed": 19091,
+  "metadata_spine": {
+    "namespaced_eval_row_id_required": true,
+    "stage19e_namespace": "19e:{shift_strategy}:{_row_id}",
+    "stage19f_namespace": "19f:{existing_eval_row_id}"
+  },
+  "representative": {
+    "shift_strategies": [
+      "drug_heldout",
+      "scaffold_heldout",
+      "cancer_type_heldout"
+    ],
+    "labels": [
+      0,
+      1
+    ],
+    "target_per_stratum": 20,
+    "target_total": 120,
+    "deterministic_fallback_when_stratum_unavailable": true,
+    "prediction_ordering_forbidden": true
+  },
+  "contrastive": {
+    "classification": "explicit_post_hoc",
+    "comparison": "E1_vs_E3",
+    "cancer_gain": 10,
+    "cancer_loss": 10,
+    "chemical_gain": 10,
+    "chemical_loss": 10,
+    "locked_role_disagreement": 20,
+    "magnitude_ranking_forbidden": true
+  },
+  "patient_conditioned": {
+    "source": "development_19E_metadata",
+    "same_drug_multiple_omics_samples_required": true,
+    "minimum_unique_ModelID_per_selected_drug": 20,
+    "minimum_cancer_types_per_selected_drug": 3,
+    "both_labels_required_per_selected_drug": true,
+    "maximum_rows_per_drug": 30,
+    "maximum_selected_drugs": 1,
+    "minimum_selected_drugs": 1,
+    "fail_with_evidence_when_impossible": true
+  },
+  "tcga_exploratory": {
+    "target_cases": 20,
+    "classification": "post_hoc_exploratory_external_benchmark",
+    "posthoc_case": true,
+    "selection_eligible": false,
+    "excluded_from_primary_faithfulness": true
+  },
+  "target_total_range": [
+    150,
+    250
+  ],
+  "selection_reason_enum": [
+    "representative_stratified_random",
+    "contrastive_cancer_gain",
+    "contrastive_cancer_loss",
+    "contrastive_chemical_gain",
+    "contrastive_chemical_loss",
+    "contrastive_role_disagreement",
+    "patient_conditioned",
+    "tcga_exploratory"
+  ],
+  "selection_reason_compatibility_map": {
+    "representative_stratified": "representative_stratified_random"
+  },
+  "outcome_based_representative_selection_forbidden": true,
+  "manual_case_injection_forbidden": true,
+  "case_manifest_path": null,
+  "case_manifest_sha256": null,
+  "formal_experiment_lock_creation_allowed": false,
+  "lock_activation_requirements": [
+    "implementation and configs are contained in local committed HEAD",
+    "tracked working tree is clean",
+    "case manifest is complete and validated",
+    "all task manifests are hash-pinned"
+  ]
+}

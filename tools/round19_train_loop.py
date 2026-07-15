@@ -1,7 +1,7 @@
 """Round 19 training / eval loop (GIN/GINE/MACCS × P0/P1/P2)."""
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 import pandas as pd
 import torch
@@ -57,9 +57,19 @@ def forward_round19_batch(
     predictor_id: str,
     omics: torch.Tensor,
     batch: Dict[str, Any],
-) -> torch.Tensor:
+    return_interpretability: bool = False,
+    return_attention: bool = False,
+) -> Union[
+    torch.Tensor,
+    Tuple[torch.Tensor, torch.Tensor],
+    Dict[str, torch.Tensor],
+]:
     enc = str(encoder_type).lower()
     pred = str(predictor_id).upper()
+    if (return_interpretability or return_attention) and pred != "P2":
+        raise ValueError(
+            f"{pred} has no atom-level attention; interpretability requires P2"
+        )
     if enc == "maccs":
         if pred == "P2":
             raise AssertionError("MACCS incompatible with P2")
@@ -68,16 +78,32 @@ def forward_round19_batch(
         if batch.get("drug_batch") is not None:
             raise AssertionError("MACCS job must not carry PyG drug_batch")
         drug_vec = encoder(batch["maccs"])
-        return fusion(omics, drug_vec)
+        return fusion(
+            omics,
+            drug_vec,
+            return_interpretability=return_interpretability,
+            return_attention=return_attention,
+        )
 
     drug_batch = batch["drug_batch"]
     if pred == "P2":
         # Pure atom cross-attention: node embeddings only (no graph residual).
         out = encoder(drug_batch, return_dict=True, return_graph_embedding=False)
-        return fusion(omics, out["node_embeddings"], out["batch_index"])
+        return fusion(
+            omics,
+            out["node_embeddings"],
+            out["batch_index"],
+            return_interpretability=return_interpretability,
+            return_attention=return_attention,
+        )
 
     out = encoder(drug_batch, return_dict=True, return_graph_embedding=True)
-    return fusion(omics, out["graph_embedding"])
+    return fusion(
+        omics,
+        out["graph_embedding"],
+        return_interpretability=return_interpretability,
+        return_attention=return_attention,
+    )
 
 
 def train_one_epoch_round19(

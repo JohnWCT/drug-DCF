@@ -34,6 +34,12 @@ def assert_compatible(drug_id: str, predictor_id: str) -> None:
         raise AssertionError(f"Incompatible drug×predictor cell: {drug_id}×{predictor_id}")
 
 
+def _reject_atom_attention(predictor_id: str) -> None:
+    raise ValueError(
+        f"{predictor_id} has no atom-level attention; only P2 may export real atom attention"
+    )
+
+
 class AdapterMLPFusion(nn.Module):
     """P0: omics/drug adapters (64+64) then concat."""
 
@@ -43,7 +49,16 @@ class AdapterMLPFusion(nn.Module):
         self.drug_adapter = nn.Sequential(nn.Linear(drug_dim, adapter_dim), nn.LayerNorm(adapter_dim))
         self.output_dim = adapter_dim * 2
 
-    def forward(self, omics_vector: Tensor, drug_vector: Tensor) -> Tensor:
+    def forward(
+        self,
+        omics_vector: Tensor,
+        drug_vector: Tensor,
+        *,
+        return_attention: bool = False,
+        return_interpretability: bool = False,
+    ) -> Tensor:
+        if return_attention or return_interpretability:
+            _reject_atom_attention("P0")
         return torch.cat([self.omics_adapter(omics_vector), self.drug_adapter(drug_vector)], dim=-1)
 
 
@@ -80,7 +95,16 @@ class PooledTransformerFusionR19(nn.Module):
         )
         self.output_dim = d_model
 
-    def forward(self, omics_vector: Tensor, drug_vector: Tensor) -> Tensor:
+    def forward(
+        self,
+        omics_vector: Tensor,
+        drug_vector: Tensor,
+        *,
+        return_attention: bool = False,
+        return_interpretability: bool = False,
+    ) -> Tensor:
+        if return_attention or return_interpretability:
+            _reject_atom_attention("P1")
         omics_tok = self.omics_proj(omics_vector)
         drug_tok = self.drug_proj(drug_vector)
         tokens = torch.stack([omics_tok, drug_tok], dim=1)
@@ -124,16 +148,27 @@ class AtomCrossAttentionFusionR19(nn.Module):
         node_embeddings: Tensor,
         batch_index: Tensor,
         return_attention: bool = False,
-    ) -> Union[Tensor, Tuple[Tensor, Tensor]]:
+        return_interpretability: bool = False,
+    ) -> Union[Tensor, Tuple[Tensor, Tensor], Dict[str, Tensor]]:
         omics_cls = self.omics_proj(omics_vector).unsqueeze(1)
         omics_cls = omics_cls + self.token_type.weight[0].view(1, 1, -1)
         atom_dense, atom_valid = to_dense_batch(node_embeddings, batch=batch_index)
         atom_tokens = self.atom_proj(atom_dense) + self.token_type.weight[1].view(1, 1, -1)
         key_padding_mask = ~atom_valid
-        if return_attention:
+        if return_attention or return_interpretability:
             updated, attn = self.cross_attn(
                 omics_cls, atom_tokens, key_padding_mask=key_padding_mask, return_attention=True
             )
+            if attn.ndim != 5 or attn.shape[3] != 1:
+                raise RuntimeError(f"atom attention must be [layers,batch,heads,1,atoms], got {attn.shape}")
+            primary = attn[-1].mean(dim=1).squeeze(1)
+            if return_interpretability:
+                return {
+                    "representation": updated.squeeze(1),
+                    "attention_raw": attn,
+                    "attention_primary": primary,
+                    "atom_valid_mask": atom_valid,
+                }
             return updated.squeeze(1), attn
         updated = self.cross_attn(
             omics_cls, atom_tokens, key_padding_mask=key_padding_mask, return_attention=False

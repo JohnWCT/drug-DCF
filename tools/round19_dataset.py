@@ -12,7 +12,7 @@ from torch_geometric.data import Batch, Data
 from tools.round18_dataset import Round18ResponseDataset, subset_by_assignment
 from tools.round18_eligible_data import load_omics_latent_dict, load_smiles_lookup, validate_feature_metadata
 from tools.round19_drug_features import load_maccs_by_drug_name, validate_maccs_coverage
-from tools.round19_graph_features import build_pyg_data
+from tools.round19_graph_features import build_pyg_data, graph_smiles_identity
 
 
 class Round19ResponseDataset(Dataset):
@@ -93,9 +93,6 @@ class Round19ResponseDataset(Dataset):
     def _ensure_graphs(self) -> None:
         for _, row in self.df.iterrows():
             key = self._drug_key(row)
-            cache_key = f"{key}|bonds={int(self.with_bonds)}"
-            if cache_key in self.graph_cache:
-                continue
             inline_smiles = (
                 str(row["smiles"]).strip()
                 if "smiles" in row.index and pd.notna(row["smiles"])
@@ -103,8 +100,22 @@ class Round19ResponseDataset(Dataset):
             )
             if key not in self.smiles_lookup and not inline_smiles:
                 raise KeyError(f"Missing SMILES for drug key={key}")
-            smiles = self.smiles_lookup.get(key, inline_smiles)
+            lookup_smiles = str(self.smiles_lookup.get(key, "")).strip()
+            if inline_smiles and lookup_smiles and inline_smiles != lookup_smiles:
+                raise AssertionError(
+                    f"Conflicting inline/lookup SMILES for drug key={key}; refusing ambiguous graph source"
+                )
+            smiles = lookup_smiles or inline_smiles
+            source = "lookup" if lookup_smiles else "inline"
+            cache_key = (
+                f"{key}|graph={graph_smiles_identity(smiles)}|"
+                f"encoder={self.encoder_type}|bonds={int(self.with_bonds)}"
+            )
+            if cache_key in self.graph_cache:
+                continue
             graph = build_pyg_data(smiles, with_bonds=self.with_bonds)
+            graph.actual_smiles_source = source
+            graph.graph_cache_key = cache_key
             self.graph_cache[cache_key] = graph
 
     def __len__(self) -> int:
@@ -144,8 +155,25 @@ class Round19ResponseDataset(Dataset):
             item["drug_graph"] = None
         else:
             key = self._drug_key(row)
-            cache_key = f"{key}|bonds={int(self.with_bonds)}"
-            item["drug_graph"] = self.graph_cache[cache_key]
+            inline_smiles = (
+                str(row["smiles"]).strip()
+                if "smiles" in row.index and pd.notna(row["smiles"])
+                else ""
+            )
+            lookup_smiles = str(self.smiles_lookup.get(key, "")).strip()
+            if inline_smiles and lookup_smiles and inline_smiles != lookup_smiles:
+                raise AssertionError(f"Conflicting inline/lookup SMILES for drug key={key}")
+            smiles = lookup_smiles or inline_smiles
+            cache_key = (
+                f"{key}|graph={graph_smiles_identity(smiles)}|"
+                f"encoder={self.encoder_type}|bonds={int(self.with_bonds)}"
+            )
+            graph = self.graph_cache[cache_key]
+            item["drug_graph"] = graph
+            item["graph_smiles"] = graph.graph_smiles
+            item["legacy_input_smiles"] = graph.legacy_input_smiles
+            item["actual_smiles_source"] = graph.actual_smiles_source
+            item["graph_metadata"] = graph.graph_metadata
             item["maccs"] = None
         return item
 
@@ -165,6 +193,14 @@ def round19_collate_fn(batch: list) -> dict:
     }
     for column in ("eval_row_id", "Patient_id", "target_key"):
         if all(column in b for b in batch):
+            out[column] = [b[column] for b in batch]
+    if batch[0]["maccs"] is None:
+        for column in (
+            "graph_smiles",
+            "legacy_input_smiles",
+            "actual_smiles_source",
+            "graph_metadata",
+        ):
             out[column] = [b[column] for b in batch]
     if batch[0]["maccs"] is not None:
         out["maccs"] = torch.stack([b["maccs"] for b in batch], dim=0)
