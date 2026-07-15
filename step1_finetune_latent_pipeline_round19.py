@@ -124,12 +124,25 @@ def _make_loaders(
     if max_rows is not None:
         train_df = train_df.head(int(max_rows)).copy()
         val_df = val_df.head(int(max_rows)).copy()
+    # For drug-/scaffold-heldout, train and val drug sets are disjoint.
+    # Preload MACCS for the union so val does not inherit a train-only map.
+    maccs_by_drug = None
+    if str(encoder_type).lower() == "maccs":
+        from tools.round19_drug_features import load_maccs_by_drug_name
+
+        drug_col = "DRUG_NAME" if "DRUG_NAME" in train_df.columns else "mapped_name"
+        union_drugs = sorted(
+            set(train_df[drug_col].astype(str)).union(set(val_df[drug_col].astype(str)))
+        )
+        maccs_by_drug = load_maccs_by_drug_name(drug_smiles_path, drug_names=union_drugs)
+
     train_ds = Round19ResponseDataset(
         train_df,
         feature_dir=feature_dir,
         drug_smiles_path=drug_smiles_path,
         encoder_type=encoder_type,
         with_bonds=with_bonds,
+        maccs_by_drug=maccs_by_drug,
         context_permutation=train_context_permutation,
         omics_id=omics_id,
     )

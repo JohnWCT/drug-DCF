@@ -565,7 +565,9 @@ def analyze_stage19d(outdir: str, *, require_complete: bool = False) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--stage", default="19b", choices=["19b", "19c", "19d", "selection"])
+    parser.add_argument(
+        "--stage", default="19b", choices=["19b", "19c", "19d", "19e", "selection"]
+    )
     parser.add_argument("--outdir", default="result/optimization_runs/round19_factorial")
     parser.add_argument("--require-complete", action="store_true")
     parser.add_argument("--write-lock", action="store_true")
@@ -580,6 +582,12 @@ def main() -> None:
         return
     if args.stage == "19d":
         out = analyze_stage19d(args.outdir, require_complete=args.require_complete)
+        print(json.dumps(out, indent=2))
+        return
+    if args.stage == "19e":
+        from tools.round19_stage19e_analyzer import analyze_stage19e
+
+        out = analyze_stage19e(args.outdir, require_complete=args.require_complete)
         print(json.dumps(out, indent=2))
         return
     if args.stage == "selection":

@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-15  
 **Status:** **ALL_DONE — 90/90 jobs done，0 failed**  
-**Stage gate:** Stage 19D = **GO complete**；**Formal selection lock = NO-GO**（需 19E shift + 人工審查後才寫 `round19_locked_selection.json`）  
+**Stage gate:** Stage 19D = **GO complete**；**Formal selection lock = NO-GO**；**Round 19E：ALL_DONE（90/90）** — 見 [`docs/round19_stage19e_ide_manual.md`](round19_stage19e_ide_manual.md)（需 19E shift + 人工審查後才寫 `round19_locked_selection.json`）  
 **Root:** `result/optimization_runs/round19_factorial/`  
 **Docker:** container `DAPL`，workdir `/workspace/DAPL`  
 **19C baseline:** `70cc0b4`（54/54）
@@ -150,7 +150,7 @@ stage19d/{job_id}/
 | O2 vs O3 atom | **NEUTRAL**（預設 O2） |
 | F4 source-only for DG | **KEEP for 19E** |
 | Formal selection lock | **NO-GO** |
-| Next | **19E** drug/scaffold/cancer-type shift |
+| Next | **19E DONE** — 見 [`docs/round19_stage19e_report.md`](round19_stage19e_report.md)；下一步 19F |
 
 ---
 

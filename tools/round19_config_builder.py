@@ -23,6 +23,7 @@ from tools.round19_cv_splits import (
     link_or_reuse_round18_eligible,
     link_or_reuse_round18_splits,
 )
+from tools.round19_stage19e_splits import ASSIGNMENT_NAMES, SHIFT_SEEDS, build_all_round19e_splits
 from tools.round19_feature_builder import OMICS_ALIAS, build_round19_feature_set
 from tools.round19_fusion_models import COMPATIBLE_CELLS, assert_compatible
 from tools.round19_graph_features import (
@@ -563,17 +564,199 @@ def write_stage19d_experiment_lock(
     return payload
 
 
+def _load_stage19e_candidate_lock(path: str) -> dict:
+    payload = _load_json(Path(path))
+    if payload.get("lock_type") != "stage19e_candidate_lock":
+        raise ValueError(f"Expected stage19e_candidate_lock, got {payload.get('lock_type')}")
+    return payload
+
+
+def build_stage19e_manifests(
+    settings: dict,
+    outdir: str,
+    candidate_lock: dict,
+    *,
+    rebuild_splits: bool = True,
+) -> Dict[str, pd.DataFrame]:
+    """One manifest per shift strategy: n_candidates × n_folds."""
+    root = Path(outdir)
+    manifests = root / "manifests"
+    manifests.mkdir(parents=True, exist_ok=True)
+    drug_smiles = settings.get(
+        "drug_smiles_path", "data/GDSC_drug_merge_pubchem_dropNA_MACCS_AACDR_extended.csv"
+    )
+    if rebuild_splits:
+        build_all_round19e_splits(root, drug_smiles_path=drug_smiles)
+    split_meta = _load_json(root / "splits" / "round19e_split_metadata.json")
+    cancer_folds = int(split_meta.get("cancer_type_n_folds", candidate_lock.get("n_folds", 5)))
+    model_seed = int(candidate_lock.get("model_seed") or settings.get("model_seed", 101))
+    max_epochs = int(candidate_lock.get("max_epochs", 1500))
+    patience = int(candidate_lock.get("early_stop_patience", 100))
+    early_start = int(candidate_lock.get("early_stop_start_epoch", 50))
+    candidates = candidate_lock.get("candidates") or []
+    if not candidates:
+        raise ValueError("19E candidate lock has no candidates")
+
+    out: Dict[str, pd.DataFrame] = {}
+    for strategy in ("drug_heldout", "scaffold_heldout", "cancer_type_heldout"):
+        assign_path = str(root / "splits" / ASSIGNMENT_NAMES[strategy])
+        if not Path(assign_path).is_file():
+            raise FileNotFoundError(assign_path)
+        n_folds = cancer_folds if strategy == "cancer_type_heldout" else int(candidate_lock.get("n_folds", 5))
+        split_seed = int(SHIFT_SEEDS[strategy])
+        rows = []
+        for cand in candidates:
+            drug_id = str(cand["drug_id"])
+            pred_id = str(cand["predictor_id"])
+            omics_id = str(cand["omics_id"])
+            eid = str(cand["candidate_id"])
+            assert_compatible(drug_id, pred_id)
+            dfields = _drug_fields(settings, drug_id)
+            for fold_id in range(n_folds):
+                job_id = f"{eid}__{strategy}__fold{fold_id}"
+                row = {
+                    "job_id": job_id,
+                    "candidate_id": eid,
+                    "source_candidate_id": str(cand.get("source_candidate_id", "")),
+                    "selection_role": cand.get("role") or cand.get("selection_role", ""),
+                    "shift_strategy": strategy,
+                    "drug_representation_id": drug_id,
+                    "drug_id": drug_id,
+                    "predictor_id": pred_id,
+                    "omics_id": omics_id,
+                    "omics_display_name": OMICS_ALIAS[omics_id],
+                    "fold_id": int(fold_id),
+                    "split_seed": split_seed,
+                    "model_seed": model_seed,
+                    "split_strategy": f"{strategy}_{n_folds}fold",
+                    "split_assignment_path": assign_path,
+                    "feature_dir": _feature_dir_for_omics(settings, root, omics_id),
+                    "result_dir": str(root / "stage19e" / strategy / job_id),
+                    "max_epochs": max_epochs,
+                    "early_stop_patience": patience,
+                    "early_stop_start_epoch": early_start,
+                    "control_type": "none",
+                    **dfields,
+                }
+                assert_job_metadata(row)
+                rows.append(row)
+        df = pd.DataFrame(rows)
+        if not df["job_id"].is_unique:
+            raise AssertionError(f"19E {strategy}: job_id not unique")
+        expected = len(candidates) * n_folds
+        assert_expected_job_count(df, expected, label=f"stage19e_{strategy}")
+        bad_cols = [
+            c
+            for c in df.columns
+            if any(x in c.lower() for x in ("tcga", "integrated5", "internal_test_auc", "external_rank"))
+        ]
+        if bad_cols:
+            raise AssertionError(f"Forbidden columns in 19E manifest: {bad_cols}")
+        path = manifests / f"stage19e_{strategy}_manifest.csv"
+        df.to_csv(path, index=False)
+        out[strategy] = df
+    return out
+
+
+def write_stage19e_experiment_lock(
+    root: Path,
+    *,
+    candidate_lock_path: Path,
+    settings_path: Path,
+) -> dict:
+    import hashlib
+
+    def _sha(p: Path) -> str:
+        h = hashlib.sha256()
+        with p.open("rb") as f:
+            for chunk in iter(lambda: f.read(1 << 20), b""):
+                h.update(chunk)
+        return h.hexdigest()
+
+    root = Path(root)
+    cand_lock = _load_json(candidate_lock_path)
+    split_meta = _load_json(root / "splits" / "round19e_split_metadata.json")
+    manifest_hashes = {}
+    for strategy in ("drug_heldout", "scaffold_heldout", "cancer_type_heldout"):
+        p = root / "manifests" / f"stage19e_{strategy}_manifest.csv"
+        if not p.is_file():
+            raise FileNotFoundError(p)
+        manifest_hashes[strategy] = _sha(p)
+    split_hashes = {}
+    for strategy, name in ASSIGNMENT_NAMES.items():
+        p = root / "splits" / name
+        if not p.is_file():
+            raise FileNotFoundError(p)
+        split_hashes[strategy] = _sha(p)
+    group_hashes = {}
+    for name in (
+        "round19e_drug_group_table.csv",
+        "round19e_scaffold_group_table.csv",
+        "round19e_cancer_type_group_table.csv",
+        "round19e_modelid_cancer_type_map.csv",
+    ):
+        p = root / "splits" / name
+        if p.is_file():
+            group_hashes[name] = _sha(p)
+    feature_hashes = {}
+    for oid in ("O0", "O1", "O2", "O3", "O4"):
+        meta = root / "features" / OMICS_ALIAS[oid] / "feature_metadata.json"
+        if meta.is_file():
+            feature_hashes[oid] = _sha(meta)
+
+    payload = {
+        "lock_type": "stage19e_experiment_lock",
+        "created_at_utc": datetime.now(timezone.utc).isoformat(),
+        "git_commit": os.environ.get("ROUND19_GIT_HEAD")
+        or subprocess.check_output(
+            ["git", "-c", "safe.directory=*", "rev-parse", "HEAD"],
+            cwd=PROJECT_ROOT,
+            text=True,
+        ).strip(),
+        "candidates": cand_lock.get("candidates"),
+        "shift_strategies": list(ASSIGNMENT_NAMES.keys()),
+        "shift_seeds": SHIFT_SEEDS,
+        "n_folds": int(cand_lock.get("n_folds", 5)),
+        "cancer_type_n_folds": int(split_meta.get("cancer_type_n_folds", 5)),
+        "model_seed": int(cand_lock.get("model_seed", 101)),
+        "max_epochs": int(cand_lock.get("max_epochs", 1500)),
+        "early_stop_patience": int(cand_lock.get("early_stop_patience", 100)),
+        "early_stop_start_epoch": int(cand_lock.get("early_stop_start_epoch", 50)),
+        "selection_metrics": ["DrugMacro_AUC", "DrugMacro_AUPRC"],
+        "internal_test_used": False,
+        "tcga_used": False,
+        "hashes": {
+            "candidate_lock_sha256": _sha(candidate_lock_path),
+            "settings_sha256": _sha(settings_path),
+            "eligible_response_sha256": _sha(root / "data" / "round19_eligible_response.csv"),
+            "manifest_sha256": manifest_hashes,
+            "split_assignment_sha256": split_hashes,
+            "group_table_sha256": group_hashes,
+            "feature_metadata_sha256": feature_hashes,
+        },
+    }
+    from tools.round19_selection_lock import scan_mapping_for_forbidden, write_selection_lock
+
+    scan_mapping_for_forbidden(payload)
+    out = root / "reports" / "round19_stage19e_experiment_lock.json"
+    write_selection_lock(payload, str(out))
+    return payload
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Round 19 config builder")
     parser.add_argument("--settings", default="config/round19_factorial_settings.json")
     parser.add_argument("--outdir", default=None)
-    parser.add_argument("--stage", default="19a", choices=["19a", "19b_manifest", "19c", "19d"])
+    parser.add_argument(
+        "--stage", default="19a", choices=["19a", "19b_manifest", "19c", "19d", "19e"]
+    )
     parser.add_argument("--candidate-lock", default=None)
     parser.add_argument("--candidate-proposal", default=None)
     parser.add_argument("--include-context-controls", action="store_true")
     parser.add_argument("--split-seeds", default="52,62,72")
     parser.add_argument("--n-folds", type=int, default=5)
     parser.add_argument("--write-experiment-lock", action="store_true")
+    parser.add_argument("--skip-rebuild-splits", action="store_true")
     args = parser.parse_args()
     settings = _load_json(Path(args.settings))
     outdir = args.outdir or settings.get("outdir", "result/optimization_runs/round19_factorial")
@@ -629,6 +812,32 @@ def main() -> None:
             )
             out["experiment_lock"] = "reports/round19_stage19d_experiment_lock.json"
             out["git_commit"] = lock.get("git_commit")
+        print(json.dumps(out, indent=2))
+    elif args.stage == "19e":
+        if not args.candidate_lock:
+            raise SystemExit("--stage 19e requires --candidate-lock")
+        cand_lock = _load_stage19e_candidate_lock(args.candidate_lock)
+        frames = build_stage19e_manifests(
+            settings,
+            outdir,
+            cand_lock,
+            rebuild_splits=not args.skip_rebuild_splits,
+        )
+        out = {
+            "n_jobs_total": int(sum(len(df) for df in frames.values())),
+            "n_candidates": int(len(cand_lock.get("candidates") or [])),
+            "per_strategy": {k: int(len(v)) for k, v in frames.items()},
+            "paths": {k: f"manifests/stage19e_{k}_manifest.csv" for k in frames},
+        }
+        if args.write_experiment_lock:
+            lock = write_stage19e_experiment_lock(
+                Path(outdir),
+                candidate_lock_path=Path(args.candidate_lock),
+                settings_path=Path(args.settings),
+            )
+            out["experiment_lock"] = "reports/round19_stage19e_experiment_lock.json"
+            out["git_commit"] = lock.get("git_commit")
+            out["cancer_type_n_folds"] = lock.get("cancer_type_n_folds")
         print(json.dumps(out, indent=2))
     else:
         raise SystemExit(f"Unsupported stage {args.stage}")
