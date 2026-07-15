@@ -12,7 +12,19 @@ from torch_geometric.data import Batch, Data
 from tools.round18_dataset import Round18ResponseDataset, subset_by_assignment
 from tools.round18_eligible_data import load_omics_latent_dict, load_smiles_lookup, validate_feature_metadata
 from tools.round19_drug_features import load_maccs_by_drug_name, validate_maccs_coverage
-from tools.round19_graph_features import build_pyg_data, graph_smiles_identity
+from tools.round19_graph_features import (
+    build_pyg_data,
+    graph_smiles_identity,
+    legacy_graph_metadata,
+)
+
+
+def _same_legacy_molecule(left: str, right: str) -> bool:
+    """Allow notation differences only when RDKit canonical identities agree."""
+    return (
+        legacy_graph_metadata(left)["graph_smiles_canonical_identity"]
+        == legacy_graph_metadata(right)["graph_smiles_canonical_identity"]
+    )
 
 
 class Round19ResponseDataset(Dataset):
@@ -101,7 +113,12 @@ class Round19ResponseDataset(Dataset):
             if key not in self.smiles_lookup and not inline_smiles:
                 raise KeyError(f"Missing SMILES for drug key={key}")
             lookup_smiles = str(self.smiles_lookup.get(key, "")).strip()
-            if inline_smiles and lookup_smiles and inline_smiles != lookup_smiles:
+            if (
+                inline_smiles
+                and lookup_smiles
+                and inline_smiles != lookup_smiles
+                and not _same_legacy_molecule(inline_smiles, lookup_smiles)
+            ):
                 raise AssertionError(
                     f"Conflicting inline/lookup SMILES for drug key={key}; refusing ambiguous graph source"
                 )
@@ -161,7 +178,12 @@ class Round19ResponseDataset(Dataset):
                 else ""
             )
             lookup_smiles = str(self.smiles_lookup.get(key, "")).strip()
-            if inline_smiles and lookup_smiles and inline_smiles != lookup_smiles:
+            if (
+                inline_smiles
+                and lookup_smiles
+                and inline_smiles != lookup_smiles
+                and not _same_legacy_molecule(inline_smiles, lookup_smiles)
+            ):
                 raise AssertionError(f"Conflicting inline/lookup SMILES for drug key={key}")
             smiles = lookup_smiles or inline_smiles
             cache_key = (
