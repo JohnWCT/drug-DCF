@@ -30,6 +30,7 @@ class Round19ResponseDataset(Dataset):
         graph_cache: Optional[Dict[str, Data]] = None,
         context_permutation: Optional[Dict[str, str]] = None,
         omics_id: Optional[str] = None,
+        latent_by_id: Optional[Dict[str, np.ndarray]] = None,
         group_column: str = "ModelID",
         label_column: str = "Label",
         drug_column: str = "DRUG_NAME",
@@ -49,8 +50,17 @@ class Round19ResponseDataset(Dataset):
         self.drug_column = drug_column if drug_column in self.df.columns else "DRUG_NAME"
 
         self.feature_dir = feature_dir
-        self.feature_meta = validate_feature_metadata(feature_dir)
-        self.latent = load_omics_latent_dict(feature_dir)
+        if latent_by_id is None:
+            self.feature_meta = validate_feature_metadata(feature_dir)
+            self.latent = load_omics_latent_dict(feature_dir)
+        else:
+            self.feature_meta = {"external_latent_override": True}
+            self.latent = {
+                str(key): np.asarray(value, dtype=np.float32).reshape(-1)
+                for key, value in latent_by_id.items()
+            }
+            if not self.latent:
+                raise ValueError("latent_by_id must not be empty")
         sample = next(iter(self.latent.values()))
         self.omics_dim = int(np.asarray(sample).reshape(-1).shape[0])
 
@@ -86,9 +96,15 @@ class Round19ResponseDataset(Dataset):
             cache_key = f"{key}|bonds={int(self.with_bonds)}"
             if cache_key in self.graph_cache:
                 continue
-            if key not in self.smiles_lookup:
+            inline_smiles = (
+                str(row["smiles"]).strip()
+                if "smiles" in row.index and pd.notna(row["smiles"])
+                else ""
+            )
+            if key not in self.smiles_lookup and not inline_smiles:
                 raise KeyError(f"Missing SMILES for drug key={key}")
-            graph = build_pyg_data(self.smiles_lookup[key], with_bonds=self.with_bonds)
+            smiles = self.smiles_lookup.get(key, inline_smiles)
+            graph = build_pyg_data(smiles, with_bonds=self.with_bonds)
             self.graph_cache[cache_key] = graph
 
     def __len__(self) -> int:
@@ -120,6 +136,9 @@ class Round19ResponseDataset(Dataset):
             "weight": float(self.df.iloc[idx]["sample_weight"]),
             "omics": omics,
         }
+        for column in ("eval_row_id", "Patient_id", "target_key"):
+            if column in row.index:
+                item[column] = str(row[column])
         if self.encoder_type == "maccs":
             item["maccs"] = torch.tensor(self.maccs_by_drug[drug_name], dtype=torch.float32)
             item["drug_graph"] = None
@@ -144,6 +163,9 @@ def round19_collate_fn(batch: list) -> dict:
         "DRUG_NAME": [b["DRUG_NAME"] for b in batch],
         "drug_name": [b["drug_name"] for b in batch],
     }
+    for column in ("eval_row_id", "Patient_id", "target_key"):
+        if all(column in b for b in batch):
+            out[column] = [b[column] for b in batch]
     if batch[0]["maccs"] is not None:
         out["maccs"] = torch.stack([b["maccs"] for b in batch], dim=0)
         out["drug_batch"] = None

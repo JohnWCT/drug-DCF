@@ -128,6 +128,8 @@ def _build_round19_cmd(
         str(job["omics_id"]),
         "--fold-id",
         str(int(float(job["fold_id"]))),
+        "--split-seed",
+        str(int(float(job["split_seed"]))),
         "--model-seed",
         str(int(float(job.get("model_seed", 101)))),
         "--micro-batch-size",

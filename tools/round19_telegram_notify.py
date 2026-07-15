@@ -38,6 +38,8 @@ def _count_done(manifest: Path) -> Dict[str, int]:
     for _, row in df.iterrows():
         st = Path(str(row["result_dir"])) / "job_status.json"
         if not st.is_file():
+            st = Path(str(row["result_dir"])) / "dispatch_status.json"
+        if not st.is_file():
             missing += 1
             continue
         status = json.loads(st.read_text(encoding="utf-8")).get("status")

@@ -1,0 +1,100 @@
+{
+  "policy_id": "round19_stage19f_proposal_only",
+  "proposal_only": true,
+  "single_champion": false,
+  "allow_general_null": true,
+  "margins": {
+    "practical_tie_auc": 0.003,
+    "major_fail_auc": 0.015
+  },
+  "required_design": {
+    "stage19d": {
+      "candidate_count": 6,
+      "seed_count": 3,
+      "fold_count": 5
+    },
+    "stage19e": {
+      "candidate_count": 6,
+      "shift_count": 3,
+      "fold_count": 5,
+      "failed_count": 0
+    }
+  },
+  "roles": {
+    "source_performance": {
+      "rule": "highest_stage19d_mean_auc"
+    },
+    "parsimonious": {
+      "candidate": "F1",
+      "reference": "F2",
+      "max_absolute_auc_disadvantage": 0.003,
+      "cancer_candidate": "E1",
+      "cancer_reference": "E2",
+      "max_cancer_auc_disadvantage": 0.003
+    },
+    "cancer_specialist": {
+      "eligible_candidates": ["E1", "E2"],
+      "tie_margin": 0.003,
+      "tie_preference": "E1",
+      "secondary_metrics": [
+        "mean_DrugMacro_AUPRC",
+        "std_DrugMacro_AUC",
+        "simplicity"
+      ]
+    },
+    "chemical_specialist": {
+      "shifts": ["drug_heldout", "scaffold_heldout"],
+      "exclude_major_fail": true,
+      "primary_metric": "maximin_delta_vs_E0",
+      "tie_metrics": [
+        "mean_delta_vs_E0",
+        "mean_DrugMacro_AUPRC",
+        "std_DrugMacro_AUC",
+        "simplicity",
+        "candidate_id"
+      ]
+    },
+    "domain_generalization": {
+      "candidate": "E4",
+      "eligibility": {
+        "cancer_no_major_fail": true,
+        "chemical_min_pass_or_non_worse": 1,
+        "max_fail_count": 1,
+        "require_no_prediction_collapse": true,
+        "prediction_collapse_definition": {
+          "require_finite_non_null_mean_auc": true,
+          "minimum_mean_global_auc_exclusive": 0.5
+        }
+      }
+    },
+    "efficient": {
+      "candidate": "E5",
+      "eligibility": {
+        "minimum_pass_or_non_worse_shifts_vs_E0": 2,
+        "require_efficiency_evidence": true,
+        "accepted_evidence": ["stage19d_inclusion_reason_time", "stage19d_inclusion_reason_vram", "resource_summary"]
+      }
+    },
+    "general": {
+      "allow_null": true,
+      "eligibility": {
+        "all_three_shifts_pass_or_non_worse_vs_E0": true,
+        "no_major_fail": true
+      },
+      "tie_break": [
+        "chemical_maximin_delta_vs_E0",
+        "cancer_mean_DrugMacro_AUC",
+        "simplicity",
+        "candidate_id"
+      ]
+    }
+  },
+  "simplicity_order": {
+    "E0": 0,
+    "E3": 1,
+    "E5": 2,
+    "E1": 3,
+    "E2": 4,
+    "E4": 5
+  }
+}

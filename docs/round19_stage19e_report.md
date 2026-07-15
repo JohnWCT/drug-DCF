@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-15  
 **Status:** **ALL_DONE — 90/90 jobs done，0 failed**  
-**Stage gate:** Stage 19E = **GO complete**；**Formal selection lock = NO-GO**（需人工審查後寫 `round19_final_model_roles.json` / selection lock）  
+**Stage gate:** Stage 19E = **GO complete**；Round 19F = **ALL_DONE**（roles locked；post-hoc 540/540）
 **Root:** `result/optimization_runs/round19_factorial/`  
 **Docker:** container `DAPL`，workdir `/workspace/DAPL`  
 **19D baseline:** `f45c342`（90/90）
@@ -188,5 +188,6 @@ stage19e/{strategy}/{job_id}/
 
 ## 10. Related docs
 
+- [`docs/round19_stage19f_ide_manual.md`](round19_stage19f_ide_manual.md)
 - [`docs/round19_stage19e_ide_manual.md`](round19_stage19e_ide_manual.md)  
 - [`docs/round19_stage19d_report.md`](round19_stage19d_report.md)

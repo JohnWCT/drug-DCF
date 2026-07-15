@@ -1,0 +1,54 @@
+{
+  "round": "round19f",
+  "gate": "proposal_only",
+  "role_lock_required_before_external_inference": true,
+  "ensemble": {
+    "aggregation": "mean_probability",
+    "best_fold_selection_forbidden": true,
+    "required_split_seeds": [
+      52,
+      62,
+      72
+    ],
+    "required_fold_ids": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "required_members_per_candidate_eval_row": 15,
+    "member_id_format": "seed{split_seed}_fold{fold_id}",
+    "output_fields": [
+      "probability",
+      "probability_std",
+      "n_members"
+    ]
+  },
+  "routing": {
+    "uses_model_confidence": false,
+    "source_like_role_at_proposal_gate": "source_performance_champion",
+    "metadata_unknown_role": "chemical_shift_specialist",
+    "metadata_unknown_confidence": "low",
+    "metadata_unknown_conservative_fallback": true
+  },
+  "posthoc_labels": [
+    "unseen_drug",
+    "unseen_scaffold",
+    "unseen_cancer_type",
+    "source_like",
+    "metadata_unknown"
+  ],
+  "gpu": {
+    "target_utilization": 0.9
+  },
+  "gpu_target_utilization": 0.9,
+  "role_immutability": {
+    "internal_test_may_change_roles": false,
+    "tcga_may_change_roles": false
+  },
+  "internal_test_can_change_role": false,
+  "tcga_can_change_role": false,
+  "internal_test_used_for_role_selection": false,
+  "tcga_used_for_role_selection": false
+}
