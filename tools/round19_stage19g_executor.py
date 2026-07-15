@@ -474,7 +474,9 @@ def run_occlusion(
         common = _common(task, {**item, "case_id": cases.iloc[index]["case_id"]}, original)
         if item.get("drug_graph") is None:
             fingerprint = item["maccs"]
-            active = torch.flatnonzero(fingerprint > 0).tolist()
+            active = torch.nonzero(
+                fingerprint > 0, as_tuple=False
+            ).flatten().tolist()
             if not active:
                 active = list(range(len(fingerprint)))
             altered = []

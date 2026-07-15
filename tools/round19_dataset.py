@@ -27,6 +27,27 @@ def _same_legacy_molecule(left: str, right: str) -> bool:
     )
 
 
+def _add_casefold_maccs_aliases(
+    mapping: Dict[str, np.ndarray], required_drugs: list[str]
+) -> Dict[str, np.ndarray]:
+    """Resolve external capitalization without weakening molecular identity."""
+    result = dict(mapping)
+    by_casefold: Dict[str, list[str]] = {}
+    for name in result:
+        by_casefold.setdefault(str(name).strip().casefold(), []).append(name)
+    for required in required_drugs:
+        if required in result:
+            continue
+        matches = by_casefold.get(str(required).strip().casefold(), [])
+        if not matches:
+            continue
+        reference = result[matches[0]]
+        if any(not np.array_equal(reference, result[name]) for name in matches[1:]):
+            raise ValueError(f"Case-insensitive MACCS collision for {required}")
+        result[required] = reference
+    return result
+
+
 class Round19ResponseDataset(Dataset):
     """Omics + drug representation dataset for Round 19 smoke/training."""
 
@@ -85,7 +106,10 @@ class Round19ResponseDataset(Dataset):
         if self.encoder_type == "maccs":
             drugs = sorted(set(self.df[self.drug_column].astype(str)))
             if self.maccs_by_drug is None:
-                self.maccs_by_drug = load_maccs_by_drug_name(drug_smiles_path, drug_names=drugs)
+                self.maccs_by_drug = load_maccs_by_drug_name(drug_smiles_path)
+            self.maccs_by_drug = _add_casefold_maccs_aliases(
+                self.maccs_by_drug, drugs
+            )
             validate_maccs_coverage(self.maccs_by_drug, drugs)
         else:
             self._ensure_graphs()

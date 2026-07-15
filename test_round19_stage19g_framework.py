@@ -17,6 +17,7 @@ from tools.maccs_ablation import ablate_maccs_bits
 from tools.omics_group_ablation import ablate_omics_blocks
 from tools.pooled_drug_occlusion import pooled_input_occlusion
 from tools.round19_atom_occlusion import batched, feature_zero_graph, matched_random_controls, rank_atom_sets
+from tools.round19_dataset import _add_casefold_maccs_aliases
 from tools.round19_stage19f_ensemble import REQUIRED_MEMBER_IDS
 from tools.round19_stage19g_executor import _task_and_cases
 from tools.scaffold_sidechain_ablation import scaffold_sidechain_partition
@@ -137,6 +138,14 @@ def test_task_case_ranges_are_relative_to_their_cohort():
     }
     _, selected = _task_and_cases(verified, "attention", "tcga-task", None)
     assert selected["eval_row_id"].tolist() == ["t1", "t2"]
+
+
+def test_external_maccs_names_resolve_case_insensitively():
+    vector = np.ones(166, dtype=np.float32)
+    aliases = _add_casefold_maccs_aliases(
+        {"cisplatin": vector}, ["Cisplatin"]
+    )
+    assert np.array_equal(aliases["Cisplatin"], vector)
 
 
 def test_analyzer_complete_gate(tmp_path):
