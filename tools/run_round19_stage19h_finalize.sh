@@ -13,6 +13,8 @@ MANIFESTS="${ROUND19_ROOT}/manifests"
 FINAL_LOCK="${ROUND19_FINAL_ROLE_LOCK:-${REPORTS}/round19_final_role_lock.json}"
 OUTDIR="${ROUND19_STAGE19H_OUTDIR:-${ROUND19_ROOT}/stage19h_reproducibility}"
 REPORT_19G="${ROUND19_STAGE19G_REPORT:-}"
+STAGE19G_OUTPUT="${ROUND19_STAGE19G_OUTPUT:-${ROUND19_ROOT}/stage19g}"
+REPOSITORY_ATTESTATION="${ROUND19_REPOSITORY_ATTESTATION:-}"
 
 DRY_RUN=1
 REQUIRE_COMPLETE=1
@@ -33,6 +35,10 @@ fi
 INCOMPLETE=()
 if [[ "${REQUIRE_COMPLETE}" -eq 0 ]]; then
   INCOMPLETE+=(--allow-incomplete)
+fi
+ATTESTATION_ARGS=()
+if [[ -n "${REPOSITORY_ATTESTATION}" ]]; then
+  ATTESTATION_ARGS+=(--repository-attestation "${REPOSITORY_ATTESTATION}")
 fi
 
 if [[ "${REQUIRE_COMPLETE}" -eq 1 ]]; then
@@ -61,6 +67,8 @@ python3 tools/round19_reproducibility_audit.py \
   --final-lock "${FINAL_LOCK}" \
   --include "${REPORTS}" \
   --include "${MANIFESTS}" \
+  --include "${STAGE19G_OUTPUT}" \
+  "${ATTESTATION_ARGS[@]}" \
   --output "${OUTDIR}/reproducibility_audit.json" \
   "${COMMON[@]}" "${INCOMPLETE[@]}"
 
@@ -69,6 +77,7 @@ python3 tools/round19_artifact_manifest.py \
   --final-lock "${FINAL_LOCK}" \
   --inventory-root "${REPORTS}" \
   --inventory-root "${MANIFESTS}" \
+  --inventory-root "${STAGE19G_OUTPUT}" \
   --manifest-seed "${FINAL_LOCK}" \
   --output "${OUTDIR}/artifact_manifest.json" \
   --portable-mapping-output "${OUTDIR}/portable_symlink_mapping.json" \

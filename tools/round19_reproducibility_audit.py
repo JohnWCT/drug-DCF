@@ -9,6 +9,7 @@ import importlib.metadata
 import json
 import os
 import platform
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -17,6 +18,7 @@ from typing import Any, Iterable, Mapping, Sequence
 CHUNK_SIZE = 1 << 20
 SCHEMA_VERSION = 1
 ATTESTATION_KEYS = frozenset({"attestation", "created_at_utc", "observed_at_utc"})
+SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 
 
 def sha256_file(path: Path, chunk_size: int = CHUNK_SIZE) -> str:
@@ -189,6 +191,35 @@ def collect_git_state(project_root: Path) -> dict[str, Any]:
     }
 
 
+def git_state_from_attestation(value: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate host Git state when Docker intentionally has no ``.git`` mount."""
+    commit = str(value.get("local_committed_head", ""))
+    branch = str(value.get("branch", "")).strip()
+    clean = value.get("tracked_working_tree_clean")
+    if not SHA_RE.fullmatch(commit):
+        raise ValueError("Repository attestation requires a full local commit SHA")
+    if not branch or branch.upper() == "UNKNOWN":
+        raise ValueError("Repository attestation requires a known branch")
+    if clean is not True:
+        raise AssertionError("Repository attestation requires a clean tracked tree")
+    if value.get("remote_operations_required") is not False:
+        raise AssertionError("Repository attestation must prohibit remote operations")
+    required = value.get("required_committed_paths")
+    if not isinstance(required, Mapping) or not required:
+        raise ValueError("Repository attestation requires committed path hashes")
+    return {
+        "commit": commit,
+        "branch": branch,
+        "working_tree_dirty": False,
+        "status_sha256": None,
+        "remote_sync_required": False,
+        "valid": True,
+        "source": "verified_host_repository_attestation",
+        "required_committed_paths": dict(required),
+        "failure_reasons": [],
+    }
+
+
 def _package_version(distribution: str) -> str | None:
     try:
         return importlib.metadata.version(distribution)
@@ -295,13 +326,18 @@ def build_reproducibility_audit(
     *,
     require_complete: bool = True,
     additional_paths: Iterable[Path] = (),
+    repository_attestation: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     root = project_root.resolve()
     lock_path = (
         final_lock_path if final_lock_path.is_absolute() else root / final_lock_path
     )
     lock = _load_lock(lock_path, root, require_complete)
-    git = collect_git_state(root)
+    git = (
+        git_state_from_attestation(repository_attestation)
+        if repository_attestation is not None
+        else collect_git_state(root)
+    )
     failures = list(git["failure_reasons"])
     if require_complete and lock.get("checkpoint_count") != 90:
         failures.append("locked_checkpoint_count_not_90")
@@ -331,6 +367,7 @@ def main() -> None:
     parser.add_argument("--project-root", default=str(root_default))
     parser.add_argument("--final-lock", required=True)
     parser.add_argument("--include", action="append", default=[])
+    parser.add_argument("--repository-attestation")
     parser.add_argument("--output")
     parser.add_argument("--allow-incomplete", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
@@ -339,11 +376,19 @@ def main() -> None:
     lock = Path(args.final_lock)
     if not lock.is_absolute():
         lock = root / lock
+    repository_attestation = None
+    if args.repository_attestation:
+        repository_attestation = json.loads(
+            Path(args.repository_attestation).read_text(encoding="utf-8")
+        )
+        if not isinstance(repository_attestation, dict):
+            raise TypeError("Repository attestation must be a JSON object")
     audit = build_reproducibility_audit(
         root,
         lock,
         require_complete=not args.allow_incomplete,
         additional_paths=[Path(value) for value in args.include],
+        repository_attestation=repository_attestation,
     )
     if args.output and not args.dry_run:
         write_json(Path(args.output), audit)

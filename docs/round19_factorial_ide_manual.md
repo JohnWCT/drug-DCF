@@ -3,7 +3,7 @@
 ## Omics Composition × Drug Representation × Predictor Integration Factorial Study
 
 **版本：** Post-Round 18E revision  
-**狀態：** Stage 19A GO · **19B ALL_DONE（117/117）** · **19C ALL_DONE（54/54）** · **19D ALL_DONE（90/90）** · **19E ALL_DONE（90/90）** · **19F ALL_DONE（540/540 post-hoc；0 failed）** — Formal roles immutable locked；見 [`docs/round19_stage19f_report.md`](round19_stage19f_report.md)
+**狀態：** Stage 19A GO · **19B ALL_DONE（117/117）** · **19C ALL_DONE（54/54）** · **19D ALL_DONE（90/90）** · **19E ALL_DONE（90/90）** · **19F ALL_DONE（540/540）** · **19G ALL_DONE（1,801/1,801）** · **19H LOCAL ARCHIVE COMPLETE** — Formal roles immutable locked；見 [`docs/round19_final_report.md`](round19_final_report.md)
 **前置結果：** Round 18A–18E完成  
 **執行環境：** Docker container `DAPL`  
 **原則：** MACCS與GIN／GINE互斥，不建立fingerprint + graph hybrid
