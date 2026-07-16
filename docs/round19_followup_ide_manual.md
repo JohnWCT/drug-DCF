@@ -15,6 +15,36 @@
 | 必須保留的基線 | Round 18 eligible population、internal split、frozen omics encoder、historical GIN32／MLP／cross-attention |
 | 禁止用於 selection | Internal test、TCGA response、任何 post-hoc external score |
 
+> **本機對齊狀態（2026-07-16）：** DAPL 工作區已以薄相容層對齊本手冊公開介面，**不重跑** 19A–19F 實驗。實作別名見下方「本機 adapter 對照」。
+
+---
+
+## 本機 adapter 對照（DAPL / round19_factorial）
+
+| 手冊公開介面 | 本機實作 |
+|---|---|
+| `tools/round19_schema.py` | 已新增；selection 欄位 case-insensitive guard |
+| `tools/round19_registry.py` | 已新增；以 factorial settings + `fusion_models.COMPATIBLE_CELLS` 為真相 |
+| `tools/round19_role_lock.py` | 已新增；包裝 immutable `round19_stage19f_final_lock` |
+| `tools/round19_selection.py` | 已新增；只驗證既有 lock，禁止 re-select |
+| `tools/round19_release_audit.py` | 已新增；包裝 19H reproducibility + policy／leakage audit |
+| `reports/round19_deployment_policy.json` | 由 `tools/round19_deployment_policy_export.py` 匯出；canonical 亦在 `result/.../reports/` |
+| `reports/round19_final_role_lock.json` | repo `reports/` 僅為 pointer；immutable lock 仍在 `result/.../reports/` |
+| `config/params_round19_*.json` | 已新增為 settings 投影，不改訓練路徑 |
+| 13-cell matrix | **本機已執行** 含 `D4×P1`、不含 `D1×P2`；手冊理想為 `D4×P0-only` + 全 `D0–D3×P0–P2`。registry 同時記錄兩者，不改歷史 jobs |
+
+稽核命令：
+
+```bash
+python3 tools/round19_deployment_policy_export.py --smoke-route
+python3 tools/round19_release_audit.py \
+  --role-lock result/optimization_runs/round19_factorial/reports/round19_final_role_lock.json \
+  --policy result/optimization_runs/round19_factorial/reports/round19_deployment_policy.json \
+  --repository-attestation result/optimization_runs/round19_factorial/metadata/round19_stage19h_repository_attestation.json \
+  --strict
+pytest -q test_round19_public_reconstruction.py
+```
+
 ---
 
 ## 0. 給 IDE Agent 的主指令

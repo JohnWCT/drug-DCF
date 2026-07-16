@@ -11,6 +11,8 @@ scenario-aware multi-role policy，沒有 single champion。
 - Interpretability verdict：`PARTIALLY_SUPPORTED`。
 - Final role lock 未修改；SHA-256：
   `e45df23826b31822e986517311969a5b7a540eed659c1f20e847e1c7b29e24ff`。
+- 公開重建薄相容層：`schema`／`registry`／`deployment_policy.json`／`release_audit` 已對齊；
+  `ROUND19_RELEASE_AUDIT=PASS`（不重跑實驗）。見 [`docs/round19_followup_ide_manual.md`](round19_followup_ide_manual.md)。
 
 ## Reproducibility
 

@@ -1,0 +1,59 @@
+{
+  "fallback_role": "chemical_shift_specialist",
+  "locked_role_candidates": {
+    "cancer_shift_specialist": "F1_primary_o2",
+    "chemical_shift_specialist": "F3_best_pooled_o2",
+    "efficient_model": "F5_maccs_efficient",
+    "general_recommended_model": "F3_best_pooled_o2",
+    "historical_anchor": "F0_historical_anchor",
+    "parsimonious_context_model": "F1",
+    "source_only_domain_candidate": "F4_source_only_o4",
+    "source_performance_champion": "F2"
+  },
+  "policy_type": "deterministic_metadata_routing",
+  "reject_conditions": [],
+  "required_metadata": [
+    "canonical_drug_id",
+    "canonical_scaffold_id",
+    "cancer_type"
+  ],
+  "rules": [
+    {
+      "notes": "Chemical shift has precedence for drug/scaffold novelty and unknown metadata.",
+      "priority": 10,
+      "route_to_role": "chemical_shift_specialist",
+      "when": {
+        "novelty_class": [
+          "unseen_drug",
+          "unseen_scaffold",
+          "metadata_unknown"
+        ]
+      }
+    },
+    {
+      "priority": 20,
+      "route_to_role": "cancer_shift_specialist",
+      "when": {
+        "novelty_class": [
+          "unseen_cancer_type"
+        ]
+      }
+    },
+    {
+      "notes": "Executed local policy pins source_like to source_performance_champion. Public-manual prose that prefers parsimonious_context_model is not applied.",
+      "priority": 30,
+      "route_to_role": "source_performance_champion",
+      "when": {
+        "novelty_class": [
+          "source_like"
+        ]
+      }
+    }
+  ],
+  "schema": "round19_deployment_policy",
+  "schema_version": "1.0",
+  "selection_used_internal": false,
+  "selection_used_tcga": false,
+  "single_champion": null,
+  "source_module": "tools.round19_deployment_policy"
+}

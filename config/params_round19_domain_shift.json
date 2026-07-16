@@ -1,0 +1,21 @@
+{
+  "stage": "19e",
+  "source": "config/round19_factorial_settings.json",
+  "shifts": [
+    "cancer_type_held_out",
+    "drug_held_out",
+    "scaffold_held_out"
+  ],
+  "expected_jobs": 90,
+  "major_fail": {
+    "absolute_auc_drop": 0.03,
+    "relative_to_anchor_auc_drop": 0.02,
+    "min_valid_groups": 3
+  },
+  "non_worse_margin": 0.005,
+  "calibration": {
+    "max_brier_increase": 0.02,
+    "max_ece_increase": 0.03
+  },
+  "note": "Suggested guardrail defaults for documentation; Stage 19E already completed under local analyzer thresholds."
+}

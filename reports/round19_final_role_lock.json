@@ -1,0 +1,16 @@
+{
+  "immutable_lock_path": "result/optimization_runs/round19_factorial/reports/round19_final_role_lock.json",
+  "note": "Canonical immutable lock remains under result/optimization_runs/round19_factorial/reports/; do not overwrite.",
+  "roles": {
+    "cancer_shift_specialist": "F1_primary_o2",
+    "chemical_shift_specialist": "F3_best_pooled_o2",
+    "efficient_model": "F5_maccs_efficient",
+    "general_recommended_model": "F3_best_pooled_o2",
+    "historical_anchor": "F0_historical_anchor",
+    "parsimonious_context_model": "F1",
+    "source_only_domain_candidate": "F4_source_only_o4",
+    "source_performance_champion": "F2"
+  },
+  "schema": "round19_final_role_lock_pointer",
+  "schema_version": 1
+}

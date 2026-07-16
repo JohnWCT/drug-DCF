@@ -1,0 +1,10 @@
+{
+  "stage": "19d",
+  "source": "config/round19_factorial_settings.json",
+  "candidate_lock": "result/optimization_runs/round19_factorial/reports/round19_stage19c_candidate_lock.json",
+  "split_seeds": [52, 62, 72],
+  "fold_ids": [0, 1, 2, 3, 4],
+  "model_seed": 101,
+  "expected_jobs": 90,
+  "note": "Projection of executed local confirmation settings; does not retrain."
+}

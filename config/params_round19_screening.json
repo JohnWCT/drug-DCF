@@ -1,0 +1,23 @@
+{
+  "stage": "19b",
+  "source": "config/round19_factorial_settings.json",
+  "omics_ids": ["O1", "O2", "O3"],
+  "compatible_cells_source": "tools.round19_registry.COMPATIBLE_CELLS",
+  "fold_ids": [0, 1, 2],
+  "split_seed": 42,
+  "model_seed": 101,
+  "expected_jobs": 117,
+  "selection": {
+    "primary": "drug_macro_auc",
+    "tie_break": "drug_macro_auprc",
+    "n_cells_for_stage19c": 7,
+    "forbidden_column_patterns": [
+      "internal",
+      "tcga",
+      "external",
+      "integrated5",
+      "posthoc"
+    ]
+  },
+  "note": "Projection of executed local factorial settings; does not retrain."
+}
