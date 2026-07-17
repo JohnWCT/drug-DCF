@@ -68,6 +68,11 @@ def inspect_context_dir(feature_dir: Path | str, *, expected_context_dim: int) -
 
     meta = _load_json(meta_path)
     report["feature_metadata"] = meta
+    attestation = meta.get("comparability_attestation")
+    att_path = directory / "comparability_attestation.json"
+    if attestation is None and att_path.is_file():
+        attestation = _load_json(att_path)
+    report["comparability_attestation"] = attestation
     latent_dim = int(meta.get("latent_dim", -1))
     context_dim = int(meta.get("context_dim", -1))
     response_dim = int(meta.get("response_input_dim", latent_dim + context_dim))
@@ -116,34 +121,43 @@ def inspect_context_dir(feature_dir: Path | str, *, expected_context_dim: int) -
     report["projection_method"] = proj_meta.get("projection_type") or meta.get("mode")
     report["fit_domain"] = proj_meta.get("fit_domain")
     report["raw_context_input_dim"] = proj_meta.get("input_dim")
-    report["fit_population_hash"] = _stable_hash(
-        {
-            "fit_domain": proj_meta.get("fit_domain"),
-            "input_dim": proj_meta.get("input_dim"),
-            "source_artifact": meta.get("source_artifact"),
-            "o2_projection_sha256": meta.get("o2_projection_sha256"),
-        }
-    )
-    report["raw_context_definition_hash"] = _stable_hash(
-        {
-            "mode": meta.get("mode"),
-            "projection_type": proj_meta.get("projection_type"),
-            "input_dim": proj_meta.get("input_dim"),
-            "includes_own_plus_summary": meta.get("includes_own_plus_summary"),
-            "includes_projected_context": meta.get("includes_projected_context"),
-        }
-    )
-    report["normalization_hash"] = _stable_hash(
-        {
-            "projection_type": proj_meta.get("projection_type"),
-            "fit_domain": proj_meta.get("fit_domain"),
-            # PCA sklearn objects encode centering/scaling in the pickle; hash the file.
-            "projection_model_sha256": report["projection_model_sha256"],
-        }
-    )
-    report["source_encoder_checkpoint_hash"] = meta.get("o2_projection_sha256") or meta.get(
-        "o3_projection_sha256"
-    )
+    if isinstance(attestation, dict) and attestation.get("fit_population_hash"):
+        report["fit_population_hash"] = attestation["fit_population_hash"]
+        report["raw_context_definition_hash"] = attestation["raw_context_definition_hash"]
+        report["normalization_hash"] = attestation["normalization_hash"]
+        report["source_encoder_checkpoint_hash"] = attestation["source_encoder_checkpoint_hash"]
+        report["projection_method"] = attestation.get("raw_context_definition", {}).get(
+            "projection_type", report["projection_method"]
+        )
+    else:
+        report["fit_population_hash"] = _stable_hash(
+            {
+                "fit_domain": proj_meta.get("fit_domain"),
+                "input_dim": proj_meta.get("input_dim"),
+                "source_artifact": meta.get("source_artifact"),
+                "o2_projection_sha256": meta.get("o2_projection_sha256"),
+            }
+        )
+        report["raw_context_definition_hash"] = _stable_hash(
+            {
+                "mode": meta.get("mode"),
+                "projection_type": proj_meta.get("projection_type"),
+                "input_dim": proj_meta.get("input_dim"),
+                "includes_own_plus_summary": meta.get("includes_own_plus_summary"),
+                "includes_projected_context": meta.get("includes_projected_context"),
+            }
+        )
+        report["normalization_hash"] = _stable_hash(
+            {
+                "projection_type": proj_meta.get("projection_type"),
+                "fit_domain": proj_meta.get("fit_domain"),
+                "random_state": proj_meta.get("random_state", 42),
+                "sklearn_pca_whiten": False,
+            }
+        )
+        report["source_encoder_checkpoint_hash"] = meta.get("o2_projection_sha256") or meta.get(
+            "o3_projection_sha256"
+        )
 
     model_ids: list[str] = []
     nan_count = 0

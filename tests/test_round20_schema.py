@@ -24,14 +24,16 @@ def test_normalize_dimensions_rejects_other() -> None:
 def test_repo_settings_pass_preflight_schema() -> None:
     settings = json.loads(SETTINGS.read_text(encoding="utf-8"))
     guardrails = json.loads(GUARDRAILS.read_text(encoding="utf-8"))
-    report = validate_settings(settings, guardrails=guardrails, require_feature_dirs=False)
+    report = validate_settings(settings, guardrails=guardrails, require_feature_dirs=True)
     assert report["ok"] is True
     assert report["split_seeds"] == [52, 62, 72]
     assert report["feature_dirs_present"]["16"] is True
-    assert report["feature_dirs_present"]["32"] is False
+    assert report["feature_dirs_present"]["32"] is True
 
 
 def test_require_feature_dirs_fails_when_c32_missing() -> None:
     settings = json.loads(SETTINGS.read_text(encoding="utf-8"))
+    settings = json.loads(json.dumps(settings))
+    settings["omics"]["feature_dirs"]["32"] = None
     with pytest.raises(Round20SchemaError, match=r"feature_dirs\[32\]"):
         validate_settings(settings, require_feature_dirs=True)

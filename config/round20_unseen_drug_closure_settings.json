@@ -14,16 +14,21 @@
     "latent_dim": 64,
     "encoder_mode": "frozen",
     "retain_end_to_end_path": true,
-    "dimensions": [16, 32],
+    "dimensions": [
+      16,
+      32
+    ],
     "feature_dirs": {
-      "16": "result/optimization_runs/round19_factorial/features/z_plus_context16",
-      "32": null
+      "16": "result/optimization_runs/round20_unseen_drug_closure/features/z_plus_context16",
+      "32": "result/optimization_runs/round20_unseen_drug_closure/features/z_plus_context32"
     },
     "c16_source_projection_dir": "result/optimization_runs/round17r_18class/features/r13_exp_008/own_proto_context_projected_16",
     "encoder_checkpoint": null,
     "gene_order": null,
     "normalization": null,
-    "notes": "C32 feature_dir is intentionally null until a comparable projection is rebuilt under Round 20 projections/."
+    "notes": "C16 is Round19 O2 copy with Round20 comparability attestation; C32 rebuilt from same raw context matrix (PCA n_components=32, random_state=42).",
+    "c32_projection_dir": "result/optimization_runs/round20_unseen_drug_closure/projections/context32",
+    "c16_projection_dir": "result/optimization_runs/round20_unseen_drug_closure/projections/context16"
   },
   "drug": {
     "encoder_id": "D0",
@@ -41,7 +46,11 @@
   ],
   "validation": {
     "split_type": "drug_held_out",
-    "split_seeds": [52, 62, 72],
+    "split_seeds": [
+      52,
+      62,
+      72
+    ],
     "n_splits": 5,
     "model_seed": 101,
     "group_column": "drug_group_id",
