@@ -1,0 +1,26 @@
+{
+  "schema": "round20_guardrails",
+  "schema_version": 1,
+  "primary_metric": "DrugMacro_AUC",
+  "tie_breaker_metric": "DrugMacro_AUPRC",
+  "rules": {
+    "G1_mean_auc_nonworse": true,
+    "G2_min_nonworse_seeds": 2,
+    "G3_auprc_max_drop": 0.01,
+    "G4_major_fail_auc_delta": -0.02,
+    "G5_require_complete_jobs": true
+  },
+  "parsimony_delta": 0.005,
+  "selection_forbidden_tokens": [
+    "tcga",
+    "tcga_only",
+    "internal_test",
+    "external",
+    "integrated5",
+    "posthoc",
+    "cancer_held_out",
+    "patient",
+    "target_cohort"
+  ],
+  "notes": "Guardrails apply only to development repeated drug-held-out aggregates."
+}

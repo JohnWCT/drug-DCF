@@ -1,0 +1,66 @@
+{
+  "round": "round20",
+  "purpose": "unseen-drug closure: C16 vs C32 and pooled E3 vs gated fusion",
+  "base_round18_settings": "config/round18_architecture_settings.json",
+  "round19_role_lock": "result/optimization_runs/round19_factorial/reports/round19_final_role_lock.json",
+  "round19_role_lock_pointer": "reports/round19_final_role_lock.json",
+  "round19_deployment_policy": "reports/round19_deployment_policy.json",
+  "round19_factorial_settings": "config/round19_factorial_settings.json",
+  "round19_eligible_response": "result/optimization_runs/round19_factorial/data/round19_eligible_response.csv",
+  "round19_drug_group_table": "result/optimization_runs/round19_factorial/splits/round19e_drug_group_table.csv",
+  "result_root": "result/optimization_runs/round20_unseen_drug_closure",
+  "selection_data_scope": "development_drug_held_out_only",
+  "omics": {
+    "latent_dim": 64,
+    "encoder_mode": "frozen",
+    "retain_end_to_end_path": true,
+    "dimensions": [16, 32],
+    "feature_dirs": {
+      "16": "result/optimization_runs/round19_factorial/features/z_plus_context16",
+      "32": null
+    },
+    "c16_source_projection_dir": "result/optimization_runs/round17r_18class/features/r13_exp_008/own_proto_context_projected_16",
+    "encoder_checkpoint": null,
+    "gene_order": null,
+    "normalization": null,
+    "notes": "C32 feature_dir is intentionally null until a comparable projection is rebuilt under Round 20 projections/."
+  },
+  "drug": {
+    "encoder_id": "D0",
+    "input_dim": 78,
+    "hidden_dim": 32,
+    "num_layers": 5,
+    "jk_mode": "last",
+    "pool": "max",
+    "training_mode": "inherit_from_e3",
+    "smiles_path": "data/GDSC_drug_merge_pubchem_dropNA_MACCS_AACDR_extended.csv"
+  },
+  "predictors": [
+    "resolved_e3",
+    "gated_pooled_fusion"
+  ],
+  "validation": {
+    "split_type": "drug_held_out",
+    "split_seeds": [52, 62, 72],
+    "n_splits": 5,
+    "model_seed": 101,
+    "group_column": "drug_group_id",
+    "label_column": "Label"
+  },
+  "selection": {
+    "primary_metric": "DrugMacro_AUC",
+    "tie_breaker_metric": "DrugMacro_AUPRC",
+    "parsimony_delta": 0.005,
+    "auprc_max_drop": 0.01,
+    "major_fail_auc_delta": -0.02,
+    "min_nonworse_seeds": 2
+  },
+  "tcga": {
+    "run_only_after_lock": true,
+    "targets_source": "inherit_round18_or_round19",
+    "ensemble_method": "inherit_from_e3",
+    "canonical_deployment_split_seed": "inherit_from_e3",
+    "require_complete_ensemble": true
+  },
+  "guardrails_config": "config/round20_guardrails.json"
+}
