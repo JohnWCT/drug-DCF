@@ -1,0 +1,49 @@
+stage: 20A
+task: context_dimension_confirmation
+
+dimensions:
+  - id: C16
+    context_dim: 16
+    omics_dim: 80
+    feature_store: result/optimization_runs/round20_unseen_drug_closure/features/z_plus_context16
+  - id: C32
+    context_dim: 32
+    omics_dim: 96
+    feature_store: result/optimization_runs/round20_unseen_drug_closure/features/z_plus_context32
+
+drug:
+  family: D0
+  inherit_from: result/optimization_runs/round20_unseen_drug_closure/stage20_0/resolved_e3.json
+
+predictor:
+  inherit_from: result/optimization_runs/round20_unseen_drug_closure/stage20_0/resolved_e3.json
+  kind: pooled_e3
+
+validation:
+  split_type: drug_held_out
+  split_seeds: [52, 62, 72]
+  folds: 5
+  model_seed: 101
+
+training:
+  micro_batch_size: 256
+  accumulation_steps: 4
+  # effective_batch = 1024 (matches resolved E3 target_effective_batch)
+  inherit_budget_from_e3: true
+
+selection:
+  primary_metric: DrugMacro_AUC
+  tie_breaker: DrugMacro_AUPRC
+  parsimony_delta: 0.005
+  auprc_max_drop: 0.01
+  major_fail_auc_delta: -0.02
+  min_nonworse_seeds: 2
+
+forbidden_selection_sources:
+  - tcga
+  - internal
+  - external_posthoc
+
+dispatch:
+  max_parallel: 16
+  resume: true

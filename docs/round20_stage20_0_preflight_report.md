@@ -43,4 +43,4 @@ result/optimization_runs/round20_unseen_drug_closure/features/z_plus_context32/
 
 ## Next action
 
-Stage 20A: build 30-job C16 vs C32 repeated drug-held-out manifest and train.
+**DONE** — Stage 20A–20E complete. Final lock: **C32 + B_E3**. See [`docs/round20_final_report.md`](round20_final_report.md).

@@ -1,0 +1,7 @@
+stage: 20E
+task: release_archive
+model_lock: result/optimization_runs/round20_unseen_drug_closure/stage20c_lock/final_model_lock.json
+tcga_dir: result/optimization_runs/round20_unseen_drug_closure/stage20d_tcga
+output_dir: result/optimization_runs/round20_unseen_drug_closure/stage20e_release
+require_frozen_raw_equivalence: true
+encoder_unfreeze_validated_in_round20: false

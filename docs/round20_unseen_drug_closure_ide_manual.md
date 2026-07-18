@@ -21,7 +21,11 @@
 | 必須保留 | raw-omics end-to-end-capable forward path 與 encoder 全權重 |
 | TCGA 用途 | architecture lock 後執行 inference／evaluation；不得回頭選模 |
 
-> **本機對齊狀態**：本 DAPL workspace 的 Round 19 已為 `ALL_DONE`，並具有不可變的 final role lock。本機 Round 20 將 `pooled E3` 對應至已鎖定的 chemical／general candidate source `F3_best_pooled_o2`（`O2×D0×P0`），必須經 `tools/round20_e3_resolver.py` fail-closed 解析，嚴禁依名稱猜測；本機結果根目錄為 `result/optimization_runs/round20_unseen_drug_closure/`。
+> **本機對齊狀態**：**Round 20 ALL_DONE**（Stage 20-0 → 20E）。
+> 最終鎖定：`C32` + `D0` + pooled E3（`B_E3`）；gated fusion 未過 guardrails。
+> TCGA 為 post-selection evaluation；`ROUND20_RELEASE_AUDIT=PASS`。
+> 詳見 [`docs/round20_final_report.md`](round20_final_report.md) 與 `stage20c_lock/final_model_lock.json`。
+> E3 對應 `F3_best_pooled_o2`（`O2×D0×P0`），經 `tools/round20_e3_resolver.py` fail-closed 解析。
 
 ---
 
