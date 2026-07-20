@@ -1,0 +1,13 @@
+stage: 20D
+task: locked_tcga_inference
+require_model_lock: true
+model_lock: result/optimization_runs/round20_unseen_drug_closure/stage20c_lock/final_model_lock.json
+ensemble: probability_mean
+strict_load: true
+targets:
+  - gdsc_intersect13
+  - tcga_only3
+  - dapl
+  - aacdr_tcga_only
+  - aacdr_gdsc_intersect
+output_dir: result/optimization_runs/round20_unseen_drug_closure/stage20d_tcga

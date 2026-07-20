@@ -1,0 +1,49 @@
+name: Round 20 release audit
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  round20-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pandas numpy pytest pyyaml torch
+
+      - name: Round 20 unit tests (synthetic fixtures)
+        run: pytest -q tests/round20
+
+      - name: Round 18 regression tests
+        run: |
+          pytest -q \
+            tests/test_round18_config_builder.py \
+            tests/test_round18_cv_splits.py \
+            tests/test_round18_fusion_models.py \
+            tests/test_round18_gin_node_output.py \
+            tests/test_round18_robust_drug_macro.py \
+            tests/test_round18_tcga_ensemble.py \
+            tests/test_round18_train_loop.py
+
+      - name: Verify no result artifacts committed
+        run: |
+          if git ls-files 'result/' | grep -q .; then
+            echo "Committed result/ artifacts detected"
+            git ls-files 'result/'
+            exit 1
+          fi
+
+      - name: Validate release manifest template schema
+        run: python -c "from tools.round20.release_integrity import validate_release_manifest; assert validate_release_manifest({'release_status':'DRAFT','artifacts':[],'selection':{'context':'C32','predictor':'E3','drug_encoder':'D0'}})==[]"

@@ -1,0 +1,15 @@
+stage: 20C
+task: final_model_lock
+inputs:
+  stage20a_decision: result/optimization_runs/round20_unseen_drug_closure/stage20a_dimension/stage20a_dimension_decision.json
+  stage20b_guardrails: result/optimization_runs/round20_unseen_drug_closure/stage20b_predictor/stage20b_guardrail_report.json
+output: result/optimization_runs/round20_unseen_drug_closure/stage20c_lock/final_model_lock.json
+parsimony_delta: 0.005
+forbidden_selection_keys:
+  - tcga_auc
+  - tcga_auprc
+  - internal_auc
+  - external_auc
+  - integrated5_auc
+checkpoint_policy: five_fold_probability_mean_ensemble
+immutable_after_write: true

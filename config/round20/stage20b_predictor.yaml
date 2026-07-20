@@ -1,0 +1,44 @@
+stage: 20B
+task: predictor_confirmation
+
+inherit_context_from: result/optimization_runs/round20_unseen_drug_closure/stage20a_dimension/stage20a_dimension_decision.json
+forbid_cli_context_override: true
+
+predictors:
+  - id: B_E3
+    kind: pooled_e3
+    reuse_stage20a_winner_jobs: true
+  - id: B_GATED
+    kind: gated_pooled_fusion
+    hidden_dim: 128
+    head_dim: 64
+    dropout: 0.20
+
+drug:
+  family: D0
+  inherit_training_mode_from_e3: true
+
+validation:
+  split_type: drug_held_out
+  reuse_stage20a_assignments: true
+  split_seeds: [52, 62, 72]
+  folds: 5
+  model_seed: 101
+
+training:
+  micro_batch_size: 256
+  accumulation_steps: 4
+  inherit_budget_from_e3: true
+
+guardrails:
+  g1_mean_auc_nonworse: true
+  g2_min_nonworse_seeds: 2
+  g3_auprc_max_drop: 0.01
+  g4_major_fail_auc_delta: -0.02
+  g5_require_complete_jobs: true
+  parsimony_delta: 0.005
+
+gate_diagnostics:
+  collapse_fraction_threshold: 0.90
+  collapse_low: 0.05
+  collapse_high: 0.95

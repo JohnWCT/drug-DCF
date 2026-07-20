@@ -1,5 +1,9 @@
 # Round 19 IDE操作手冊
 
+> Round 20 unseen-drug closure IDE manual：`docs/round20_unseen_drug_closure_ide_manual.md`
+> Round 20 final report：**ALL_DONE** — [`docs/round20_final_report.md`](round20_final_report.md)（鎖定 C32 + pooled E3）
+> Round 20-0 preflight report：`docs/round20_stage20_0_preflight_report.md`
+
 ## Omics Composition × Drug Representation × Predictor Integration Factorial Study
 
 **版本：** Post-Round 18E revision  

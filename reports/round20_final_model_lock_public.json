@@ -1,0 +1,41 @@
+{
+  "created_at": "2026-07-17T15:52:40.946664+00:00",
+  "development_metrics": {
+    "stage20a_mean_auc_delta_c32_minus_c16": 0.007449929979453596,
+    "stage20b_mean_auc_delta_gated_minus_e3": -0.0020064731375666334,
+    "stage20b_mean_auprc_delta": -0.004926992772351979,
+    "stage20b_seed_auc_deltas": {
+      "52": -0.002339094148967935,
+      "62": -0.0013840623361851545,
+      "72": -0.0022962629275474766
+    }
+  },
+  "forbidden_metrics_used": false,
+  "guardrails": {
+    "g1_mean_auc_nonworse": false,
+    "g2_seed_majority": false,
+    "g3_auprc": true,
+    "g4_no_major_fail": true,
+    "g5_complete": true
+  },
+  "input_hashes": {
+    "stage20a_decision_sha256": "ec5595b0880ec9753866f9dda64f10875852ab5cc5e39a184bbdbd9d8bb9b135",
+    "stage20b_guardrails_sha256": "35fef1453a5588dfada468b6d9feb707f1b957c03207690928b1a93ffafa409a"
+  },
+  "selected_context": {
+    "dimension": 32,
+    "feature_dir": "${ROUND20_RELEASE_ROOT}/features/z_plus_context32",
+    "id": "C32",
+    "omics_dimension": 96,
+    "projection_sha256": "0ce6c8d733d092e956b47d79b62c07573450d5871c71ecfe7889dbdf7196a7a9"
+  },
+  "selected_model": {
+    "candidate_id": "B_E3",
+    "checkpoint_policy": "five_fold_probability_mean_ensemble",
+    "drug_encoder": "D0",
+    "predictor_type": "AdapterMLPFusion+ResponseHead"
+  },
+  "selection_reason": "gated_failed_guardrails",
+  "stage": "20C",
+  "status": "LOCKED"
+}
