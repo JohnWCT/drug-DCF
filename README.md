@@ -2,6 +2,41 @@
 
 本儲存庫用於進行 **deconfounding**（混淆因子控制／去除）相關之建模、訓練與評估；程式與設定分散於 `config/`、`tools/`、`data/`、`input/`、`result/` 等目錄。
 
+## Current recommended drug-response model
+
+The current locked model was selected under repeated drug-held-out validation in Round 20.
+
+- Omics representation: **C32** O2 (96-d = Z64 + context32)
+- Drug encoder: **D0** GIN32 / graph32
+- Predictor: **pooled_e3** (`B_E3`)
+- Primary use case: unseen-drug prediction
+- Model selection: development-only repeated drug-held-out (seeds 52/62/72 × 5 folds)
+- Final TCGA evaluation: performed **after** model lock
+
+Context selection (Stage 20A): C32 — ΔAUC(C32−C16) = +0.00745
+
+## Project reports
+
+- [Round 20 final report](docs/round20_final_report.md)
+- [Round 20 model card](docs/round20_model_card.md)
+- [Round 20 inference guide](docs/round20_inference_guide.md)
+- [Round 19 final report](docs/round19_final_report.md)
+
+## Scope and limitations
+
+The Round 20 model focuses on **unseen-drug transfer**. Unseen cancer-type transfer was not
+optimized in this round. The omics encoder was frozen during formal model selection. The
+repository retains an end-to-end-capable path, but encoder unfreezing was not validated as a
+formal Round 20 experiment.
+
+## Round 20 post-completion audit
+
+```bash
+python scripts/round20/round20_cli.py audit --strict
+python scripts/round20/round20_cli.py reproduce --strict
+python scripts/round20/round20_cli.py release-info
+```
+
 ## 環境
 
 建議使用專案內 **`Dockerfile`** 建立含 PyTorch（CUDA）與相依套件之映像；細部套件版本請對照 Dockerfile 內 `pip install` 區段。
