@@ -1,0 +1,40 @@
+model:
+  type: cross_attention
+  omics_encoder:
+    architecture: O2
+    latent_dim: 64
+    frozen: true
+    checkpoint: null
+  biological_context:
+    type: prototype_context
+    context_dim: 32
+    frozen: true
+  sample_representation:
+    mode: concat_projection
+    output_dim: 96
+  drug_encoder:
+    architecture: D0
+    input_dim: 78
+    node_hidden_dim: 32
+    node_dim: 32
+    num_layers: 5
+    frozen: true
+    checkpoint: null
+  cross_attention:
+    attention_dim: 64
+    num_heads: 4
+    dropout: 0.1
+  response_head:
+    hidden_dims: [256, 128]
+    dropout: 0.2
+output:
+  default_mode: prediction
+  allow_attention: true
+  allow_full_trace: true
+training:
+  freeze_policy:
+    omics_encoder: true
+    sample_encoder: false
+    drug_encoder: true
+    cross_attention: false
+    response_head: false

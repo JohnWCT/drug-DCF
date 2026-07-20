@@ -1,0 +1,5 @@
+training:
+  split_seeds: [52, 62, 72]
+  n_folds: 5
+  metric_primary: DrugMacro_AUC
+  metric_tiebreak: DrugMacro_AUPRC

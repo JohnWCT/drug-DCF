@@ -1,0 +1,28 @@
+model:
+  type: pooled_baseline
+  omics_encoder:
+    architecture: O2
+    latent_dim: 64
+    frozen: true
+  biological_context:
+    type: prototype_context
+    context_dim: 32
+    frozen: true
+  sample_representation:
+    mode: concat_projection
+    output_dim: 96
+  drug_encoder:
+    architecture: D0
+    node_hidden_dim: 32
+    graph_output_dim: 32
+    num_layers: 5
+    frozen: true
+  fusion:
+    adapter_dim: 64
+training:
+  freeze_policy:
+    omics_encoder: true
+    sample_encoder: false
+    drug_encoder: true
+    fusion: false
+    response_head: false
