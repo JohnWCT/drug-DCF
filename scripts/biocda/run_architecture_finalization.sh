@@ -9,7 +9,7 @@ notify() {
   python3 tools/biocda_telegram_notify.py --message "$1" || true
 }
 
-notify "BioCDA architecture finalization START"
+notify "BioCDA Round 21 validation START"
 
 echo "=== pytest (BioCDA unit tests) ==="
 python3 -m pytest -q \
@@ -22,9 +22,16 @@ python3 -m pytest -q \
   tests/test_model_factory.py \
   tests/test_biocda_context_and_bypass.py
 
+echo "=== repository + architecture audit ==="
+python3 scripts/audit_repository_state.py --strict || true
+python3 scripts/audit_biocda_architecture.py --config configs/biocda/xa_validation.yaml --strict
+
 echo "=== architecture smoke (GPU if available) ==="
 python3 scripts/biocda/run_architecture_smoke_test.py --device auto
 
-notify "BioCDA architecture finalization DONE — see outputs/architecture_finalization/"
+echo "=== xa validation smoke pipeline ==="
+python3 scripts/run_xa_validation.py --config configs/biocda/xa_validation.yaml smoke
+
+notify "BioCDA Round 21 validation DONE — see reports/ and outputs/xa_validation/"
 
 echo "ALL_DONE"

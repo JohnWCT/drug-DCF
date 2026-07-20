@@ -37,6 +37,10 @@ htmlcov/
 /dhg0002910
 /dhg0002910.pub
 
+### Local run outputs (do not commit)
+outputs/
+logs/
+
 ### Local data / outputs (do not commit)
 data/
 !biocda/data/

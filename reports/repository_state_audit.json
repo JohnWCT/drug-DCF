@@ -1,0 +1,18 @@
+{
+  "status": "PASS",
+  "git_commit": "unknown",
+  "git_branch": "unknown",
+  "git_is_dirty": false,
+  "required_files": {
+    "docs/biocda_architecture_finalization.md": true,
+    "reports/biocda_architecture_manifest.json": true,
+    "README.md": true
+  },
+  "forbidden_files": [],
+  "architecture_version": "biocda-xa-v1",
+  "issues": [
+    "git_unavailable"
+  ],
+  "hard_issues": [],
+  "timestamp": "2026-07-20T13:11:00.629316+00:00"
+}

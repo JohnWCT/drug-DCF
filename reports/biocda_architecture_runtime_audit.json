@@ -1,0 +1,23 @@
+{
+  "status": "PASS",
+  "architecture_version": "biocda-xa-v1",
+  "architecture_name": "BioCDA-XA-ZC",
+  "checks": {
+    "sample_representation_in_full": true,
+    "omics_latent_in_full": true,
+    "biological_context_in_full": true,
+    "node_embeddings_in_full": true,
+    "atom_attention_exported": true,
+    "attention_logits_exported": true,
+    "atom_mask_exported": true,
+    "atom_ptr_exported": true,
+    "logits_shape_batch": true,
+    "output_modes_same_logits": true,
+    "attention_sums_to_one": true,
+    "padding_attention_zero": true,
+    "no_pooled_bypass": true,
+    "cross_attention_present": true
+  },
+  "issues": [],
+  "timestamp": "2026-07-20T13:11:01.327638+00:00"
+}

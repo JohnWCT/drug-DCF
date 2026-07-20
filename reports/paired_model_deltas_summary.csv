@@ -1,0 +1,13 @@
+metric,model_a,model_b,mean,median,min,positive_seed_count
+brier,biocda_xa_z,pooled_baseline,0.0,0.0,0.0,0
+brier,biocda_xa_zc,biocda_xa_z,0.0,0.0,0.0,0
+brier,biocda_xa_zc,pooled_baseline,0.0,0.0,0.0,0
+drug_macro_auc,biocda_xa_z,pooled_baseline,0.0,0.0,0.0,0
+drug_macro_auc,biocda_xa_zc,biocda_xa_z,0.030000000000000027,0.030000000000000027,0.030000000000000027,3
+drug_macro_auc,biocda_xa_zc,pooled_baseline,0.030000000000000027,0.030000000000000027,0.030000000000000027,3
+drug_macro_auprc,biocda_xa_z,pooled_baseline,0.0,0.0,0.0,0
+drug_macro_auprc,biocda_xa_zc,biocda_xa_z,0.0,0.0,0.0,0
+drug_macro_auprc,biocda_xa_zc,pooled_baseline,0.0,0.0,0.0,0
+sample_auc,biocda_xa_z,pooled_baseline,0.0,0.0,0.0,0
+sample_auc,biocda_xa_zc,biocda_xa_z,0.0,0.0,0.0,0
+sample_auc,biocda_xa_zc,pooled_baseline,0.0,0.0,0.0,0

@@ -1,0 +1,67 @@
+experiment:
+  name: biocda_xa_validation
+  architecture_version: biocda-xa-v1
+  seeds: [17, 29, 43]
+
+models:
+  - pooled_baseline
+  - biocda_xa_z
+  - biocda_xa_zc
+
+data:
+  split_manifest: reports/splits/unseen_drug_split_manifest.json
+  assignments_csv: reports/splits/unseen_drug_assignments.csv
+  development_rows: result/optimization_runs/round19_factorial/splits/development_rows.csv
+  feature_dir: result/optimization_runs/round20_unseen_drug_closure/features/z_plus_context32
+  drug_smiles_path: data/GDSC_drug_merge_pubchem_dropNA_MACCS_AACDR_extended.csv
+  forbid_tcga_during_selection: true
+  synthetic_smoke: false
+
+training:
+  max_epochs: 200
+  early_stopping_patience: 20
+  early_stopping_metric: validation_drug_macro_auc
+  gradient_clip_norm: 5.0
+  mixed_precision: true
+  micro_batch_size: 512
+  dataloader_num_workers: 0
+  smoke_epochs: 2
+
+optimizer:
+  name: adamw
+  learning_rate: 0.0005
+  weight_decay: 0.0001
+
+scheduler:
+  name: reduce_on_plateau
+  factor: 0.5
+  patience: 5
+  minimum_learning_rate: 0.000001
+
+selection:
+  primary_metric: mean_drug_macro_auc
+  secondary_metrics:
+    - mean_drug_macro_auprc
+    - sample_auc
+    - sample_auprc
+    - brier_score
+
+cross_attention:
+  attention_dim: 64
+  num_heads: 4
+  dropout: 0.1
+  num_layers: 1
+  use_bias: true
+  pooled_bypass: false
+  temperature: 1.0
+  learnable_temperature: false
+
+sample_representation:
+  projection: linear_layernorm_gelu
+  output_dim: 96
+  context_gate:
+    enabled: false
+
+outputs:
+  root: outputs/xa_validation
+  reports_root: reports

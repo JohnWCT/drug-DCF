@@ -1,0 +1,3008 @@
+[
+  {
+    "module": "omics_encoder.projection",
+    "input_shapes": [
+      [
+        2,
+        64
+      ]
+    ],
+    "output_shape": [
+      2,
+      64
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "omics_encoder",
+    "input_shapes": [
+      [
+        2,
+        64
+      ]
+    ],
+    "output_shape": [
+      2,
+      64
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "sample_encoder.omics_norm",
+    "input_shapes": [
+      [
+        2,
+        64
+      ]
+    ],
+    "output_shape": [
+      2,
+      64
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "sample_encoder.context_norm",
+    "input_shapes": [
+      [
+        2,
+        32
+      ]
+    ],
+    "output_shape": [
+      2,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "sample_encoder.projection.0",
+    "input_shapes": [
+      [
+        2,
+        96
+      ]
+    ],
+    "output_shape": [
+      2,
+      96
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "sample_encoder.projection.1",
+    "input_shapes": [
+      [
+        2,
+        96
+      ]
+    ],
+    "output_shape": [
+      2,
+      96
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "sample_encoder.projection.2",
+    "input_shapes": [
+      [
+        2,
+        96
+      ]
+    ],
+    "output_shape": [
+      2,
+      96
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "sample_encoder.projection",
+    "input_shapes": [
+      [
+        2,
+        96
+      ]
+    ],
+    "output_shape": [
+      2,
+      96
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "sample_encoder",
+    "input_shapes": [
+      [
+        2,
+        64
+      ],
+      [
+        2,
+        32
+      ]
+    ],
+    "output_shape": [
+      2,
+      96
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.0.aggr_module",
+    "input_shapes": [
+      [
+        18,
+        78
+      ],
+      [
+        18
+      ]
+    ],
+    "output_shape": [
+      11,
+      78
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.0.nn.0",
+    "input_shapes": [
+      [
+        11,
+        78
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.0.nn.1",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.0.nn.2",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.0.nn",
+    "input_shapes": [
+      [
+        11,
+        78
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.0",
+    "input_shapes": [
+      [
+        11,
+        78
+      ],
+      [
+        2,
+        18
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.relu",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.bns.0",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.1.aggr_module",
+    "input_shapes": [
+      [
+        18,
+        32
+      ],
+      [
+        18
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.1.nn.0",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.1.nn.1",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.1.nn.2",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.1.nn",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.1",
+    "input_shapes": [
+      [
+        11,
+        32
+      ],
+      [
+        2,
+        18
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.relu",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.bns.1",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.2.aggr_module",
+    "input_shapes": [
+      [
+        18,
+        32
+      ],
+      [
+        18
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.2.nn.0",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.2.nn.1",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.2.nn.2",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.2.nn",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.2",
+    "input_shapes": [
+      [
+        11,
+        32
+      ],
+      [
+        2,
+        18
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.relu",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.bns.2",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.3.aggr_module",
+    "input_shapes": [
+      [
+        18,
+        32
+      ],
+      [
+        18
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.3.nn.0",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.3.nn.1",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.3.nn.2",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.3.nn",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.3",
+    "input_shapes": [
+      [
+        11,
+        32
+      ],
+      [
+        2,
+        18
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.relu",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.bns.3",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.4.aggr_module",
+    "input_shapes": [
+      [
+        18,
+        32
+      ],
+      [
+        18
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.4.nn.0",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.4.nn.1",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.4.nn.2",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.4.nn",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.4",
+    "input_shapes": [
+      [
+        11,
+        32
+      ],
+      [
+        2,
+        18
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.relu",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.bns.4",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder",
+    "input_shapes": [],
+    "output_shape": "<class 'biocda.models.drug_gin.DrugNodeEncoderOutput'>",
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "cross_attention.query_projection",
+    "input_shapes": [
+      [
+        2,
+        96
+      ]
+    ],
+    "output_shape": [
+      2,
+      64
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "cross_attention.key_projection",
+    "input_shapes": [
+      [
+        2,
+        8,
+        32
+      ]
+    ],
+    "output_shape": [
+      2,
+      8,
+      64
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "cross_attention.value_projection",
+    "input_shapes": [
+      [
+        2,
+        8,
+        32
+      ]
+    ],
+    "output_shape": [
+      2,
+      8,
+      64
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "cross_attention.output_projection",
+    "input_shapes": [
+      [
+        2,
+        64
+      ]
+    ],
+    "output_shape": [
+      2,
+      64
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "cross_attention",
+    "input_shapes": [
+      [
+        2,
+        96
+      ],
+      [
+        11,
+        32
+      ],
+      [
+        11
+      ]
+    ],
+    "output_shape": "<class 'biocda.models.cross_attention.CrossAttentionOutput'>",
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "response_head.net.0",
+    "input_shapes": [
+      [
+        2,
+        160
+      ]
+    ],
+    "output_shape": [
+      2,
+      256
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "response_head.net.1",
+    "input_shapes": [
+      [
+        2,
+        256
+      ]
+    ],
+    "output_shape": [
+      2,
+      256
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "response_head.net.2",
+    "input_shapes": [
+      [
+        2,
+        256
+      ]
+    ],
+    "output_shape": [
+      2,
+      256
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "response_head.net.3",
+    "input_shapes": [
+      [
+        2,
+        256
+      ]
+    ],
+    "output_shape": [
+      2,
+      128
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "response_head.net.4",
+    "input_shapes": [
+      [
+        2,
+        128
+      ]
+    ],
+    "output_shape": [
+      2,
+      128
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "response_head.net.5",
+    "input_shapes": [
+      [
+        2,
+        128
+      ]
+    ],
+    "output_shape": [
+      2,
+      128
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "response_head.net.6",
+    "input_shapes": [
+      [
+        2,
+        128
+      ]
+    ],
+    "output_shape": [
+      2,
+      1
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "response_head.net",
+    "input_shapes": [
+      [
+        2,
+        160
+      ]
+    ],
+    "output_shape": [
+      2,
+      1
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "response_head",
+    "input_shapes": [
+      [
+        2,
+        96
+      ],
+      [
+        2,
+        64
+      ]
+    ],
+    "output_shape": [
+      2
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "omics_encoder.projection",
+    "input_shapes": [
+      [
+        2,
+        64
+      ]
+    ],
+    "output_shape": [
+      2,
+      64
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "omics_encoder",
+    "input_shapes": [
+      [
+        2,
+        64
+      ]
+    ],
+    "output_shape": [
+      2,
+      64
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "sample_encoder.omics_norm",
+    "input_shapes": [
+      [
+        2,
+        64
+      ]
+    ],
+    "output_shape": [
+      2,
+      64
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "sample_encoder.context_norm",
+    "input_shapes": [
+      [
+        2,
+        32
+      ]
+    ],
+    "output_shape": [
+      2,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "sample_encoder.projection.0",
+    "input_shapes": [
+      [
+        2,
+        96
+      ]
+    ],
+    "output_shape": [
+      2,
+      96
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "sample_encoder.projection.1",
+    "input_shapes": [
+      [
+        2,
+        96
+      ]
+    ],
+    "output_shape": [
+      2,
+      96
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "sample_encoder.projection.2",
+    "input_shapes": [
+      [
+        2,
+        96
+      ]
+    ],
+    "output_shape": [
+      2,
+      96
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "sample_encoder.projection",
+    "input_shapes": [
+      [
+        2,
+        96
+      ]
+    ],
+    "output_shape": [
+      2,
+      96
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "sample_encoder",
+    "input_shapes": [
+      [
+        2,
+        64
+      ],
+      [
+        2,
+        32
+      ]
+    ],
+    "output_shape": [
+      2,
+      96
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.0.aggr_module",
+    "input_shapes": [
+      [
+        18,
+        78
+      ],
+      [
+        18
+      ]
+    ],
+    "output_shape": [
+      11,
+      78
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.0.nn.0",
+    "input_shapes": [
+      [
+        11,
+        78
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.0.nn.1",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.0.nn.2",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.0.nn",
+    "input_shapes": [
+      [
+        11,
+        78
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.0",
+    "input_shapes": [
+      [
+        11,
+        78
+      ],
+      [
+        2,
+        18
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.relu",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.bns.0",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.1.aggr_module",
+    "input_shapes": [
+      [
+        18,
+        32
+      ],
+      [
+        18
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.1.nn.0",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.1.nn.1",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.1.nn.2",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.1.nn",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.1",
+    "input_shapes": [
+      [
+        11,
+        32
+      ],
+      [
+        2,
+        18
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.relu",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.bns.1",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.2.aggr_module",
+    "input_shapes": [
+      [
+        18,
+        32
+      ],
+      [
+        18
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.2.nn.0",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.2.nn.1",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.2.nn.2",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.2.nn",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.2",
+    "input_shapes": [
+      [
+        11,
+        32
+      ],
+      [
+        2,
+        18
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.relu",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.bns.2",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.3.aggr_module",
+    "input_shapes": [
+      [
+        18,
+        32
+      ],
+      [
+        18
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.3.nn.0",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.3.nn.1",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.3.nn.2",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.3.nn",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.3",
+    "input_shapes": [
+      [
+        11,
+        32
+      ],
+      [
+        2,
+        18
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.relu",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.bns.3",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.4.aggr_module",
+    "input_shapes": [
+      [
+        18,
+        32
+      ],
+      [
+        18
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.4.nn.0",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.4.nn.1",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.4.nn.2",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.4.nn",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.4",
+    "input_shapes": [
+      [
+        11,
+        32
+      ],
+      [
+        2,
+        18
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.relu",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.bns.4",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder",
+    "input_shapes": [],
+    "output_shape": "<class 'biocda.models.drug_gin.DrugNodeEncoderOutput'>",
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "cross_attention.query_projection",
+    "input_shapes": [
+      [
+        2,
+        96
+      ]
+    ],
+    "output_shape": [
+      2,
+      64
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "cross_attention.key_projection",
+    "input_shapes": [
+      [
+        2,
+        8,
+        32
+      ]
+    ],
+    "output_shape": [
+      2,
+      8,
+      64
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "cross_attention.value_projection",
+    "input_shapes": [
+      [
+        2,
+        8,
+        32
+      ]
+    ],
+    "output_shape": [
+      2,
+      8,
+      64
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "cross_attention.output_projection",
+    "input_shapes": [
+      [
+        2,
+        64
+      ]
+    ],
+    "output_shape": [
+      2,
+      64
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "cross_attention",
+    "input_shapes": [
+      [
+        2,
+        96
+      ],
+      [
+        11,
+        32
+      ],
+      [
+        11
+      ]
+    ],
+    "output_shape": "<class 'biocda.models.cross_attention.CrossAttentionOutput'>",
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "response_head.net.0",
+    "input_shapes": [
+      [
+        2,
+        160
+      ]
+    ],
+    "output_shape": [
+      2,
+      256
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "response_head.net.1",
+    "input_shapes": [
+      [
+        2,
+        256
+      ]
+    ],
+    "output_shape": [
+      2,
+      256
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "response_head.net.2",
+    "input_shapes": [
+      [
+        2,
+        256
+      ]
+    ],
+    "output_shape": [
+      2,
+      256
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "response_head.net.3",
+    "input_shapes": [
+      [
+        2,
+        256
+      ]
+    ],
+    "output_shape": [
+      2,
+      128
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "response_head.net.4",
+    "input_shapes": [
+      [
+        2,
+        128
+      ]
+    ],
+    "output_shape": [
+      2,
+      128
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "response_head.net.5",
+    "input_shapes": [
+      [
+        2,
+        128
+      ]
+    ],
+    "output_shape": [
+      2,
+      128
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "response_head.net.6",
+    "input_shapes": [
+      [
+        2,
+        128
+      ]
+    ],
+    "output_shape": [
+      2,
+      1
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "response_head.net",
+    "input_shapes": [
+      [
+        2,
+        160
+      ]
+    ],
+    "output_shape": [
+      2,
+      1
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "response_head",
+    "input_shapes": [
+      [
+        2,
+        96
+      ],
+      [
+        2,
+        64
+      ]
+    ],
+    "output_shape": [
+      2
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "omics_encoder.projection",
+    "input_shapes": [
+      [
+        2,
+        64
+      ]
+    ],
+    "output_shape": [
+      2,
+      64
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "omics_encoder",
+    "input_shapes": [
+      [
+        2,
+        64
+      ]
+    ],
+    "output_shape": [
+      2,
+      64
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "sample_encoder.omics_norm",
+    "input_shapes": [
+      [
+        2,
+        64
+      ]
+    ],
+    "output_shape": [
+      2,
+      64
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "sample_encoder.context_norm",
+    "input_shapes": [
+      [
+        2,
+        32
+      ]
+    ],
+    "output_shape": [
+      2,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "sample_encoder.projection.0",
+    "input_shapes": [
+      [
+        2,
+        96
+      ]
+    ],
+    "output_shape": [
+      2,
+      96
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "sample_encoder.projection.1",
+    "input_shapes": [
+      [
+        2,
+        96
+      ]
+    ],
+    "output_shape": [
+      2,
+      96
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "sample_encoder.projection.2",
+    "input_shapes": [
+      [
+        2,
+        96
+      ]
+    ],
+    "output_shape": [
+      2,
+      96
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "sample_encoder.projection",
+    "input_shapes": [
+      [
+        2,
+        96
+      ]
+    ],
+    "output_shape": [
+      2,
+      96
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "sample_encoder",
+    "input_shapes": [
+      [
+        2,
+        64
+      ],
+      [
+        2,
+        32
+      ]
+    ],
+    "output_shape": [
+      2,
+      96
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.0.aggr_module",
+    "input_shapes": [
+      [
+        18,
+        78
+      ],
+      [
+        18
+      ]
+    ],
+    "output_shape": [
+      11,
+      78
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.0.nn.0",
+    "input_shapes": [
+      [
+        11,
+        78
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.0.nn.1",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.0.nn.2",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.0.nn",
+    "input_shapes": [
+      [
+        11,
+        78
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.0",
+    "input_shapes": [
+      [
+        11,
+        78
+      ],
+      [
+        2,
+        18
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.relu",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.bns.0",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.1.aggr_module",
+    "input_shapes": [
+      [
+        18,
+        32
+      ],
+      [
+        18
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.1.nn.0",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.1.nn.1",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.1.nn.2",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.1.nn",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.1",
+    "input_shapes": [
+      [
+        11,
+        32
+      ],
+      [
+        2,
+        18
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.relu",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.bns.1",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.2.aggr_module",
+    "input_shapes": [
+      [
+        18,
+        32
+      ],
+      [
+        18
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.2.nn.0",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.2.nn.1",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.2.nn.2",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.2.nn",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.2",
+    "input_shapes": [
+      [
+        11,
+        32
+      ],
+      [
+        2,
+        18
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.relu",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.bns.2",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.3.aggr_module",
+    "input_shapes": [
+      [
+        18,
+        32
+      ],
+      [
+        18
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.3.nn.0",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.3.nn.1",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.3.nn.2",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.3.nn",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.3",
+    "input_shapes": [
+      [
+        11,
+        32
+      ],
+      [
+        2,
+        18
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.relu",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.bns.3",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.4.aggr_module",
+    "input_shapes": [
+      [
+        18,
+        32
+      ],
+      [
+        18
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.4.nn.0",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.4.nn.1",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.4.nn.2",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.4.nn",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.convs.4",
+    "input_shapes": [
+      [
+        11,
+        32
+      ],
+      [
+        2,
+        18
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.relu",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder.gin.bns.4",
+    "input_shapes": [
+      [
+        11,
+        32
+      ]
+    ],
+    "output_shape": [
+      11,
+      32
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "drug_encoder",
+    "input_shapes": [],
+    "output_shape": "<class 'biocda.models.drug_gin.DrugNodeEncoderOutput'>",
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "cross_attention.query_projection",
+    "input_shapes": [
+      [
+        2,
+        96
+      ]
+    ],
+    "output_shape": [
+      2,
+      64
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "cross_attention.key_projection",
+    "input_shapes": [
+      [
+        2,
+        8,
+        32
+      ]
+    ],
+    "output_shape": [
+      2,
+      8,
+      64
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "cross_attention.value_projection",
+    "input_shapes": [
+      [
+        2,
+        8,
+        32
+      ]
+    ],
+    "output_shape": [
+      2,
+      8,
+      64
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "cross_attention.output_projection",
+    "input_shapes": [
+      [
+        2,
+        64
+      ]
+    ],
+    "output_shape": [
+      2,
+      64
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "cross_attention",
+    "input_shapes": [
+      [
+        2,
+        96
+      ],
+      [
+        11,
+        32
+      ],
+      [
+        11
+      ]
+    ],
+    "output_shape": "<class 'biocda.models.cross_attention.CrossAttentionOutput'>",
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "response_head.net.0",
+    "input_shapes": [
+      [
+        2,
+        160
+      ]
+    ],
+    "output_shape": [
+      2,
+      256
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "response_head.net.1",
+    "input_shapes": [
+      [
+        2,
+        256
+      ]
+    ],
+    "output_shape": [
+      2,
+      256
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "response_head.net.2",
+    "input_shapes": [
+      [
+        2,
+        256
+      ]
+    ],
+    "output_shape": [
+      2,
+      256
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "response_head.net.3",
+    "input_shapes": [
+      [
+        2,
+        256
+      ]
+    ],
+    "output_shape": [
+      2,
+      128
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "response_head.net.4",
+    "input_shapes": [
+      [
+        2,
+        128
+      ]
+    ],
+    "output_shape": [
+      2,
+      128
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "response_head.net.5",
+    "input_shapes": [
+      [
+        2,
+        128
+      ]
+    ],
+    "output_shape": [
+      2,
+      128
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "response_head.net.6",
+    "input_shapes": [
+      [
+        2,
+        128
+      ]
+    ],
+    "output_shape": [
+      2,
+      1
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "response_head.net",
+    "input_shapes": [
+      [
+        2,
+        160
+      ]
+    ],
+    "output_shape": [
+      2,
+      1
+    ],
+    "requires_grad": false,
+    "training": false
+  },
+  {
+    "module": "response_head",
+    "input_shapes": [
+      [
+        2,
+        96
+      ],
+      [
+        2,
+        64
+      ]
+    ],
+    "output_shape": [
+      2
+    ],
+    "requires_grad": false,
+    "training": false
+  }
+]

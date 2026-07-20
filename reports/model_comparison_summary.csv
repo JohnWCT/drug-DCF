@@ -1,0 +1,2 @@
+model,seed,drug_macro_auc,drug_macro_auprc,sample_auc,sample_auprc,brier,ece,best_epoch,training_time
+biocda_xa_zc,17,0.6868089687459034,0.4203891289792755,0.5634894038484751,0.2814077980275171,,,2,379.18450515624136

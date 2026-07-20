@@ -1,0 +1,36 @@
+name: biocda-ci
+
+on:
+  push:
+    paths:
+      - "biocda/**"
+      - "scripts/audit_*.py"
+      - "scripts/run_xa_validation.py"
+      - "tests/**"
+      - "configs/biocda/**"
+      - "configs/model/biocda_cross_attention.yaml"
+  pull_request:
+    paths:
+      - "biocda/**"
+      - "scripts/**"
+      - "tests/**"
+      - "configs/**"
+
+jobs:
+  audit-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install torch-geometric pytest pyyaml pandas scikit-learn
+      - name: Repository audit
+        run: python scripts/audit_repository_state.py --strict
+      - name: Unit tests
+        run: pytest -q tests/
+      - name: Architecture runtime audit
+        run: python scripts/audit_biocda_architecture.py --strict

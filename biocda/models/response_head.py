@@ -1,7 +1,7 @@
 """Response predictor head — sample + attended drug representation only."""
 from __future__ import annotations
 
-from typing import Sequence
+from typing import List, Sequence
 
 import torch
 from torch import Tensor, nn
@@ -19,7 +19,7 @@ class BioCDAResponseHead(nn.Module):
     ) -> None:
         super().__init__()
         input_dim = int(sample_dim) + int(drug_dim)
-        layers: list[nn.Module] = []
+        layers: List[nn.Module] = []
         prev = input_dim
         for hidden in hidden_dims:
             layers.extend([nn.Linear(prev, int(hidden)), nn.ReLU(), nn.Dropout(dropout)])
@@ -30,4 +30,5 @@ class BioCDAResponseHead(nn.Module):
 
     def forward(self, sample_repr: Tensor, drug_repr: Tensor) -> Tensor:
         fusion = torch.cat([sample_repr, drug_repr], dim=-1)
-        return self.net(fusion).squeeze(-1)
+        logits = self.net(fusion)
+        return logits.reshape(-1)

@@ -43,15 +43,18 @@ docker exec DAPL bash -lc 'cd /workspace/DAPL && python3 scripts/round20/round20
 ## BioCDA architecture (BioCDA-XA v1)
 
 Patient-conditioned atom cross-attention model for interpretable drug response prediction.
-Architecture finalization is **complete**; interpretability outputs (heatmaps, aggregation)
-are deferred to the next round.
 
-- Architecture: **BioCDA-XA** (`biocda-xa-v1`) — sample `[Z;C]` queries GIN atom nodes
-- Baseline: **D0-Pooled** (factory `pooled_baseline`)
+- Architecture: **BioCDA-XA** (`biocda-xa-v1`) — M2 query `[Z;C]` queries GIN atom nodes
+- Candidates: **M0** `pooled_baseline`, **M1** `biocda_xa_z`, **M2** `biocda_xa_zc`
+- Validation status: **Round 21 pipeline complete** — GDSC training may still be running; see [Round 21 report](docs/round21_xa_validation_report.md)
+- Model lock: `reports/biocda_final_model_lock.json` (`TRAINING_IN_PROGRESS` until all 9 runs finish and `lock` passes)
 - Report: [BioCDA architecture finalization](docs/biocda_architecture_finalization.md)
 
 ```bash
 docker exec DAPL bash -lc '/workspace/DAPL/scripts/biocda/run_architecture_finalization.sh'
+docker exec DAPL bash -lc 'cd /workspace/DAPL && python3 scripts/run_xa_validation.py --config configs/biocda/xa_validation.yaml all'
+python3 scripts/audit_repository_state.py --strict
+python3 scripts/audit_biocda_architecture.py --config configs/biocda/xa_validation.yaml --strict
 ```
 
 ## 環境

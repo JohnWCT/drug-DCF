@@ -50,7 +50,7 @@ class PooledBaselineModel(nn.Module):
         sample_repr = self.sample_encoder(omics_latent, biological_context)
         drug_pooled = self.drug_encoder(drug_graph)
         fusion_repr = self.fusion(sample_repr, drug_pooled)
-        logits = self.response_head(fusion_repr)
+        logits = self.response_head(fusion_repr).reshape(-1)
         probabilities = torch.sigmoid(logits)
         if output_mode == "prediction":
             return BioCDAOutput(logits=logits, probabilities=probabilities)

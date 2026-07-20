@@ -1,0 +1,4 @@
+model_name,total_parameters,trainable_parameters,drug_encoder_parameters,attention_parameters,response_head_parameters
+pooled_baseline,49377,26337,14464,0,16641
+biocda_xa_z,109857,95393,14464,14592,74241
+biocda_xa_zc,112993,98529,14464,14592,74241

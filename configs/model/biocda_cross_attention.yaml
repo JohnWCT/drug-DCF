@@ -1,5 +1,5 @@
 model:
-  type: cross_attention
+  type: biocda_xa_zc
   omics_encoder:
     architecture: O2
     latent_dim: 64

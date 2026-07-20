@@ -8,6 +8,7 @@ import torch
 from torch import Tensor, nn
 from torch_geometric.data import Batch, Data
 
+from biocda.data.atom_metadata import build_atom_ptr
 from drugmodels.ginconv import GINConvNet
 
 
@@ -15,6 +16,7 @@ from drugmodels.ginconv import GINConvNet
 class DrugNodeEncoderOutput:
     node_embeddings: Tensor
     batch_index: Tensor
+    atom_ptr: Tensor
     model_atom_index: Optional[Tensor] = None
     original_atom_index: Optional[Tensor] = None
     rdkit_atom_index: Optional[Tensor] = None
@@ -63,12 +65,17 @@ class DrugGINNodeEncoder(nn.Module):
 
     def forward(self, drug_graph: Data | Batch) -> DrugNodeEncoderOutput:
         node_embeddings = self.gin.encode_nodes(drug_graph.x, drug_graph.edge_index)
-        batch_index = drug_graph.batch if isinstance(drug_graph, Batch) else torch.zeros(
-            drug_graph.num_nodes, dtype=torch.long, device=drug_graph.x.device
-        )
+        if isinstance(drug_graph, Batch):
+            batch_index = drug_graph.batch
+            num_graphs = int(drug_graph.num_graphs)
+        else:
+            batch_index = torch.zeros(drug_graph.num_nodes, dtype=torch.long, device=drug_graph.x.device)
+            num_graphs = 1
+        atom_ptr = build_atom_ptr(batch_index, num_graphs)
         return DrugNodeEncoderOutput(
             node_embeddings=node_embeddings,
             batch_index=batch_index,
+            atom_ptr=atom_ptr,
             model_atom_index=_resolve_model_atom_index(drug_graph),
             original_atom_index=getattr(drug_graph, "original_atom_index", None),
             rdkit_atom_index=getattr(drug_graph, "rdkit_atom_index", None),

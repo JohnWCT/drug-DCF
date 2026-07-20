@@ -1,0 +1,6 @@
+{
+  "path": "/workspace/DAPL/reports/splits/unseen_drug_split_manifest.json",
+  "assignments_csv": "/workspace/DAPL/reports/splits/unseen_drug_assignments.csv",
+  "n_splits": 3,
+  "synthetic": false
+}
