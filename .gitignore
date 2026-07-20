@@ -1,0 +1,60 @@
+### Core Python / notebook artifacts
+__pycache__/
+*.py[cod]
+*.so
+.ipynb_checkpoints/
+
+### Virtual environments / local env
+.env
+.env.*
+!.env.example
+config/telegram.local.env
+secrets/
+.venv/
+env/
+venv/
+ENV/
+
+### Build / packaging / test caches
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+### IDE / editor local configs
+.idea/
+.cursor/
+
+### Local-only ignore rules (do not commit; keep copies on each machine)
+/.gitignore
+/.cursorignore
+
+### Secrets / SSH keys (use ~/.ssh; never commit)
+/dhg0002910
+/dhg0002910.pub
+
+### Local data / outputs (do not commit)
+data/
+!biocda/data/
+!biocda/data/**
+result/
+config/generated/
+notebooks/
+input/
+
+### Large model / dataset files
+*.pth
+*.pt
+*.ckpt
+*.onnx
+*.bin
+*.safetensors
+*.pkl
+*.pickle
+*.joblib
+*.npz
+*.npy
