@@ -49,7 +49,7 @@ Mean AUC Δ (gated−E3): **-0.0020** — `all_pass=False`
 
 ## Stage 20E — Release
 
-- Release status: LOCKED
+- Release status: LOCKED_RELEASE
 - Artifacts hashed: 53
 
 ## Final architecture

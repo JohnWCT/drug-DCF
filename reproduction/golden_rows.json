@@ -2,305 +2,306 @@
   "n_rows": 50,
   "rows": [
     {
-      "drug_id": "paclitaxel",
+      "drug_id": "Paclitaxel",
       "model_id": null,
-      "reference_probability": 0.5158900280793508,
-      "row_id": null
+      "reference_probability": 0.2909771819909413,
+      "row_id": 0
     },
     {
-      "drug_id": "paclitaxel",
+      "drug_id": "Cisplatin",
       "model_id": null,
-      "reference_probability": 0.5044385115305583,
+      "reference_probability": 0.1491970648368199,
       "row_id": 1
     },
     {
-      "drug_id": "paclitaxel",
+      "drug_id": "Methotrexate",
       "model_id": null,
-      "reference_probability": 0.508355188369751,
+      "reference_probability": 0.2871570204695066,
       "row_id": 2
     },
     {
-      "drug_id": "paclitaxel",
+      "drug_id": "Vinblastine",
       "model_id": null,
-      "reference_probability": 0.4879610439141591,
+      "reference_probability": 0.3597993204991023,
       "row_id": 3
     },
     {
-      "drug_id": "tamoxifen",
+      "drug_id": "Cisplatin",
       "model_id": null,
-      "reference_probability": 0.1928330689668655,
+      "reference_probability": 0.1768147741754849,
       "row_id": 4
     },
     {
-      "drug_id": "temozolomide",
+      "drug_id": "Methotrexate",
       "model_id": null,
-      "reference_probability": 0.1006049301475286,
+      "reference_probability": 0.419954909880956,
       "row_id": 5
     },
     {
-      "drug_id": "temozolomide",
+      "drug_id": "Vinblastine",
       "model_id": null,
-      "reference_probability": 0.0998768758028745,
+      "reference_probability": 0.5426444927851359,
       "row_id": 6
     },
     {
-      "drug_id": "temozolomide",
+      "drug_id": "Cisplatin",
       "model_id": null,
-      "reference_probability": 0.1171597441037495,
+      "reference_probability": 0.2916331072648366,
       "row_id": 7
     },
     {
-      "drug_id": "temozolomide",
+      "drug_id": "Paclitaxel",
       "model_id": null,
-      "reference_probability": 0.1536706544458866,
+      "reference_probability": 0.3655433058738708,
       "row_id": 8
     },
     {
-      "drug_id": "gemcitabine",
+      "drug_id": "Methotrexate",
       "model_id": null,
-      "reference_probability": 0.4970964163541794,
+      "reference_probability": 0.4151009897391001,
       "row_id": 9
     },
     {
-      "drug_id": "gemcitabine",
+      "drug_id": "Vinblastine",
       "model_id": null,
-      "reference_probability": 0.5327202548583349,
+      "reference_probability": 0.5531257470448812,
       "row_id": 10
     },
     {
-      "drug_id": "gemcitabine",
+      "drug_id": "Cisplatin",
       "model_id": null,
-      "reference_probability": 0.4728314012289047,
+      "reference_probability": 0.3153280973434448,
       "row_id": 11
     },
     {
-      "drug_id": "oxaliplatin",
+      "drug_id": "Gemcitabine",
       "model_id": null,
-      "reference_probability": 0.1179554338256518,
+      "reference_probability": 0.5882688144842784,
       "row_id": 12
     },
     {
-      "drug_id": "paclitaxel",
+      "drug_id": "Cisplatin",
       "model_id": null,
-      "reference_probability": 0.5028042078018189,
+      "reference_probability": 0.2766716758410136,
       "row_id": 13
     },
     {
-      "drug_id": "paclitaxel",
+      "drug_id": "Paclitaxel",
       "model_id": null,
-      "reference_probability": 0.521413524945577,
+      "reference_probability": 0.3284740795691808,
       "row_id": 14
     },
     {
-      "drug_id": "paclitaxel",
+      "drug_id": "Gemcitabine",
       "model_id": null,
-      "reference_probability": 0.5348583002885182,
+      "reference_probability": 0.6356077094872793,
       "row_id": 15
     },
     {
-      "drug_id": "cisplatin",
+      "drug_id": "Gemcitabine",
       "model_id": null,
-      "reference_probability": 0.2969621380170186,
+      "reference_probability": 0.5040439506371815,
       "row_id": 16
     },
     {
-      "drug_id": "paclitaxel",
+      "drug_id": "Methotrexate",
       "model_id": null,
-      "reference_probability": 0.3915217091639836,
+      "reference_probability": 0.5547055621941884,
       "row_id": 17
     },
     {
-      "drug_id": "cisplatin",
+      "drug_id": "Cisplatin",
       "model_id": null,
-      "reference_probability": 0.2158596282203992,
+      "reference_probability": 0.4575330416361491,
       "row_id": 18
     },
     {
-      "drug_id": "temozolomide",
+      "drug_id": "Vinblastine",
       "model_id": null,
-      "reference_probability": 0.1042481590062379,
+      "reference_probability": 0.7688896656036377,
       "row_id": 19
     },
     {
-      "drug_id": "docetaxel",
+      "drug_id": "Gemcitabine",
       "model_id": null,
-      "reference_probability": 0.5175337513287862,
+      "reference_probability": 0.714100734392802,
       "row_id": 20
     },
     {
-      "drug_id": "paclitaxel",
+      "drug_id": "Methotrexate",
       "model_id": null,
-      "reference_probability": 0.4349525610605875,
+      "reference_probability": 0.5192886213461558,
       "row_id": 21
     },
     {
-      "drug_id": "5-fluorouracil",
+      "drug_id": "Vinblastine",
       "model_id": null,
-      "reference_probability": 0.3929165323575337,
+      "reference_probability": 0.6839689532915751,
       "row_id": 22
     },
     {
-      "drug_id": "cisplatin",
+      "drug_id": "Cisplatin",
       "model_id": null,
-      "reference_probability": 0.2253608802954355,
+      "reference_probability": 0.3844736377398173,
       "row_id": 23
     },
     {
-      "drug_id": "cisplatin",
+      "drug_id": "Gemcitabine",
       "model_id": null,
-      "reference_probability": 0.3017104536294937,
+      "reference_probability": 0.6888691266377767,
       "row_id": 24
     },
     {
-      "drug_id": "cisplatin",
+      "drug_id": "Gemcitabine",
       "model_id": null,
-      "reference_probability": 0.1920363595088323,
+      "reference_probability": 0.6907725910345713,
       "row_id": 25
     },
     {
-      "drug_id": "cisplatin",
+      "drug_id": "Cisplatin",
       "model_id": null,
-      "reference_probability": 0.1803443133831024,
+      "reference_probability": 0.410954749584198,
       "row_id": 26
     },
     {
-      "drug_id": "cisplatin",
+      "drug_id": "Docetaxel",
       "model_id": null,
-      "reference_probability": 0.1981609826286633,
+      "reference_probability": 0.4564607282479604,
       "row_id": 27
     },
     {
-      "drug_id": "cisplatin",
+      "drug_id": "Cisplatin",
       "model_id": null,
-      "reference_probability": 0.2985756039619446,
+      "reference_probability": 0.2418058822552363,
       "row_id": 28
     },
     {
-      "drug_id": "cisplatin",
+      "drug_id": "Gemcitabine",
       "model_id": null,
-      "reference_probability": 0.2314681688944498,
+      "reference_probability": 0.5636546889940898,
       "row_id": 29
     },
     {
-      "drug_id": "cisplatin",
+      "drug_id": "Gemcitabine",
       "model_id": null,
-      "reference_probability": 0.413833479086558,
+      "reference_probability": 0.6126969953378042,
       "row_id": 30
     },
     {
-      "drug_id": "cisplatin",
+      "drug_id": "Cisplatin",
       "model_id": null,
-      "reference_probability": 0.3544860521952311,
+      "reference_probability": 0.3304955681165059,
       "row_id": 31
     },
     {
-      "drug_id": "cisplatin",
+      "drug_id": "Gemcitabine",
       "model_id": null,
-      "reference_probability": 0.2834293931722641,
+      "reference_probability": 0.5925642768541972,
       "row_id": 32
     },
     {
-      "drug_id": "cisplatin",
+      "drug_id": "Cisplatin",
       "model_id": null,
-      "reference_probability": 0.2595623751481374,
+      "reference_probability": 0.2453298757473627,
       "row_id": 33
     },
     {
-      "drug_id": "cisplatin",
+      "drug_id": "Gemcitabine",
       "model_id": null,
-      "reference_probability": 0.3333249519268672,
+      "reference_probability": 0.6600973625977834,
       "row_id": 34
     },
     {
-      "drug_id": "cisplatin",
+      "drug_id": "Cisplatin",
       "model_id": null,
-      "reference_probability": 0.1881471047798792,
+      "reference_probability": 0.312754495938619,
       "row_id": 35
     },
     {
-      "drug_id": "cisplatin",
+      "drug_id": "Gemcitabine",
       "model_id": null,
-      "reference_probability": 0.1897260318199793,
+      "reference_probability": 0.6260840813318889,
       "row_id": 36
     },
     {
-      "drug_id": "cisplatin",
+      "drug_id": "Vinblastine",
       "model_id": null,
-      "reference_probability": 0.2353969633579254,
+      "reference_probability": 0.6152641614278157,
       "row_id": 37
     },
     {
-      "drug_id": "cisplatin",
+      "drug_id": "Cisplatin",
       "model_id": null,
-      "reference_probability": 0.3803340564171473,
+      "reference_probability": 0.3358326057593028,
       "row_id": 38
     },
     {
-      "drug_id": "cisplatin",
+      "drug_id": "Methotrexate",
       "model_id": null,
-      "reference_probability": 0.3436027785142262,
+      "reference_probability": 0.4407651166121165,
       "row_id": 39
     },
     {
-      "drug_id": "cisplatin",
+      "drug_id": "Gemcitabine",
       "model_id": null,
-      "reference_probability": 0.3669140934944153,
+      "reference_probability": 0.5836423705021541,
       "row_id": 40
     },
     {
-      "drug_id": "cisplatin",
+      "drug_id": "Cisplatin",
       "model_id": null,
-      "reference_probability": 0.1862602760394414,
+      "reference_probability": 0.2855731656153997,
       "row_id": 41
     },
     {
-      "drug_id": "cisplatin",
+      "drug_id": "Cisplatin",
       "model_id": null,
-      "reference_probability": 0.3578016569217046,
+      "reference_probability": 0.2603001147508621,
       "row_id": 42
     },
     {
-      "drug_id": "cisplatin",
+      "drug_id": "Gemcitabine",
       "model_id": null,
-      "reference_probability": 0.4188598871231079,
+      "reference_probability": 0.6063801527023316,
       "row_id": 43
     },
     {
-      "drug_id": "cisplatin",
+      "drug_id": "Gemcitabine",
       "model_id": null,
-      "reference_probability": 0.259682293732961,
+      "reference_probability": 0.5479797939459483,
       "row_id": 44
     },
     {
-      "drug_id": "cisplatin",
+      "drug_id": "Gemcitabine",
       "model_id": null,
-      "reference_probability": 0.2460837503274281,
+      "reference_probability": 0.7003781696160635,
       "row_id": 45
     },
     {
-      "drug_id": "cisplatin",
+      "drug_id": "Cisplatin",
       "model_id": null,
-      "reference_probability": 0.2551056911547978,
+      "reference_probability": 0.3654157658418019,
       "row_id": 46
     },
     {
-      "drug_id": "cisplatin",
+      "drug_id": "Paclitaxel",
       "model_id": null,
-      "reference_probability": 0.3339338521162668,
+      "reference_probability": 0.5013743956883748,
       "row_id": 47
     },
     {
-      "drug_id": "cisplatin",
+      "drug_id": "Cisplatin",
       "model_id": null,
-      "reference_probability": 0.3158142526944478,
+      "reference_probability": 0.2076509843269983,
       "row_id": 48
     },
     {
-      "drug_id": "cisplatin",
+      "drug_id": "Gemcitabine",
       "model_id": null,
-      "reference_probability": 0.3152225027481715,
+      "reference_probability": 0.4777348528305689,
       "row_id": 49
     }
   ],
-  "source": "result/optimization_runs/round20_unseen_drug_closure/stage20e_release/predictions/predictions_ensemble__aacdr_gdsc_intersect.csv"
+  "source": "result/optimization_runs/round20_unseen_drug_closure/stage20d_tcga/predictions_ensemble__gdsc_intersect13.csv",
+  "target": "gdsc_intersect13"
 }

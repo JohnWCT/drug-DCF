@@ -21,9 +21,9 @@
 | 必須保留 | raw-omics end-to-end-capable forward path 與 encoder 全權重 |
 | TCGA 用途 | architecture lock 後執行 inference／evaluation；不得回頭選模 |
 
-> **本機對齊狀態**：**Round 20 ALL_DONE**（Stage 20-0 → 20E）。
+> **本機對齊狀態**：**Round 20 ALL_DONE**（Stage 20-0 → 20E + post-completion audit）。
 > 最終鎖定：`C32` + `D0` + pooled E3（`B_E3`）；gated fusion 未過 guardrails。
-> TCGA 為 post-selection evaluation；`ROUND20_RELEASE_AUDIT=PASS`。
+> TCGA 為 post-selection evaluation；`ROUND20_RELEASE_AUDIT=PASS`；`ROUND20_COMPLETION_AUDIT=PASS`。
 > 詳見 [`docs/round20_final_report.md`](round20_final_report.md) 與 `stage20c_lock/final_model_lock.json`。
 > E3 對應 `F3_best_pooled_o2`（`O2×D0×P0`），經 `tools/round20_e3_resolver.py` fail-closed 解析。
 

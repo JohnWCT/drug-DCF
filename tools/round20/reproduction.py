@@ -8,39 +8,53 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
-from tools.round20.result_contracts import DEFAULT_RUN_ROOT, load_json, write_json
+from tools.round20.result_contracts import DEFAULT_RUN_ROOT, PROJECT_ROOT, load_json, write_json
+
+
+DEFAULT_GOLDEN_TARGET = "gdsc_intersect13"
+
+
+def _golden_source_path(*, run_root: Path, release_dir: Path, target: str) -> Path:
+    stage20d = run_root / f"stage20d_tcga/predictions_ensemble__{target}.csv"
+    if stage20d.is_file():
+        return stage20d
+    release_pred = release_dir / "predictions" / f"predictions_ensemble__{target}.csv"
+    if release_pred.is_file():
+        return release_pred
+    raise FileNotFoundError(f"No ensemble predictions for target={target}")
 
 
 def build_golden_rows(
     *,
     run_root: Path = DEFAULT_RUN_ROOT,
     release_dir: Optional[Path] = None,
+    target: str = DEFAULT_GOLDEN_TARGET,
     n_rows: int = 50,
+    repo_copy: bool | None = None,
 ) -> dict:
-    """Sample reference probabilities from release TCGA predictions (no raw omics)."""
+    """Sample reference probabilities from locked Stage 20D ensemble CSV."""
     run_root = Path(run_root)
     release_dir = Path(release_dir or run_root / "stage20e_release")
-    pred_dir = release_dir / "predictions"
-    source = None
-    for p in sorted(pred_dir.glob("predictions_ensemble__*.csv")):
-        source = p
-        break
-    if source is None:
-        source = run_root / "stage20d_tcga/predictions_ensemble__gdsc_intersect13.csv"
+    source = _golden_source_path(run_root=run_root, release_dir=release_dir, target=target)
     df = pd.read_csv(source).head(n_rows)
     rows = []
     for _, r in df.iterrows():
+        row_id = r["row_id"] if "row_id" in df.columns and pd.notna(r["row_id"]) else r.get("_row_id")
         rows.append(
             {
-                "row_id": r.get("row_id") or r.get("_row_id"),
-                "model_id": r.get("model_id") or r.get("ModelID"),
-                "drug_id": r.get("drug_id") or r.get("drug_name"),
+                "row_id": row_id,
+                "model_id": r.get("model_id") if pd.notna(r.get("model_id")) else r.get("ModelID"),
+                "drug_id": r.get("drug_id") if pd.notna(r.get("drug_id")) else r.get("drug_name"),
                 "reference_probability": float(r["prediction_probability"]),
             }
         )
-    payload = {"source": str(source), "n_rows": len(rows), "rows": rows}
+    payload = {"source": str(source), "target": target, "n_rows": len(rows), "rows": rows}
     out = run_root / "reproduction/golden_rows.json"
     write_json(out, payload)
+    if repo_copy is None:
+        repo_copy = Path(run_root).resolve() == Path(DEFAULT_RUN_ROOT).resolve()
+        repo_out = PROJECT_ROOT / "reproduction/golden_rows.json"
+        write_json(repo_out, payload)
     return payload
 
 
@@ -78,9 +92,11 @@ def verify_golden_subset(
     if not golden_path.is_file():
         return {"status": "SKIP", "reason": "golden_rows_missing"}
     golden = load_json(golden_path)
-    ens = pd.read_csv(
-        run_root / "stage20d_tcga/predictions_ensemble__gdsc_intersect13.csv"
-    )
+    source = Path(golden.get("source", ""))
+    if not source.is_file():
+        target = golden.get("target", DEFAULT_GOLDEN_TARGET)
+        source = run_root / f"stage20d_tcga/predictions_ensemble__{target}.csv"
+    ens = pd.read_csv(source)
     row_col = "row_id" if "row_id" in ens.columns else "_row_id"
     ens = ens.set_index(row_col)
     diffs = []
