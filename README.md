@@ -21,6 +21,7 @@ Context selection (Stage 20A): C32 — ΔAUC(C32−C16) = +0.00745
 - [Round 20 model card](docs/round20_model_card.md)
 - [Round 20 inference guide](docs/round20_inference_guide.md)
 - [Round 19 final report](docs/round19_final_report.md)
+- [BioCDA architecture finalization](docs/biocda_architecture_finalization.md)
 
 ## Scope and limitations
 
@@ -31,10 +32,26 @@ formal Round 20 experiment.
 
 ## Round 20 post-completion audit
 
+在 Docker `DAPL` 容器內執行（路徑 `/workspace/DAPL`）：
+
 ```bash
-python scripts/round20/round20_cli.py audit --strict
-python scripts/round20/round20_cli.py reproduce --strict
-python scripts/round20/round20_cli.py release-info
+docker exec DAPL bash -lc 'cd /workspace/DAPL && python3 scripts/round20/round20_cli.py audit --strict'
+docker exec DAPL bash -lc 'cd /workspace/DAPL && python3 scripts/round20/round20_cli.py reproduce --strict'
+docker exec DAPL bash -lc 'cd /workspace/DAPL && python3 scripts/round20/round20_cli.py release-info'
+```
+
+## BioCDA architecture (BioCDA-XA v1)
+
+Patient-conditioned atom cross-attention model for interpretable drug response prediction.
+Architecture finalization is **complete**; interpretability outputs (heatmaps, aggregation)
+are deferred to the next round.
+
+- Architecture: **BioCDA-XA** (`biocda-xa-v1`) — sample `[Z;C]` queries GIN atom nodes
+- Baseline: **D0-Pooled** (factory `pooled_baseline`)
+- Report: [BioCDA architecture finalization](docs/biocda_architecture_finalization.md)
+
+```bash
+docker exec DAPL bash -lc '/workspace/DAPL/scripts/biocda/run_architecture_finalization.sh'
 ```
 
 ## 環境

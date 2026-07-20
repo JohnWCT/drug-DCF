@@ -1,0 +1,45 @@
+{
+  "architecture_name": "BioCDA-XA",
+  "architecture_version": "biocda-xa-v1",
+  "omics_encoder": {
+    "name": "O2",
+    "latent_dim": 64,
+    "frozen": true
+  },
+  "biological_context": {
+    "type": "prototype_context",
+    "context_dim": 32,
+    "frozen": true
+  },
+  "sample_representation": {
+    "input_dim": 96,
+    "output_dim": 96
+  },
+  "drug_encoder": {
+    "name": "D0",
+    "output_type": "atom_node_embeddings",
+    "node_dim": 32,
+    "frozen": true
+  },
+  "cross_attention": {
+    "query_source": "omics_latent_plus_context",
+    "key_source": "drug_atom_node_embeddings",
+    "value_source": "drug_atom_node_embeddings",
+    "attention_dim": 64,
+    "num_heads": 4,
+    "graph_pooling_bypass": false
+  },
+  "prediction": {
+    "drug_input": "cross_attention_drug_representation",
+    "output": "binary_logit"
+  },
+  "interpretability_interfaces": {
+    "atom_attention": true,
+    "attention_logits": true,
+    "atom_mask": true,
+    "node_embeddings": true,
+    "sample_representation": true,
+    "omics_latent": true,
+    "atom_indices": true
+  }
+}
