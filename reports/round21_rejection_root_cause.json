@@ -1,0 +1,85 @@
+{
+  "schema": "round21_rejection_root_cause",
+  "schema_version": 1,
+  "lock_status": "REJECTED",
+  "primary_root_cause": "performance_failure",
+  "open_architecture_search": false,
+  "next_step_guidance": "Do not start a broad architecture search. First fix or diagnose why XA underperforms the pooled baseline under the same unseen-drug protocol (Outcome 3: residual/distillation/Phase-B last-block GIN FT).",
+  "categories": {
+    "performance_failure": {
+      "status": "CONFIRMED",
+      "gate": "performance_guardrails",
+      "evidence": {
+        "mean_drug_macro_auc": {
+          "M0_pooled_baseline": 0.7458,
+          "M1_biocda_xa_z": 0.7138,
+          "M2_biocda_xa_zc": 0.7086
+        },
+        "mean_delta_M2_minus_M0_auc": -0.03716,
+        "mean_delta_M2_minus_M0_auprc": -0.04496,
+        "guardrail_auc_min_mean_delta": -0.005,
+        "seeds_with_M2_auc_ge_M0": 0,
+        "source": "reports/model_comparison_summary.csv"
+      },
+      "implication": "Architecture/training of BioCDA-XA-Candidate needs revision relative to BioCDA-Predictive baseline."
+    },
+    "external_domain_failure": {
+      "status": "NOT_APPLICABLE",
+      "evidence": {
+        "selection_data": "Round19 development_rows.csv (same GDSC2 cell-line response development scope as Round20 selection)",
+        "tcga_used_for_selection": false,
+        "note": "Round21 REJECTED is an in-protocol unseen-drug comparison on development data, not an external GDSC/TCGA domain failure. Round20 vs Round21 also differ in split seeds (52/62/72×5fold vs 17/29/43 70/15/15), so they are not identical protocols even though both are unseen-drug."
+      },
+      "implication": "Do not interpret REJECTED as external generalization failure without a dedicated external-domain evaluation."
+    },
+    "attention_health_failure": {
+      "status": "NOT_FAILED",
+      "gate": "attention_health",
+      "evidence": {
+        "gate_result": "PASS",
+        "mean_normalized_entropy": 0.428,
+        "mean_max_atom_attention": 0.563,
+        "mean_head_cosine_similarity": 0.285,
+        "source": "reports/attention_health_summary.csv"
+      },
+      "implication": "Rejection was not driven by uniform/collapsed attention on the diagnostic batch."
+    },
+    "context_utilization_failure": {
+      "status": "NOT_FAILED",
+      "gate": "context_utilization",
+      "evidence": {
+        "gate_result": "PASS",
+        "context_shuffle_attention_l1": 0.322,
+        "context_shuffle_prediction_delta": 0.423,
+        "source": "reports/context_sensitivity_summary.csv"
+      },
+      "implication": "Context reaches query/attention path; cannot claim context was ignored. Predictive utility of context under XA remains weak (M2≈M1)."
+    },
+    "reproduction_failure": {
+      "status": "NOT_FAILED",
+      "evidence": {
+        "runtime_architecture_audit": "PASS",
+        "unit_tests": "PASS",
+        "checkpoint_roundtrip": "PASS",
+        "nine_runs_completed": true
+      },
+      "implication": "Do not treat this as pipeline/reproducibility breakage before changing models."
+    },
+    "data_contract_failure": {
+      "status": "NOT_FAILED",
+      "evidence": {
+        "logits_shape_contract": "[B]",
+        "attention_sums_to_one": true,
+        "padding_attention_zero": true,
+        "shared_split_manifest": true,
+        "atom_ptr_present": true
+      },
+      "implication": "Data/output contracts are intact."
+    }
+  },
+  "secondary_observations": [
+    "M2 early-stopped at epoch 2 on seed 17 (AUC 0.687), suggesting unstable optimization under Phase-A freeze for that seed.",
+    "M1 also underperforms M0 (ΔAUC ≈ -0.032), so failure is not solely context integration; omics-conditioned XA itself trails pooling.",
+    "Round21 M0 is a factory reimplementation of pooled fusion, not a byte-identical reload of Round20 B_E3 ensemble checkpoints."
+  ]
+}

@@ -4,14 +4,18 @@
 
 ## Current recommended drug-response model
 
+**Canonical name: BioCDA-Predictive** (experiment label `E3` / candidate `B_E3`).
+
 The current locked model was selected under repeated drug-held-out validation in Round 20.
 
 - Omics representation: **C32** O2 (96-d = Z64 + context32)
-- Drug encoder: **D0** GIN32 / graph32
-- Predictor: **pooled_e3** (`B_E3`)
+- Drug encoder: **D0** GIN32 / graph32 (global max pool)
+- Predictor: **pooled_e3** (`B_E3` = AdapterMLPFusion + Round18ResponseHead)
+- Cross-attention: **none**
 - Primary use case: unseen-drug prediction
 - Model selection: development-only repeated drug-held-out (seeds 52/62/72 × 5 folds)
 - Final TCGA evaluation: performed **after** model lock
+- Expanded architecture spec: [biocda_predictive_e3_architecture_spec.json](reports/biocda_predictive_e3_architecture_spec.json)
 
 Context selection (Stage 20A): C32 — ΔAUC(C32−C16) = +0.00745
 
@@ -40,14 +44,27 @@ docker exec DAPL bash -lc 'cd /workspace/DAPL && python3 scripts/round20/round20
 docker exec DAPL bash -lc 'cd /workspace/DAPL && python3 scripts/round20/round20_cli.py release-info'
 ```
 
-## BioCDA architecture (BioCDA-XA v1)
+## BioCDA architecture (naming)
 
-Patient-conditioned atom cross-attention model for interpretable drug response prediction.
+Do **not** use bare “BioCDA” for both rounds:
 
-- Architecture: **BioCDA-XA** (`biocda-xa-v1`) — M2 query `[Z;C]` queries GIN atom nodes
+| Name | Meaning | Status |
+|------|---------|--------|
+| **BioCDA-Predictive** | Round 20 locked C32 + D0 pooled E3 (`B_E3`) | **LOCKED** |
+| **BioCDA-XA-Candidate** | Round 21 sample→atom cross-attention (`biocda-xa-v1`) | **REJECTED** (performance vs pooled) |
+
+Architecture diff: [round20_round21_architecture_diff.json](reports/round20_round21_architecture_diff.json)  
+Scientific audit (Q1–Q8): [round20_round21_scientific_audit.md](docs/round20_round21_scientific_audit.md)  
+E3 expanded spec: [biocda_predictive_e3_architecture_spec.json](reports/biocda_predictive_e3_architecture_spec.json)
+
+## BioCDA-XA (Round 21 candidate)
+
+Patient-conditioned atom cross-attention **candidate** for interpretable drug response prediction.
+
+- Architecture: **BioCDA-XA-Candidate** (`biocda-xa-v1`) — M2 query `[Z;C]` queries GIN atom nodes
 - Candidates: **M0** `pooled_baseline`, **M1** `biocda_xa_z`, **M2** `biocda_xa_zc`
 - Validation status: **Round 21 complete** — see [Round 21 report](docs/round21_xa_validation_report.md)
-- Model lock: `reports/biocda_final_model_lock.json` status **REJECTED** (M2 failed performance vs M0); retain **M0 pooled baseline**
+- Model lock: `reports/biocda_final_model_lock.json` status **REJECTED** (M2 failed performance vs M0); retain **M0 / BioCDA-Predictive-style pooled baseline**
 - TCGA: **not used** for model selection
 - Report: [BioCDA architecture finalization](docs/biocda_architecture_finalization.md)
 

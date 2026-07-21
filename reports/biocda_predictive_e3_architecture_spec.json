@@ -1,0 +1,68 @@
+{
+  "schema": "biocda_predictive_e3_architecture_spec",
+  "schema_version": 1,
+  "canonical_name": "BioCDA-Predictive",
+  "experiment_label": "E3",
+  "locked_candidate_id": "B_E3",
+  "predictor_kind": "pooled_e3",
+  "status": "LOCKED (Round 20)",
+  "warning": "E3 is an experiment label only. Use this expanded specification for papers and reproduction.",
+  "omics": {
+    "encoder": "O2 frozen latent",
+    "Z_dim": 64,
+    "context": "C32 prototype PCA context",
+    "context_dim": 32,
+    "input_concat_dim": 96,
+    "feature_dir": "result/optimization_runs/round20_unseen_drug_closure/features/z_plus_context32"
+  },
+  "drug_encoder": {
+    "id": "D0",
+    "class": "GINConvNet",
+    "atom_input_dim": 78,
+    "num_layers": 5,
+    "node_hidden_dim": 32,
+    "graph_output_dim": 32,
+    "jk_mode": "last",
+    "normalization": "batch_norm_per_layer",
+    "dropout": 0.1,
+    "pooling": "global_max",
+    "edge_features": false,
+    "post_pool_projection": "Linear(32→32)→ReLU→Dropout→Linear(32→32)"
+  },
+  "cross_attention": {
+    "present": false,
+    "num_layers": 0,
+    "num_heads": null,
+    "attention_dim": null,
+    "pooling_bypass": "n/a (pooled graph embedding is the drug representation)"
+  },
+  "fusion": {
+    "class": "AdapterMLPFusion",
+    "predictor_id": "P0",
+    "omics_adapter": "Linear(96→64)+LayerNorm",
+    "drug_adapter": "Linear(32→64)+LayerNorm",
+    "ffn_dimension_after_concat": 128,
+    "adapter_dim": 64
+  },
+  "response_head": {
+    "class": "Round18ResponseHead",
+    "input_dim": 128,
+    "hidden_dims": [128],
+    "activation": "relu",
+    "dropout": 0.1,
+    "output": "binary logit [B]"
+  },
+  "training_selection": {
+    "protocol": "repeated drug-held-out GroupKFold",
+    "split_seeds": [52, 62, 72],
+    "n_folds": 5,
+    "primary_metric": "DrugMacro_AUC",
+    "tcga_used_for_selection": false,
+    "checkpoint_policy": "five_fold_probability_mean_ensemble"
+  },
+  "evidence": {
+    "resolved_e3": "result/optimization_runs/round20_unseen_drug_closure/stage20_0/resolved_e3.json",
+    "final_lock": "result/optimization_runs/round20_unseen_drug_closure/stage20c_lock/final_model_lock.json",
+    "public_lock": "reports/round20_final_model_lock_public.json"
+  }
+}

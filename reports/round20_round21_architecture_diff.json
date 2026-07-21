@@ -1,0 +1,197 @@
+{
+  "schema": "round20_round21_architecture_diff",
+  "schema_version": 1,
+  "verdict": {
+    "same_architecture": false,
+    "must_not_share_name": true,
+    "round20_canonical_name": "BioCDA-Predictive",
+    "round20_aliases": ["B_E3", "pooled_e3", "C32+E3", "AdapterMLPFusion+ResponseHead"],
+    "round21_canonical_name": "BioCDA-XA-Candidate",
+    "round21_aliases": ["BioCDA-XA-ZC", "biocda_xa_zc", "biocda-xa-v1"],
+    "summary": "Round 20 locked model is pooled GIN + adapter MLP (no cross-attention). Round 21 candidates add sample-to-atom cross-attention and a different response head. They are not the same architecture and must not share a single BioCDA product name."
+  },
+  "comparison": {
+    "model_class": {
+      "round20_BioCDA-Predictive": "GINConvNet + AdapterMLPFusion + Round18ResponseHead (assembled in step1_finetune_latent_pipeline_round20_cv.py as pooled_e3)",
+      "round21_BioCDA-XA-Candidate": "BioCDA(FrozenOmicsEncoder, SampleRepresentationZC, DrugGINNodeEncoder, SampleAtomCrossAttention, BioCDAResponseHead)",
+      "equal": false
+    },
+    "architecture_version": {
+      "round20_BioCDA-Predictive": null,
+      "round20_labels": {
+        "public_alias": "E3",
+        "candidate_id": "B_E3",
+        "architecture_family": "pooled_mlp",
+        "predictor_kind": "pooled_e3"
+      },
+      "round21_BioCDA-XA-Candidate": "biocda-xa-v1",
+      "equal": false
+    },
+    "input_feature_dimension": {
+      "round20_BioCDA-Predictive": {
+        "Z": 64,
+        "C": 32,
+        "concat_omics_dim": 96,
+        "note": "Round19 E3 contract was Z64+C16=80; Round20 Stage20A locked C32 → 96"
+      },
+      "round21_BioCDA-XA-Candidate": {
+        "Z": 64,
+        "C": 32,
+        "concat_for_M2": 96,
+        "note": "Same C32 feature store used for Round21 XA training"
+      },
+      "equal": true
+    },
+    "sample_projector": {
+      "round20_BioCDA-Predictive": {
+        "type": "AdapterMLPFusion.omics_adapter",
+        "structure": "Linear(96→64) + LayerNorm(64); drug Linear(32→64)+LN; concat→128",
+        "context_gate": false
+      },
+      "round21_BioCDA-XA-Candidate": {
+        "type": "SampleRepresentationZC",
+        "structure": "LayerNorm(Z64)+LayerNorm(C32)→concat(96)→Linear(96→96)+LN+GELU",
+        "context_gate": false
+      },
+      "equal": false
+    },
+    "gin_layers": {
+      "round20_BioCDA-Predictive": {
+        "num_layers": 5,
+        "node_hidden_dim": 32,
+        "graph_output_dim": 32,
+        "jk_mode": "last",
+        "dropout": 0.1,
+        "batch_norm": true,
+        "atom_input_dim": 78
+      },
+      "round21_BioCDA-XA-Candidate": {
+        "num_layers": 5,
+        "node_hidden_dim": 32,
+        "jk_mode": "last",
+        "dropout": 0.2,
+        "batch_norm": true,
+        "atom_input_dim": 78,
+        "note": "Same GINConvNet class; Round21 factory default dropout 0.2 vs Round20 build_drug_encoder 0.1"
+      },
+      "equal": false,
+      "equal_except_dropout": true
+    },
+    "gin_pooling_path": {
+      "round20_BioCDA-Predictive": {
+        "pooling": "global_max",
+        "uses_graph_embedding": true,
+        "uses_atom_nodes_in_predictor": false
+      },
+      "round21_BioCDA-XA-Candidate": {
+        "pooling": "none_in_predictor_path",
+        "uses_graph_embedding": false,
+        "uses_atom_nodes_in_predictor": true,
+        "note": "M0 pooled_baseline in Round21 factory still uses max-pool, but that is the comparison baseline, not BioCDA-XA-Candidate"
+      },
+      "equal": false
+    },
+    "cross_attention_layers": {
+      "round20_BioCDA-Predictive": {
+        "present": false,
+        "num_layers": 0
+      },
+      "round21_BioCDA-XA-Candidate": {
+        "present": true,
+        "num_layers": 1,
+        "module": "SampleAtomCrossAttention",
+        "query": "sample representation S",
+        "key_value": "GIN atom node embeddings"
+      },
+      "equal": false
+    },
+    "number_of_heads": {
+      "round20_BioCDA-Predictive": null,
+      "round21_BioCDA-XA-Candidate": 4,
+      "equal": false
+    },
+    "attention_dimension": {
+      "round20_BioCDA-Predictive": null,
+      "round21_BioCDA-XA-Candidate": 64,
+      "equal": false
+    },
+    "response_head_input": {
+      "round20_BioCDA-Predictive": {
+        "class": "Round18ResponseHead",
+        "input_dim": 128,
+        "source": "concat(omics_adapter64, drug_adapter64)",
+        "hidden": [128],
+        "dropout": 0.1,
+        "output": "logit [B]"
+      },
+      "round21_BioCDA-XA-Candidate": {
+        "class": "BioCDAResponseHead",
+        "input_dim": 160,
+        "source": "concat(sample_repr96, attended_drug64)",
+        "hidden": [256, 128],
+        "dropout": 0.2,
+        "output": "logit [B]"
+      },
+      "equal": false
+    },
+    "state_dict_keys": {
+      "round20_BioCDA-Predictive_prefixes": [
+        "encoder.convs.*",
+        "encoder.bns.*",
+        "encoder.fc1_xd.*",
+        "encoder.out.*",
+        "fusion.omics_adapter.*",
+        "fusion.drug_adapter.*",
+        "head.net.*"
+      ],
+      "round21_BioCDA-XA-Candidate_prefixes": [
+        "omics_encoder.*",
+        "sample_encoder.omics_norm.*",
+        "sample_encoder.context_norm.*",
+        "sample_encoder.projection.*",
+        "drug_encoder.gin.convs.*",
+        "drug_encoder.gin.bns.*",
+        "cross_attention.query_projection.*",
+        "cross_attention.key_projection.*",
+        "cross_attention.value_projection.*",
+        "cross_attention.output_projection.*",
+        "response_head.net.*"
+      ],
+      "compatible_for_strict_load": false,
+      "note": "Round20 encoder.* maps to GINConvNet; Round21 nests under drug_encoder.gin.* and adds cross_attention.*"
+    },
+    "forward_output_contract": {
+      "round20_BioCDA-Predictive": {
+        "logits": "[B]",
+        "probabilities": "[B] via sigmoid",
+        "atom_attention": false,
+        "atom_mask": false,
+        "atom_ptr": false
+      },
+      "round21_BioCDA-XA-Candidate": {
+        "logits": "[B]",
+        "probabilities": "[B] via sigmoid",
+        "atom_attention": true,
+        "atom_attention_logits": true,
+        "atom_mask": true,
+        "atom_ptr": true,
+        "output_modes": ["prediction", "attention", "full", "debug"]
+      },
+      "equal": false
+    }
+  },
+  "naming_policy": {
+    "do_not_use_alone": "BioCDA",
+    "predictive_locked_model": "BioCDA-Predictive",
+    "interpretability_candidate": "BioCDA-XA-Candidate",
+    "rationale": "Sharing 'BioCDA' without qualifier conflates a locked pooled predictor with a rejected cross-attention candidate."
+  },
+  "evidence_paths": {
+    "round20_lock": "result/optimization_runs/round20_unseen_drug_closure/stage20c_lock/final_model_lock.json",
+    "round20_resolved_e3": "result/optimization_runs/round20_unseen_drug_closure/stage20_0/resolved_e3.json",
+    "round20_public_lock": "reports/round20_final_model_lock_public.json",
+    "round21_lock": "reports/biocda_final_model_lock.json",
+    "round21_decision": "reports/model_selection_decision.md",
+    "round21_model_code": "biocda/models/"
+  }
+}
