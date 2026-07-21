@@ -23,7 +23,10 @@ training:
   early_stopping_metric: validation_drug_macro_auc
   gradient_clip_norm: 5.0
   mixed_precision: true
-  micro_batch_size: 512
+  micro_batch_size: 768
+  accumulation_steps: 2
+  max_parallel: 3
+  target_gpu_utilization: 0.9
   dataloader_num_workers: 0
   smoke_epochs: 2
 

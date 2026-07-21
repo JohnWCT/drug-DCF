@@ -230,12 +230,73 @@ def cmd_train(args: argparse.Namespace) -> None:
     if config["data"].get("synthetic_smoke"):
         return _cmd_train_synthetic(config)
 
-    configure_gpu_efficiency(target_utilization=0.9)
+    configure_gpu_efficiency(
+        target_utilization=float(config["training"].get("target_gpu_utilization", 0.9))
+    )
     _notify("Round21 XA validation TRAIN start")
+    out_root = ROOT / config["outputs"]["root"]
+
+    from biocda.training.graph_cache_io import ensure_graph_cache
+
+    ensure_graph_cache(
+        dev_rows_path=ROOT / config["data"]["development_rows"],
+        feature_dir=str(ROOT / config["data"]["feature_dir"]),
+        drug_smiles_path=str(ROOT / config["data"]["drug_smiles_path"]),
+        cache_root=out_root,
+    )
+
+    max_parallel = int(config["training"].get("max_parallel", 1))
+    if max_parallel > 1:
+        from biocda.training.xa_dispatch import dispatch_training
+
+        dispatch_training(
+            config_path=args.config,
+            config=config,
+            max_parallel=max_parallel,
+            resume=not getattr(args, "no_resume", False),
+        )
+    else:
+        _cmd_train_sequential(config, args.config)
+
+    summary_rows = _collect_training_summary(config)
+    df = pd.DataFrame(summary_rows)
+    REPORTS.mkdir(parents=True, exist_ok=True)
+    df.to_csv(REPORTS / "model_comparison_summary.csv", index=False)
+    _notify("Round21 XA validation TRAIN complete")
+    print("TRAIN=done")
+
+
+def _collect_training_summary(config: Dict[str, Any]) -> List[Dict[str, Any]]:
+    from biocda.training.xa_loop import metrics_to_summary_row, TrainRunResult
+
+    rows: List[Dict[str, Any]] = []
+    out_root = ROOT / config["outputs"]["root"]
+    for seed in config["experiment"]["seeds"]:
+        for model_type in config["models"]:
+            run_dir = out_root / f"{model_type}_seed{seed}"
+            metrics_path = run_dir / "metrics_by_seed.json"
+            if not metrics_path.is_file():
+                continue
+            blob = json.loads(metrics_path.read_text(encoding="utf-8"))
+            result = TrainRunResult(
+                best_epoch=int(blob.get("best_epoch", -1)),
+                best_val_score=0.0,
+                metrics_validation=blob.get("validation", {}),
+                metrics_test=blob.get("test", {}),
+                training_time=0.0,
+                checkpoint_path=str(run_dir / "best.pt"),
+            )
+            rows.append(metrics_to_summary_row(model=model_type, seed=seed, result=result))
+    return rows
+
+
+def _cmd_train_sequential(config: Dict[str, Any], config_path: Path) -> None:
+    from biocda.training.graph_cache_io import load_graph_cache
+
     out_root = ROOT / config["outputs"]["root"]
     assignments = pd.read_csv(_assignments_path(config))
     dev = pd.read_csv(ROOT / config["data"]["development_rows"])
-    graph_cache: dict = {}
+    graph_cache = load_graph_cache(out_root)
     dataset = build_xa_dataset(
         dev,
         feature_dir=str(ROOT / config["data"]["feature_dir"]),
@@ -250,7 +311,6 @@ def cmd_train(args: argparse.Namespace) -> None:
         if dl_kwargs["num_workers"] == 0:
             dl_kwargs.pop("persistent_workers", None)
             dl_kwargs.pop("prefetch_factor", None)
-    summary_rows: List[Dict[str, Any]] = []
 
     for seed in config["experiment"]["seeds"]:
         for model_type in config["models"]:
@@ -279,6 +339,7 @@ def cmd_train(args: argparse.Namespace) -> None:
                 weight_decay=float(config["optimizer"]["weight_decay"]),
                 grad_clip=float(config["training"]["gradient_clip_norm"]),
                 use_amp=bool(config["training"].get("mixed_precision", True)),
+                accumulation_steps=int(config["training"].get("accumulation_steps", 1)),
                 model_type=model_type,
                 architecture_version=config["experiment"]["architecture_version"],
                 config=cfg,
@@ -293,14 +354,7 @@ def cmd_train(args: argparse.Namespace) -> None:
                     seed=seed,
                 ),
             )
-            summary_rows.append(metrics_to_summary_row(model=model_type, seed=seed, result=result))
             _notify(f"Round21 train done {model_type} seed={seed} auc={result.metrics_validation.get('DrugMacro_AUC')}")
-
-    df = pd.DataFrame(summary_rows)
-    REPORTS.mkdir(parents=True, exist_ok=True)
-    df.to_csv(REPORTS / "model_comparison_summary.csv", index=False)
-    _notify("Round21 XA validation TRAIN complete")
-    print("TRAIN=done")
 
 
 def _cmd_train_synthetic(config: Dict[str, Any]) -> None:

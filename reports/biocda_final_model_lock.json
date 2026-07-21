@@ -1,29 +1,40 @@
 {
-  "status": "TRAINING_IN_PROGRESS",
-  "model_name": null,
   "architecture_version": "biocda-xa-v1",
-  "selection_protocol": "repeated_unseen_drug",
-  "selection_metric": "drug_macro_auc",
-  "checkpoint_policy": "best_per_split_seed",
-  "split_seeds": [17, 29, 43],
-  "checkpoint_paths": [],
-  "checkpoint_hashes": [],
-  "git_commit": "",
-  "config_hash": "",
-  "dataset_hash": "",
-  "split_manifest_hash": "",
-  "omics_encoder_hash": "",
-  "drug_encoder_hash": "",
-  "context_artifact_hash": "",
-  "tcga_used_for_selection": false,
-  "note": "GDSC training launched via run_xa_validation.py all; re-run lock after completion",
   "attention_interface": {
-    "per_head_probabilities": true,
-    "pre_softmax_logits": true,
     "atom_mask": true,
+    "atom_ptr": true,
     "model_atom_index": true,
     "original_atom_index": true,
-    "rdkit_atom_index": true,
-    "atom_ptr": true
-  }
+    "per_head_probabilities": true,
+    "pre_softmax_logits": true,
+    "rdkit_atom_index": true
+  },
+  "checkpoint_hashes": [
+    "47a8132c3a9192257b2ce67539f66fe86809564b2c5930c7c54fe8f79202545f",
+    "edbe8e84c6fc8dc3d0ac275b5ebfa731b966dddf807c7195dcc62b6032d36d27",
+    "4293d1535de86747730d8aa28e9c50aefb9fcdee05351f06e99676950ad21b03"
+  ],
+  "checkpoint_paths": [
+    "/workspace/DAPL/outputs/xa_validation/biocda_xa_zc_seed17/best.pt",
+    "/workspace/DAPL/outputs/xa_validation/biocda_xa_zc_seed29/best.pt",
+    "/workspace/DAPL/outputs/xa_validation/biocda_xa_zc_seed43/best.pt"
+  ],
+  "checkpoint_policy": "best_per_split_seed",
+  "config_hash": "6b4aab93ec96f36292f1e89626a95c610b437cd8adb754a0c449562090fd8c65",
+  "context_artifact_hash": "",
+  "dataset_hash": "7a762b4d43ab99480c28d6e4c3a7cff644e954555183d0296ce3f44c03e14672",
+  "drug_encoder_hash": "",
+  "git_commit": "unknown",
+  "model_name": "pooled_baseline",
+  "omics_encoder_hash": "",
+  "selection_metric": "drug_macro_auc",
+  "selection_protocol": "repeated_unseen_drug",
+  "split_manifest_hash": "c22c8989c5133626c63f51db3359bd765eb95dc21a9aaa391c9989668f256f81",
+  "split_seeds": [
+    17,
+    29,
+    43
+  ],
+  "status": "REJECTED",
+  "tcga_used_for_selection": false
 }

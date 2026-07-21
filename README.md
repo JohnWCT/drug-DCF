@@ -46,8 +46,9 @@ Patient-conditioned atom cross-attention model for interpretable drug response p
 
 - Architecture: **BioCDA-XA** (`biocda-xa-v1`) — M2 query `[Z;C]` queries GIN atom nodes
 - Candidates: **M0** `pooled_baseline`, **M1** `biocda_xa_z`, **M2** `biocda_xa_zc`
-- Validation status: **Round 21 pipeline complete** — GDSC training may still be running; see [Round 21 report](docs/round21_xa_validation_report.md)
-- Model lock: `reports/biocda_final_model_lock.json` (`TRAINING_IN_PROGRESS` until all 9 runs finish and `lock` passes)
+- Validation status: **Round 21 complete** — see [Round 21 report](docs/round21_xa_validation_report.md)
+- Model lock: `reports/biocda_final_model_lock.json` status **REJECTED** (M2 failed performance vs M0); retain **M0 pooled baseline**
+- TCGA: **not used** for model selection
 - Report: [BioCDA architecture finalization](docs/biocda_architecture_finalization.md)
 
 ```bash

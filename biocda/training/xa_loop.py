@@ -68,6 +68,14 @@ def _pos_weight_from_loader(loader: DataLoader, device: str) -> Optional[torch.T
     return torch.tensor([neg / pos], device=device)
 
 
+def pos_weight_from_labels(labels: torch.Tensor, device: str) -> Optional[torch.Tensor]:
+    pos = float((labels == 1).sum())
+    neg = float((labels == 0).sum())
+    if pos <= 0 or neg <= 0:
+        return None
+    return torch.tensor([neg / pos], device=device)
+
+
 def train_xa_run(
     model: nn.Module,
     train_loader: DataLoader,
@@ -81,16 +89,19 @@ def train_xa_run(
     weight_decay: float = 1e-4,
     grad_clip: float = 5.0,
     use_amp: bool = True,
+    accumulation_steps: int = 1,
     model_type: str = "biocda_xa_zc",
     architecture_version: str = "biocda-xa-v1",
     config: Optional[Dict[str, Any]] = None,
+    pos_weight: Optional[torch.Tensor] = None,
 ) -> TrainRunResult:
     configure_gpu_efficiency(target_utilization=0.9)
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = model.to(device)
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    pos_weight = _pos_weight_from_loader(train_loader, device)
+    if pos_weight is None:
+        pos_weight = _pos_weight_from_loader(train_loader, device)
     loss_fn = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     optimizer = torch.optim.AdamW(
         filter(lambda p: p.requires_grad, model.parameters()),
@@ -110,21 +121,33 @@ def train_xa_run(
 
     for epoch in range(max_epochs):
         model.train()
+        optimizer.zero_grad(set_to_none=True)
+        step_in_accum = 0
         for batch in train_loader:
             omics = batch["omics"].to(device, non_blocking=True)
             context = batch["context"].to(device, non_blocking=True)
             labels = batch["labels"].to(device, non_blocking=True)
             drug_graph = batch["drug_graph"].to(device)
-            optimizer.zero_grad(set_to_none=True)
             with autocast(enabled=scaler.is_enabled()):
                 out = model(omics, context, drug_graph, output_mode="prediction")
-                loss = loss_fn(out.logits, labels)
+                loss = loss_fn(out.logits, labels) / max(int(accumulation_steps), 1)
             scaler.scale(loss).backward()
+            step_in_accum += 1
+            if step_in_accum >= max(int(accumulation_steps), 1):
+                if grad_clip > 0:
+                    scaler.unscale_(optimizer)
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+                scaler.step(optimizer)
+                scaler.update()
+                optimizer.zero_grad(set_to_none=True)
+                step_in_accum = 0
+        if step_in_accum > 0:
             if grad_clip > 0:
                 scaler.unscale_(optimizer)
                 torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
             scaler.step(optimizer)
             scaler.update()
+            optimizer.zero_grad(set_to_none=True)
 
         val_pred = _predict(model, val_loader, device)
         val_metrics = calculate_robust_drug_macro_metrics(val_pred)

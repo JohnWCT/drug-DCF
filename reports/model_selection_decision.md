@@ -1,41 +1,58 @@
 # BioCDA Round 21 Model Selection Decision
 
-- Status: **TRAINING_IN_PROGRESS**
-- Selected model: pending (awaiting GDSC repeated unseen-drug runs)
-- Protocol: repeated unseen-drug on GDSC development rows (seeds 17, 29, 43)
-- Primary metric: drug_macro_auc
-- TCGA not used for selection
+- Status: **REJECTED** (cross-attention candidates did not pass performance guardrails)
+- Fallback / retained predictive baseline: **pooled_baseline** (M0)
+- Protocol: repeated unseen-drug on GDSC development rows
+- Primary metric: `drug_macro_auc` (DrugMacro AUROC)
+- Secondary: `drug_macro_auprc`
+- **TCGA not used for selection**
 
-## Pipeline status
+## Candidate models
 
-| Step | Status |
+| ID | Factory name | Query | Drug path |
+|----|--------------|-------|-----------|
+| M0 | `pooled_baseline` | `[Z;C]` sample repr | D0 GIN global max-pool + adapter fusion |
+| M1 | `biocda_xa_z` | Z only | sample→atom cross-attention (no pool bypass) |
+| M2 | `biocda_xa_zc` | `[Z;C]` | sample→atom cross-attention (no pool bypass) |
+
+## Selection protocol
+
+- Seeds: 17, 29, 43 (shared split manifest)
+- Freeze Phase A: omics encoder, context, GIN frozen; train sample projection, cross-attention, response head
+- Early stop: validation DrugMacro AUC, patience 20
+- Gates: functional correctness, performance vs M0, context utilization, attention health
+
+## Observed validation metrics (DrugMacro AUC)
+
+| model | seed 17 | seed 29 | seed 43 | mean |
+|-------|---------|---------|---------|------|
+| pooled_baseline (M0) | 0.746 | 0.715 | 0.776 | **0.746** |
+| biocda_xa_z (M1) | 0.701 | 0.688 | 0.752 | 0.714 |
+| biocda_xa_zc (M2) | 0.687 | 0.694 | 0.745 | 0.709 |
+
+Paired mean ΔAUC (M2 − M0) ≈ **−0.037** (fails ≥ −0.005 guardrail).  
+Paired mean ΔAUPRC (M2 − M0) ≈ **−0.045** (fails ≥ −0.010 guardrail).  
+No seed has M2 AUROC superior to M0.
+
+## Gate results
+
+| Gate | Result |
 |------|--------|
-| Repository audit | PASS |
-| Runtime architecture audit | PASS |
-| Unit tests (37) | PASS |
-| Smoke training | PASS |
-| GDSC train M0/M1/M2 × 3 seeds | **IN PROGRESS** (see `outputs/xa_validation/full_run.log`) |
-| Attention diagnostics | pending trained M2 checkpoints |
-| Paired comparison | pending |
-| Final lock | pending |
+| functional_correctness | **PASS** |
+| performance_guardrails | **FAIL** |
+| context_utilization | **PASS** |
+| attention_health | **PASS** |
 
-## Interim gate preview (untrained / synthetic smoke)
+## Failures
 
-Previous smoke evaluation on uninitialized weights:
+- `performance_guardrails`: BioCDA-XA-ZC underperforms pooled baseline on DrugMacro AUC/AUPRC across all three split seeds.
 
-- functional_correctness: PASS
-- performance_guardrails: PASS (placeholder until real metrics)
-- context_utilization: PASS
-- attention_health: FAIL (expected before training)
+## Selected / rejected
 
-## Next action
+- **Rejected for LOCKED BioCDA-XA**: M1 and M2 (cross-attention)
+- **Retained predictive baseline**: M0 `pooled_baseline`
+- Outcome matches Round 21 manual **Outcome 3**: do **not** enter TCGA interpretability; next round should study gated residual / attention distillation / limited last-block GIN fine-tuning (Phase B)
 
-When Docker training completes:
+## Attention interface preserved for next round
 
-```bash
-docker exec DAPL bash -lc 'cd /workspace/DAPL && python3 scripts/run_xa_validation.py --config configs/biocda/xa_validation.yaml diagnose-attention'
-docker exec DAPL bash -lc 'cd /workspace/DAPL && python3 scripts/run_xa_validation.py --config configs/biocda/xa_validation.yaml compare'
-docker exec DAPL bash -lc 'cd /workspace/DAPL && python3 scripts/run_xa_validation.py --config configs/biocda/xa_validation.yaml lock'
-```
-
-If all gates pass → `reports/biocda_final_model_lock.json` status becomes **LOCKED**.
+Per-head probabilities, pre-softmax logits, atom_mask, atom_ptr, model/original/rdkit atom indices are available on BioCDA checkpoints under `outputs/xa_validation/` (gitignored).

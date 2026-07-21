@@ -4,22 +4,38 @@ Round code name: **Round 21 — Cross-Attention Validation and Model Lock**
 
 Paper working title: **BioCDA: An Interpretable Biological-Context-Guided Framework for Cell-Line-to-Patient Drug Response Prediction**
 
+## Final outcome
+
+| Item | Result |
+|------|--------|
+| Pipeline status | **COMPLETE** |
+| Model lock status | **REJECTED** (not LOCKED) |
+| Retained predictive baseline | **M0 `pooled_baseline`** |
+| M2 BioCDA-XA-ZC | Failed performance guardrails vs M0 |
+| TCGA used for selection | **false** |
+
+Mean validation DrugMacro AUC: M0 **0.746**, M1 **0.714**, M2 **0.709**.  
+Mean ΔAUC(M2−M0) ≈ **−0.037** (guardrail requires ≥ −0.005).
+
+See [model selection decision](../reports/model_selection_decision.md) and `reports/biocda_final_model_lock.json`.
+
 ## Scope completed in this round
 
 | Stage | Status |
 |-------|--------|
-| Repository sync audit | `scripts/audit_repository_state.py` |
-| Runtime architecture audit + forward trace | `scripts/audit_biocda_architecture.py` |
-| Cross-attention contract fixes (raw/dropout, masked softmax, atom_ptr) | `biocda/models/` |
-| M0 / M1 / M2 factory (`pooled_baseline`, `biocda_xa_z`, `biocda_xa_zc`) | `biocda/models/model_factory.py` |
-| Unseen-drug split manifest | `reports/splits/unseen_drug_split_manifest.json` |
-| GDSC repeated validation training CLI | `scripts/run_xa_validation.py` |
-| Attention / context / query diagnostics | `biocda/diagnostics/` |
-| Selection gates + model lock manifest | `biocda/validation/` |
-| Unit tests (37+) | `tests/test_*biocda*` |
+| Repository sync audit | PASS |
+| Runtime architecture audit + forward trace | PASS |
+| Cross-attention contract (raw/dropout, masked softmax, atom_ptr) | DONE |
+| M0 / M1 / M2 factory | DONE |
+| Unseen-drug split manifest (seeds 17/29/43) | DONE |
+| GDSC repeated training (9 runs) | DONE |
+| Parallel GPU dispatch (`max_parallel=3`) | DONE |
+| Attention / context / query diagnostics | DONE |
+| Selection gates + model lock manifest | DONE (`REJECTED`) |
+| Unit tests | PASS |
 | CI workflow | `.github/workflows/biocda-ci.yml` |
 
-**Out of scope (deferred to Round 22):** TCGA inference, attention heatmaps, RDKit 2D rendering, gene-level IG/DeepLIFT.
+**Out of scope (deferred):** TCGA inference, attention heatmaps, RDKit 2D rendering, gene-level IG/DeepLIFT. Per Outcome 3, do **not** proceed to TCGA interpretability until XA performance recovers.
 
 ## Architecture (BioCDA-XA v1)
 
@@ -34,13 +50,11 @@ S → Q; cross-attention → attended drug representation
 
 Candidates:
 
-- **M0** `pooled_baseline` — D0 max-pool + adapter fusion (performance baseline)
+- **M0** `pooled_baseline` — D0 max-pool + adapter fusion (retained baseline)
 - **M1** `biocda_xa_z` — query from Z only
-- **M2** `biocda_xa_zc` — query from [Z; C] (primary BioCDA candidate)
+- **M2** `biocda_xa_zc` — query from `[Z;C]` (primary BioCDA candidate; rejected for lock)
 
 ## Docker execution (DAPL)
-
-All commands run inside container `/workspace/DAPL`:
 
 ```bash
 docker start DAPL
@@ -48,26 +62,23 @@ docker start DAPL
 # Unit tests + architecture smoke
 docker exec DAPL bash -lc '/workspace/DAPL/scripts/biocda/run_architecture_finalization.sh'
 
-# Full Round 21 pipeline (splits → audit → smoke → GDSC train → diagnose → compare → lock)
-docker exec DAPL bash -lc 'cd /workspace/DAPL && python3 scripts/run_xa_validation.py --config configs/biocda/xa_validation.yaml all'
+# Parallel GDSC train (resume-safe)
+docker exec DAPL bash -lc 'cd /workspace/DAPL && python3 scripts/run_xa_validation.py --config configs/biocda/xa_validation.yaml train'
 
-# Verify lock manifest
-docker exec DAPL bash -lc 'cd /workspace/DAPL && python3 scripts/verify_model_lock.py --strict'
-```
-
-Repository audit on host (requires clean git tree):
-
-```bash
-python3 scripts/audit_repository_state.py --strict
+# Diagnose / compare / lock
+docker exec DAPL bash -lc 'cd /workspace/DAPL && python3 scripts/run_xa_validation.py --config configs/biocda/xa_validation.yaml diagnose-attention'
+docker exec DAPL bash -lc 'cd /workspace/DAPL && python3 scripts/run_xa_validation.py --config configs/biocda/xa_validation.yaml compare'
+docker exec DAPL bash -lc 'cd /workspace/DAPL && python3 scripts/run_xa_validation.py --config configs/biocda/xa_validation.yaml lock'
 ```
 
 ## Training configuration
 
-- Data: Round 19 `development_rows.csv` + Round 20 C32 features (`z_plus_context32`)
-- Split: drug-level 70/15/15 train/val/test per seed `{17, 29, 43}` — no drug leakage
-- Freeze policy (Phase A): omics encoder, context path, GIN frozen; train sample projection, cross-attention, response head
-- Optimizer: AdamW lr=5e-4, ReduceLROnPlateau, AMP, batch=512, grad clip=5
-- Early stopping: validation DrugMacro AUC, patience=20
+- Data: Round 19 `development_rows.csv` + Round 20 C32 (`z_plus_context32`)
+- Split: drug-level 70/15/15 train/val/test per seed `{17, 29, 43}`
+- Freeze Phase A: omics / context / GIN frozen
+- Optimizer: AdamW lr=5e-4, ReduceLROnPlateau, AMP
+- Throughput: `max_parallel=3`, `micro_batch_size=768`, `accumulation_steps=2`, shared graph cache
+- DataLoader workers: `0` (Docker `/dev/shm` constraint)
 - **TCGA not used for model selection**
 
 ## Key reports
@@ -87,28 +98,9 @@ reports/model_selection_decision.md
 reports/biocda_final_model_lock.json
 ```
 
-## Model lock policy
+## Next round recommendations (Outcome 3)
 
-`reports/biocda_final_model_lock.json` status is **`LOCKED`** only when all selection gates pass:
-
-1. Functional correctness (attention sums, no bypass, checkpoint load)
-2. Performance guardrails vs M0
-3. Context utilization (M2 uses context in query path)
-4. Attention health (non-uniform, non-collapsed, head diversity)
-
-If any gate fails → `NEEDS_REVISION` or `REJECTED` with reasons in `model_selection_decision.md`.
-
-## Design notes
-
-### Attention dropout contract
-
-- `attention_probabilities` = pre-dropout raw softmax (exported for interpretability)
-- `attention_probabilities_used` = dropout applied in train mode only (debug/full trace)
-
-### Masked softmax
-
-`biocda/utils/masked_softmax.py` renormalizes over valid atoms; padding=0; empty graphs raise `ValueError`.
-
-### Atom batch metadata
-
-`atom_ptr`, `atom_batch_index`, and RDKit/model atom indices preserved for Round 22 long-table attention export.
+1. Gated residual / attention distillation toward pooled baseline
+2. Limited last-block GIN fine-tuning (Phase B) after functional + attention gates only
+3. Temperature / QK scale sweeps if attention still weak
+4. Do **not** run full TCGA interpretability until predictive parity with M0
