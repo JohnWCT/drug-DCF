@@ -1,0 +1,113 @@
+{
+  "failures": [
+    "performance_failure"
+  ],
+  "gates": [
+    {
+      "details": {},
+      "name": "no_pooling_contract",
+      "passed": true
+    },
+    {
+      "details": {},
+      "name": "attention_health",
+      "passed": true
+    },
+    {
+      "details": {},
+      "name": "query_drug_sensitivity",
+      "passed": true
+    },
+    {
+      "details": {},
+      "name": "c32_contract",
+      "passed": true
+    },
+    {
+      "details": {},
+      "name": "reproduction",
+      "passed": true
+    },
+    {
+      "details": {
+        "candidate": "biocda_xa_transfer",
+        "floor_ok": false,
+        "mean_auc_delta": -0.04549511423581887,
+        "mean_auprc_delta": -0.034193021453500394,
+        "nonworse_required": 2,
+        "nonworse_seed_count": 0,
+        "per_seed_auc_delta": [
+          {
+            "auc_delta": -0.07127312066056779,
+            "seed": 17
+          },
+          {
+            "auc_delta": -0.025218890885955414,
+            "seed": 29
+          },
+          {
+            "auc_delta": -0.039993331160933066,
+            "seed": 43
+          }
+        ]
+      },
+      "name": "performance_biocda_xa_transfer",
+      "passed": false
+    },
+    {
+      "details": {
+        "candidate": "biocda_xa_kd",
+        "floor_ok": false,
+        "mean_auc_delta": -0.024657299527447663,
+        "mean_auprc_delta": -0.021410267277359396,
+        "nonworse_required": 2,
+        "nonworse_seed_count": 0,
+        "per_seed_auc_delta": [
+          {
+            "auc_delta": -0.043013019218525295,
+            "seed": 17
+          },
+          {
+            "auc_delta": -0.008219350152974925,
+            "seed": 29
+          },
+          {
+            "auc_delta": -0.02273952921084288,
+            "seed": 43
+          }
+        ]
+      },
+      "name": "performance_biocda_xa_kd",
+      "passed": false
+    },
+    {
+      "details": {
+        "candidate": "biocda_xa_fresh",
+        "floor_ok": true,
+        "mean_auc_delta": -0.004301985555074661,
+        "mean_auprc_delta": -0.005858870655537585,
+        "nonworse_required": 2,
+        "nonworse_seed_count": 1,
+        "per_seed_auc_delta": [
+          {
+            "auc_delta": -0.008680645265391584,
+            "seed": 17
+          },
+          {
+            "auc_delta": 0.0012557360710557797,
+            "seed": 29
+          },
+          {
+            "auc_delta": -0.0054810474708881785,
+            "seed": 43
+          }
+        ]
+      },
+      "name": "performance_biocda_xa_fresh",
+      "passed": false
+    }
+  ],
+  "selected_model": null,
+  "selected_training": null,
+  "status": "REJECTED"
+}

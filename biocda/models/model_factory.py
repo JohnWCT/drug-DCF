@@ -18,7 +18,18 @@ from tools.round18_response_head import Round18ResponseHead
 from tools.round19_fusion_models import AdapterMLPFusion
 
 ALLOWED_MODEL_TYPES = frozenset(
-    {"pooled_baseline", "biocda_xa_z", "biocda_xa_zc", "cross_attention"}
+    {
+        "pooled_baseline",
+        "biocda_xa_z",
+        "biocda_xa_zc",
+        "cross_attention",
+        # Round 23 XA v2 (prefer biocda.models.xa.factory for these)
+        "biocda_xa_fresh",
+        "biocda_xa_transfer",
+        "biocda_xa_kd",
+        "biocda_xa_z_only",
+        "biocda_predictive",
+    }
 )
 
 
@@ -201,6 +212,15 @@ def build_pooled_baseline(config: Dict[str, Any]) -> PooledBaselineModel:
 
 def build_model(config: Dict[str, Any]) -> Union[BioCDA, PooledBaselineModel]:
     model_type = _normalize_model_type(_model_cfg(config)["type"])
+    if model_type == "biocda_predictive":
+        raise ValueError(
+            "biocda_predictive is LOCKED_REFERENCE — use "
+            "biocda.models.predictive.load_biocda_predictive(checkpoint)"
+        )
+    if model_type in {"biocda_xa_fresh", "biocda_xa_transfer", "biocda_xa_kd", "biocda_xa_z_only"}:
+        from biocda.models.xa.factory import build_xa_v2
+
+        return build_xa_v2(config, model_type=model_type)
     if model_type == "pooled_baseline":
         return build_pooled_baseline(config)
     if model_type == "biocda_xa_z":

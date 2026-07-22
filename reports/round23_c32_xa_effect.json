@@ -1,0 +1,11 @@
+{
+  "status": "deferred_due_to_performance_rejection",
+  "best_xa_strategy_by_mean_auc": "biocda_xa_fresh",
+  "note": "X3 (Z64-only) ablation is required only to support C32 interpretability claims after an XA candidate passes the paired performance gate. Round 23 rejected all XA candidates on performance, so X3 was not executed.",
+  "claim_policy": {
+    "if_c32_improves_prediction_and_changes_attention": "Biological-context-guided atom attention",
+    "if_c32_no_prediction_gain_but_changes_attention": "Biological-context-sensitive atom attention",
+    "if_c32_neither": "Do not use C32 as primary XA interpretability claim"
+  },
+  "executed": false
+}

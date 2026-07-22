@@ -1,0 +1,64 @@
+{
+  "architecture_name": "BioCDA-XA-Candidate",
+  "architecture_version": "biocda-xa-v2",
+  "status": "CANDIDATE",
+  "sample_input": {
+    "base_omics_dim": 64,
+    "prototype_context_dim": 32,
+    "summary_dim": 0,
+    "total_dim": 96
+  },
+  "drug_encoder": {
+    "type": "GINAtomEncoder",
+    "input_dim": 78,
+    "hidden_dim": 32,
+    "num_layers": 5,
+    "jk": "last",
+    "batch_norm": true,
+    "dropout": 0.1,
+    "graph_pooling": false
+  },
+  "cross_attention": {
+    "query": "projected_Z64_plus_C32",
+    "key": "GIN_atom_node_embeddings",
+    "value": "GIN_atom_node_embeddings",
+    "d_model": 128,
+    "num_heads": 4,
+    "num_layers": 2,
+    "ffn_dim": 256,
+    "attention_dropout": 0.1,
+    "block_dropout": 0.2,
+    "absolute_position_embedding": false,
+    "modality_embedding": false,
+    "pooling_bypass": false
+  },
+  "response_head": {
+    "input": "final_updated_query",
+    "input_dim": 128,
+    "hidden_dim": 128,
+    "dropout": 0.1,
+    "output_dim": 1
+  },
+  "attention_output": {
+    "per_layer": true,
+    "per_head": true,
+    "pre_softmax_logits": true,
+    "pre_dropout_probabilities": true
+  },
+  "forbidden": [
+    "global_max_pool",
+    "global_mean_pool",
+    "global_add_pool",
+    "graph_embedding_in_response",
+    "concat_pooled_graph",
+    "concat_raw_query_to_head",
+    "teacher_in_student_checkpoint",
+    "summary11",
+    "absolute_atom_position_embedding"
+  ],
+  "reference_predictive": {
+    "canonical_name": "BioCDA-Predictive",
+    "architecture_spec": "reports/biocda_predictive_e3_architecture_spec.json",
+    "role": "LOCKED_REFERENCE"
+  }
+}

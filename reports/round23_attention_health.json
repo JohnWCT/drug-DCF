@@ -1,0 +1,12 @@
+{
+  "mean_normalized_entropy": 0.8357676267623901,
+  "median_normalized_entropy": 0.8370130658149719,
+  "p05_normalized_entropy": 0.641800045967102,
+  "p95_normalized_entropy": 0.9775025844573975,
+  "mean_max_atom_attention": 0.26889702677726746,
+  "mean_effective_atoms": 5.857151031494141,
+  "mean_effective_atom_fraction": 0.7321438789367676,
+  "mean_head_cosine_similarity": 0.6317598422368368,
+  "num_heads": 4,
+  "max_atoms": 8
+}

@@ -1,0 +1,26 @@
+{
+  "query_residual": {
+    "mean_q0_qfinal_cosine": 0.7023369073867798,
+    "median_q0_qfinal_cosine": 0.69292813539505,
+    "min_q0_qfinal_cosine": 0.6848894357681274,
+    "q0_norm_mean": 11.430105209350586,
+    "qfinal_norm_mean": 11.449270248413086
+  },
+  "drug_sensitivity": {
+    "mean_abs_logit_delta": 0.07553648948669434,
+    "max_abs_logit_delta": 0.16082534193992615,
+    "mean_atom_token_delta": 0.3582229018211365,
+    "pass_drug_changes_prediction": true
+  },
+  "attention_intervention": {
+    "mean_abs_logit_delta_uniform": 0.08278000354766846,
+    "uniform_path_runs": true,
+    "pass_attention_affects_logits": true
+  },
+  "checks": {
+    "query_sensitivity": true,
+    "drug_sensitivity": true,
+    "attention_path": true
+  },
+  "pass": true
+}
