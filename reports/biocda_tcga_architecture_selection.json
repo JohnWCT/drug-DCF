@@ -1,0 +1,1067 @@
+{
+  "protocol": {
+    "evaluation_domain": "TCGA_external_only",
+    "excluded_from_selection": [
+      "GDSC_development_unseen_drug",
+      "GDSC_validation",
+      "GDSC_test"
+    ],
+    "target_priority": [
+      "gdsc_intersect13",
+      "tcga_only3",
+      "dapl",
+      "aacdr_gdsc_intersect",
+      "aacdr_tcga_only"
+    ],
+    "target_weights": {
+      "gdsc_intersect13": 5,
+      "tcga_only3": 4,
+      "dapl": 3,
+      "aacdr_gdsc_intersect": 2,
+      "aacdr_tcga_only": 1
+    },
+    "primary_metric": "DrugMacro_AUC",
+    "tie_breakers": [
+      "DrugMacro_AUPRC",
+      "Global_AUC",
+      "Global_AUPRC"
+    ]
+  },
+  "winner_weighted": {
+    "model_id": "r23_biocda_xa_fresh",
+    "display_name": "biocda_xa_fresh / X0 (R23)",
+    "round": "round23",
+    "architecture": "biocda-xa-v2",
+    "family": "xa_v2",
+    "role": "BioCDA-XA-Candidate",
+    "per_target": {
+      "gdsc_intersect13": {
+        "DrugMacro_AUC": 0.480519849216769,
+        "DrugMacro_AUPRC": 0.5808886776119239,
+        "Global_AUC": 0.5437876934756021,
+        "Global_AUPRC": 0.638082145087111
+      },
+      "tcga_only3": {
+        "DrugMacro_AUC": 0.605043165748662,
+        "DrugMacro_AUPRC": 0.7140154874802268,
+        "Global_AUC": 0.5418449197860963,
+        "Global_AUPRC": 0.6833862745510754
+      },
+      "dapl": {
+        "DrugMacro_AUC": 0.5286124157820755,
+        "DrugMacro_AUPRC": 0.5543104153006271,
+        "Global_AUC": 0.5153217568947905,
+        "Global_AUPRC": 0.5319060344329797
+      },
+      "aacdr_gdsc_intersect": {
+        "DrugMacro_AUC": 0.5633563794202394,
+        "DrugMacro_AUPRC": 0.6264172881285842,
+        "Global_AUC": 0.5537127346337873,
+        "Global_AUPRC": 0.5666593129944805
+      },
+      "aacdr_tcga_only": {
+        "DrugMacro_AUC": 0.5643229166666667,
+        "DrugMacro_AUPRC": 0.6961576865713954,
+        "Global_AUC": 0.4654731457800512,
+        "Global_AUPRC": 0.4989473646446495
+      }
+    },
+    "weighted_DrugMacro_AUC": 8.099644831931865,
+    "weighted_DrugMacro_AUPRC": 9.37242884671097,
+    "lexicographic_rank": 4,
+    "weighted_rank": 1
+  },
+  "winner_lexicographic": {
+    "model_id": "r23_biocda_predictive",
+    "display_name": "biocda_predictive / P0 (R23)",
+    "round": "round23",
+    "architecture": "biocda-predictive-e3",
+    "family": "predictive_pooled_e3",
+    "role": "BioCDA-Predictive",
+    "per_target": {
+      "gdsc_intersect13": {
+        "DrugMacro_AUC": 0.5129002088923124,
+        "DrugMacro_AUPRC": 0.5778430604992392,
+        "Global_AUC": 0.4977515710008013,
+        "Global_AUPRC": 0.6138444687720348
+      },
+      "tcga_only3": {
+        "DrugMacro_AUC": 0.519545305589194,
+        "DrugMacro_AUPRC": 0.6718381035317735,
+        "Global_AUC": 0.4433155080213904,
+        "Global_AUPRC": 0.6122275090003291
+      },
+      "dapl": {
+        "DrugMacro_AUC": 0.4654338770869962,
+        "DrugMacro_AUPRC": 0.516027033241522,
+        "Global_AUC": 0.4680796731358529,
+        "Global_AUPRC": 0.4906979941691066
+      },
+      "aacdr_gdsc_intersect": {
+        "DrugMacro_AUC": 0.5754378965349405,
+        "DrugMacro_AUPRC": 0.6271776820145959,
+        "Global_AUC": 0.4575933934486566,
+        "Global_AUPRC": 0.5206159343322604
+      },
+      "aacdr_tcga_only": {
+        "DrugMacro_AUC": 0.5014508928571428,
+        "DrugMacro_AUPRC": 0.6477519519670243,
+        "Global_AUC": 0.4377664109121909,
+        "Global_AUPRC": 0.4699464746490323
+      }
+    },
+    "weighted_DrugMacro_AUC": 7.6913105840063505,
+    "weighted_DrugMacro_AUPRC": 9.02675613234407,
+    "lexicographic_rank": 1,
+    "weighted_rank": 3
+  },
+  "best_per_family": {
+    "predictive_pooled_e3": {
+      "model_id": "r21_pooled_baseline",
+      "display_name": "pooled_baseline / M0 (R21)",
+      "round": "round21",
+      "architecture": "biocda-xa-v1",
+      "family": "predictive_pooled_e3",
+      "role": "BioCDA-Predictive-factory",
+      "per_target": {
+        "gdsc_intersect13": {
+          "DrugMacro_AUC": 0.4764598736989507,
+          "DrugMacro_AUPRC": 0.605500575636177,
+          "Global_AUC": 0.4951578381341993,
+          "Global_AUPRC": 0.6214128666145657
+        },
+        "tcga_only3": {
+          "DrugMacro_AUC": 0.5488403409855419,
+          "DrugMacro_AUPRC": 0.7031781873094388,
+          "Global_AUC": 0.5280748663101604,
+          "Global_AUPRC": 0.6948859868388361
+        },
+        "dapl": {
+          "DrugMacro_AUC": 0.5019936503320246,
+          "DrugMacro_AUPRC": 0.5519475609401938,
+          "Global_AUC": 0.5017875383043923,
+          "Global_AUPRC": 0.5047105295940781
+        },
+        "aacdr_gdsc_intersect": {
+          "DrugMacro_AUC": 0.5409902447439826,
+          "DrugMacro_AUPRC": 0.6030497442881977,
+          "Global_AUC": 0.4526131762973867,
+          "Global_AUPRC": 0.5198592970083249
+        },
+        "aacdr_tcga_only": {
+          "DrugMacro_AUC": 0.6038318452380953,
+          "DrugMacro_AUPRC": 0.6864322138677375,
+          "Global_AUC": 0.4914748508098892,
+          "Global_AUPRC": 0.4960095057222712
+        }
+      },
+      "weighted_DrugMacro_AUC": 7.769454018159056,
+      "weighted_DrugMacro_AUPRC": 9.388590012683354,
+      "lexicographic_rank": 5,
+      "weighted_rank": 2
+    },
+    "xa_v1": {
+      "model_id": "r21_biocda_xa_z",
+      "display_name": "biocda_xa_z / M1 (R21)",
+      "round": "round21",
+      "architecture": "biocda-xa-v1",
+      "family": "xa_v1",
+      "role": "BioCDA-XA-Candidate",
+      "per_target": {
+        "gdsc_intersect13": {
+          "DrugMacro_AUC": 0.5008706221692328,
+          "DrugMacro_AUPRC": 0.593812922389728,
+          "Global_AUC": 0.5119063936569525,
+          "Global_AUPRC": 0.6456483299464058
+        },
+        "tcga_only3": {
+          "DrugMacro_AUC": 0.4816290566905826,
+          "DrugMacro_AUPRC": 0.6841502215301786,
+          "Global_AUC": 0.5216577540106951,
+          "Global_AUPRC": 0.7105683863190364
+        },
+        "dapl": {
+          "DrugMacro_AUC": 0.4441879695603702,
+          "DrugMacro_AUPRC": 0.5259832933579413,
+          "Global_AUC": 0.4675689479060265,
+          "Global_AUPRC": 0.4938660760082036
+        },
+        "aacdr_gdsc_intersect": {
+          "DrugMacro_AUC": 0.570369624687787,
+          "DrugMacro_AUPRC": 0.6249607904427809,
+          "Global_AUC": 0.4862555207949944,
+          "Global_AUPRC": 0.5499281402100766
+        },
+        "aacdr_tcga_only": {
+          "DrugMacro_AUC": 0.5210193452380952,
+          "DrugMacro_AUPRC": 0.6558085567546628,
+          "Global_AUC": 0.3861892583120204,
+          "Global_AUPRC": 0.4481316849247002
+        }
+      },
+      "weighted_DrugMacro_AUC": 7.425191840903274,
+      "weighted_DrugMacro_AUPRC": 9.189345515783403,
+      "lexicographic_rank": 2,
+      "weighted_rank": 5
+    },
+    "xa_v2": {
+      "model_id": "r23_biocda_xa_fresh",
+      "display_name": "biocda_xa_fresh / X0 (R23)",
+      "round": "round23",
+      "architecture": "biocda-xa-v2",
+      "family": "xa_v2",
+      "role": "BioCDA-XA-Candidate",
+      "per_target": {
+        "gdsc_intersect13": {
+          "DrugMacro_AUC": 0.480519849216769,
+          "DrugMacro_AUPRC": 0.5808886776119239,
+          "Global_AUC": 0.5437876934756021,
+          "Global_AUPRC": 0.638082145087111
+        },
+        "tcga_only3": {
+          "DrugMacro_AUC": 0.605043165748662,
+          "DrugMacro_AUPRC": 0.7140154874802268,
+          "Global_AUC": 0.5418449197860963,
+          "Global_AUPRC": 0.6833862745510754
+        },
+        "dapl": {
+          "DrugMacro_AUC": 0.5286124157820755,
+          "DrugMacro_AUPRC": 0.5543104153006271,
+          "Global_AUC": 0.5153217568947905,
+          "Global_AUPRC": 0.5319060344329797
+        },
+        "aacdr_gdsc_intersect": {
+          "DrugMacro_AUC": 0.5633563794202394,
+          "DrugMacro_AUPRC": 0.6264172881285842,
+          "Global_AUC": 0.5537127346337873,
+          "Global_AUPRC": 0.5666593129944805
+        },
+        "aacdr_tcga_only": {
+          "DrugMacro_AUC": 0.5643229166666667,
+          "DrugMacro_AUPRC": 0.6961576865713954,
+          "Global_AUC": 0.4654731457800512,
+          "Global_AUPRC": 0.4989473646446495
+        }
+      },
+      "weighted_DrugMacro_AUC": 8.099644831931865,
+      "weighted_DrugMacro_AUPRC": 9.37242884671097,
+      "lexicographic_rank": 4,
+      "weighted_rank": 1
+    }
+  },
+  "all_rankings_weighted": [
+    {
+      "model_id": "r23_biocda_xa_fresh",
+      "display_name": "biocda_xa_fresh / X0 (R23)",
+      "round": "round23",
+      "architecture": "biocda-xa-v2",
+      "family": "xa_v2",
+      "role": "BioCDA-XA-Candidate",
+      "per_target": {
+        "gdsc_intersect13": {
+          "DrugMacro_AUC": 0.480519849216769,
+          "DrugMacro_AUPRC": 0.5808886776119239,
+          "Global_AUC": 0.5437876934756021,
+          "Global_AUPRC": 0.638082145087111
+        },
+        "tcga_only3": {
+          "DrugMacro_AUC": 0.605043165748662,
+          "DrugMacro_AUPRC": 0.7140154874802268,
+          "Global_AUC": 0.5418449197860963,
+          "Global_AUPRC": 0.6833862745510754
+        },
+        "dapl": {
+          "DrugMacro_AUC": 0.5286124157820755,
+          "DrugMacro_AUPRC": 0.5543104153006271,
+          "Global_AUC": 0.5153217568947905,
+          "Global_AUPRC": 0.5319060344329797
+        },
+        "aacdr_gdsc_intersect": {
+          "DrugMacro_AUC": 0.5633563794202394,
+          "DrugMacro_AUPRC": 0.6264172881285842,
+          "Global_AUC": 0.5537127346337873,
+          "Global_AUPRC": 0.5666593129944805
+        },
+        "aacdr_tcga_only": {
+          "DrugMacro_AUC": 0.5643229166666667,
+          "DrugMacro_AUPRC": 0.6961576865713954,
+          "Global_AUC": 0.4654731457800512,
+          "Global_AUPRC": 0.4989473646446495
+        }
+      },
+      "weighted_DrugMacro_AUC": 8.099644831931865,
+      "weighted_DrugMacro_AUPRC": 9.37242884671097,
+      "lexicographic_rank": 4,
+      "weighted_rank": 1
+    },
+    {
+      "model_id": "r21_pooled_baseline",
+      "display_name": "pooled_baseline / M0 (R21)",
+      "round": "round21",
+      "architecture": "biocda-xa-v1",
+      "family": "predictive_pooled_e3",
+      "role": "BioCDA-Predictive-factory",
+      "per_target": {
+        "gdsc_intersect13": {
+          "DrugMacro_AUC": 0.4764598736989507,
+          "DrugMacro_AUPRC": 0.605500575636177,
+          "Global_AUC": 0.4951578381341993,
+          "Global_AUPRC": 0.6214128666145657
+        },
+        "tcga_only3": {
+          "DrugMacro_AUC": 0.5488403409855419,
+          "DrugMacro_AUPRC": 0.7031781873094388,
+          "Global_AUC": 0.5280748663101604,
+          "Global_AUPRC": 0.6948859868388361
+        },
+        "dapl": {
+          "DrugMacro_AUC": 0.5019936503320246,
+          "DrugMacro_AUPRC": 0.5519475609401938,
+          "Global_AUC": 0.5017875383043923,
+          "Global_AUPRC": 0.5047105295940781
+        },
+        "aacdr_gdsc_intersect": {
+          "DrugMacro_AUC": 0.5409902447439826,
+          "DrugMacro_AUPRC": 0.6030497442881977,
+          "Global_AUC": 0.4526131762973867,
+          "Global_AUPRC": 0.5198592970083249
+        },
+        "aacdr_tcga_only": {
+          "DrugMacro_AUC": 0.6038318452380953,
+          "DrugMacro_AUPRC": 0.6864322138677375,
+          "Global_AUC": 0.4914748508098892,
+          "Global_AUPRC": 0.4960095057222712
+        }
+      },
+      "weighted_DrugMacro_AUC": 7.769454018159056,
+      "weighted_DrugMacro_AUPRC": 9.388590012683354,
+      "lexicographic_rank": 5,
+      "weighted_rank": 2
+    },
+    {
+      "model_id": "r23_biocda_predictive",
+      "display_name": "biocda_predictive / P0 (R23)",
+      "round": "round23",
+      "architecture": "biocda-predictive-e3",
+      "family": "predictive_pooled_e3",
+      "role": "BioCDA-Predictive",
+      "per_target": {
+        "gdsc_intersect13": {
+          "DrugMacro_AUC": 0.5129002088923124,
+          "DrugMacro_AUPRC": 0.5778430604992392,
+          "Global_AUC": 0.4977515710008013,
+          "Global_AUPRC": 0.6138444687720348
+        },
+        "tcga_only3": {
+          "DrugMacro_AUC": 0.519545305589194,
+          "DrugMacro_AUPRC": 0.6718381035317735,
+          "Global_AUC": 0.4433155080213904,
+          "Global_AUPRC": 0.6122275090003291
+        },
+        "dapl": {
+          "DrugMacro_AUC": 0.4654338770869962,
+          "DrugMacro_AUPRC": 0.516027033241522,
+          "Global_AUC": 0.4680796731358529,
+          "Global_AUPRC": 0.4906979941691066
+        },
+        "aacdr_gdsc_intersect": {
+          "DrugMacro_AUC": 0.5754378965349405,
+          "DrugMacro_AUPRC": 0.6271776820145959,
+          "Global_AUC": 0.4575933934486566,
+          "Global_AUPRC": 0.5206159343322604
+        },
+        "aacdr_tcga_only": {
+          "DrugMacro_AUC": 0.5014508928571428,
+          "DrugMacro_AUPRC": 0.6477519519670243,
+          "Global_AUC": 0.4377664109121909,
+          "Global_AUPRC": 0.4699464746490323
+        }
+      },
+      "weighted_DrugMacro_AUC": 7.6913105840063505,
+      "weighted_DrugMacro_AUPRC": 9.02675613234407,
+      "lexicographic_rank": 1,
+      "weighted_rank": 3
+    },
+    {
+      "model_id": "r23_biocda_xa_transfer",
+      "display_name": "biocda_xa_transfer / X1 (R23)",
+      "round": "round23",
+      "architecture": "biocda-xa-v2",
+      "family": "xa_v2",
+      "role": "BioCDA-XA-Candidate",
+      "per_target": {
+        "gdsc_intersect13": {
+          "DrugMacro_AUC": 0.4549065865503686,
+          "DrugMacro_AUPRC": 0.5747280733408722,
+          "Global_AUC": 0.4895670785711273,
+          "Global_AUPRC": 0.6279589670305237
+        },
+        "tcga_only3": {
+          "DrugMacro_AUC": 0.5425624264836734,
+          "DrugMacro_AUPRC": 0.6949244820797927,
+          "Global_AUC": 0.4557486631016043,
+          "Global_AUPRC": 0.6092835301600632
+        },
+        "dapl": {
+          "DrugMacro_AUC": 0.4443820089803075,
+          "DrugMacro_AUPRC": 0.4937634568010083,
+          "Global_AUC": 0.4647599591419816,
+          "Global_AUPRC": 0.4721629052449398
+        },
+        "aacdr_gdsc_intersect": {
+          "DrugMacro_AUC": 0.5708566246104144,
+          "DrugMacro_AUPRC": 0.6492492443062884,
+          "Global_AUC": 0.458617040853883,
+          "Global_AUPRC": 0.5429939770819279
+        },
+        "aacdr_tcga_only": {
+          "DrugMacro_AUC": 0.5469494047619048,
+          "DrugMacro_AUPRC": 0.6881199847919324,
+          "Global_AUC": 0.4030264279624893,
+          "Global_AUPRC": 0.4674921004240485
+        }
+      },
+      "weighted_DrugMacro_AUC": 7.466591319610193,
+      "weighted_DrugMacro_AUPRC": 9.121247138831066,
+      "lexicographic_rank": 8,
+      "weighted_rank": 4
+    },
+    {
+      "model_id": "r21_biocda_xa_z",
+      "display_name": "biocda_xa_z / M1 (R21)",
+      "round": "round21",
+      "architecture": "biocda-xa-v1",
+      "family": "xa_v1",
+      "role": "BioCDA-XA-Candidate",
+      "per_target": {
+        "gdsc_intersect13": {
+          "DrugMacro_AUC": 0.5008706221692328,
+          "DrugMacro_AUPRC": 0.593812922389728,
+          "Global_AUC": 0.5119063936569525,
+          "Global_AUPRC": 0.6456483299464058
+        },
+        "tcga_only3": {
+          "DrugMacro_AUC": 0.4816290566905826,
+          "DrugMacro_AUPRC": 0.6841502215301786,
+          "Global_AUC": 0.5216577540106951,
+          "Global_AUPRC": 0.7105683863190364
+        },
+        "dapl": {
+          "DrugMacro_AUC": 0.4441879695603702,
+          "DrugMacro_AUPRC": 0.5259832933579413,
+          "Global_AUC": 0.4675689479060265,
+          "Global_AUPRC": 0.4938660760082036
+        },
+        "aacdr_gdsc_intersect": {
+          "DrugMacro_AUC": 0.570369624687787,
+          "DrugMacro_AUPRC": 0.6249607904427809,
+          "Global_AUC": 0.4862555207949944,
+          "Global_AUPRC": 0.5499281402100766
+        },
+        "aacdr_tcga_only": {
+          "DrugMacro_AUC": 0.5210193452380952,
+          "DrugMacro_AUPRC": 0.6558085567546628,
+          "Global_AUC": 0.3861892583120204,
+          "Global_AUPRC": 0.4481316849247002
+        }
+      },
+      "weighted_DrugMacro_AUC": 7.425191840903274,
+      "weighted_DrugMacro_AUPRC": 9.189345515783403,
+      "lexicographic_rank": 2,
+      "weighted_rank": 5
+    },
+    {
+      "model_id": "r21_biocda_xa_zc",
+      "display_name": "biocda_xa_zc / M2 (R21)",
+      "round": "round21",
+      "architecture": "biocda-xa-v1",
+      "family": "xa_v1",
+      "role": "BioCDA-XA-Candidate",
+      "per_target": {
+        "gdsc_intersect13": {
+          "DrugMacro_AUC": 0.4844168178073563,
+          "DrugMacro_AUPRC": 0.5864245358798333,
+          "Global_AUC": 0.493209902576863,
+          "Global_AUPRC": 0.6180008673966845
+        },
+        "tcga_only3": {
+          "DrugMacro_AUC": 0.4071876722615033,
+          "DrugMacro_AUPRC": 0.6352578593169593,
+          "Global_AUC": 0.4296791443850267,
+          "Global_AUPRC": 0.5947771679759407
+        },
+        "dapl": {
+          "DrugMacro_AUC": 0.4910536483050661,
+          "DrugMacro_AUPRC": 0.5865676004156829,
+          "Global_AUC": 0.5007660878447395,
+          "Global_AUPRC": 0.5456289979170108
+        },
+        "aacdr_gdsc_intersect": {
+          "DrugMacro_AUC": 0.6107055337878439,
+          "DrugMacro_AUPRC": 0.6374173585970441,
+          "Global_AUC": 0.4562131947000368,
+          "Global_AUPRC": 0.5082595636665875
+        },
+        "aacdr_tcga_only": {
+          "DrugMacro_AUC": 0.5530133928571428,
+          "DrugMacro_AUPRC": 0.668827572350974,
+          "Global_AUC": 0.4177323103154305,
+          "Global_AUPRC": 0.4640481780395356
+        }
+      },
+      "weighted_DrugMacro_AUC": 7.298420183430824,
+      "weighted_DrugMacro_AUPRC": 9.176519207459114,
+      "lexicographic_rank": 3,
+      "weighted_rank": 6
+    },
+    {
+      "model_id": "r20_predictive_locked",
+      "display_name": "BioCDA-Predictive (R20 locked, 15-fold)",
+      "round": "round20",
+      "architecture": "biocda-predictive-e3",
+      "family": "predictive_pooled_e3",
+      "role": "BioCDA-Predictive",
+      "per_target": {
+        "gdsc_intersect13": {
+          "DrugMacro_AUC": 0.4714123228603943,
+          "DrugMacro_AUPRC": 0.5588939019822131,
+          "Global_AUC": 0.5506146936021257,
+          "Global_AUPRC": 0.5904498647619323
+        },
+        "tcga_only3": {
+          "DrugMacro_AUC": 0.4591444544274732,
+          "DrugMacro_AUPRC": 0.6634617772158723,
+          "Global_AUC": 0.3826203208556149,
+          "Global_AUPRC": 0.5657267273516708
+        },
+        "dapl": {
+          "DrugMacro_AUC": 0.4283986454629176,
+          "DrugMacro_AUPRC": 0.4804228076333703,
+          "Global_AUC": 0.4632277834525026,
+          "Global_AUPRC": 0.4780678235782197
+        },
+        "aacdr_gdsc_intersect": {
+          "DrugMacro_AUC": 0.6173277689066976,
+          "DrugMacro_AUPRC": 0.6467766174609212,
+          "Global_AUC": 0.6019736842105262,
+          "Global_AUPRC": 0.5239569851657095
+        },
+        "aacdr_tcga_only": {
+          "DrugMacro_AUC": 0.5391369047619048,
+          "DrugMacro_AUPRC": 0.6803940985852358,
+          "Global_AUC": 0.4181585677749361,
+          "Global_AUPRC": 0.4645180698336478
+        }
+      },
+      "weighted_DrugMacro_AUC": 7.252627810975917,
+      "weighted_DrugMacro_AUPRC": 8.863532375181745,
+      "lexicographic_rank": 6,
+      "weighted_rank": 7
+    },
+    {
+      "model_id": "r23_biocda_xa_kd",
+      "display_name": "biocda_xa_kd / X2 (R23)",
+      "round": "round23",
+      "architecture": "biocda-xa-v2",
+      "family": "xa_v2",
+      "role": "BioCDA-XA-Candidate",
+      "per_target": {
+        "gdsc_intersect13": {
+          "DrugMacro_AUC": 0.4560605648703086,
+          "DrugMacro_AUPRC": 0.572522979705725,
+          "Global_AUC": 0.4927117160811438,
+          "Global_AUPRC": 0.6156704057231497
+        },
+        "tcga_only3": {
+          "DrugMacro_AUC": 0.4954398175275944,
+          "DrugMacro_AUPRC": 0.6752054218536964,
+          "Global_AUC": 0.4144385026737968,
+          "Global_AUPRC": 0.5875446808796019
+        },
+        "dapl": {
+          "DrugMacro_AUC": 0.4442307978725748,
+          "DrugMacro_AUPRC": 0.5202870182812336,
+          "Global_AUC": 0.4681435137895812,
+          "Global_AUPRC": 0.4972818151783544
+        },
+        "aacdr_gdsc_intersect": {
+          "DrugMacro_AUC": 0.5624330777427082,
+          "DrugMacro_AUPRC": 0.6348384191787436,
+          "Global_AUC": 0.4865775671696725,
+          "Global_AUPRC": 0.538919516225582
+        },
+        "aacdr_tcga_only": {
+          "DrugMacro_AUC": 0.513095238095238,
+          "DrugMacro_AUPRC": 0.6868053475703403,
+          "Global_AUC": 0.4100596760443308,
+          "Global_AUPRC": 0.4714160225534778
+        }
+      },
+      "weighted_DrugMacro_AUC": 7.232715881660299,
+      "weighted_DrugMacro_AUPRC": 9.080779826714938,
+      "lexicographic_rank": 7,
+      "weighted_rank": 8
+    }
+  ],
+  "all_rankings_lexicographic": [
+    {
+      "model_id": "r23_biocda_predictive",
+      "display_name": "biocda_predictive / P0 (R23)",
+      "round": "round23",
+      "architecture": "biocda-predictive-e3",
+      "family": "predictive_pooled_e3",
+      "role": "BioCDA-Predictive",
+      "per_target": {
+        "gdsc_intersect13": {
+          "DrugMacro_AUC": 0.5129002088923124,
+          "DrugMacro_AUPRC": 0.5778430604992392,
+          "Global_AUC": 0.4977515710008013,
+          "Global_AUPRC": 0.6138444687720348
+        },
+        "tcga_only3": {
+          "DrugMacro_AUC": 0.519545305589194,
+          "DrugMacro_AUPRC": 0.6718381035317735,
+          "Global_AUC": 0.4433155080213904,
+          "Global_AUPRC": 0.6122275090003291
+        },
+        "dapl": {
+          "DrugMacro_AUC": 0.4654338770869962,
+          "DrugMacro_AUPRC": 0.516027033241522,
+          "Global_AUC": 0.4680796731358529,
+          "Global_AUPRC": 0.4906979941691066
+        },
+        "aacdr_gdsc_intersect": {
+          "DrugMacro_AUC": 0.5754378965349405,
+          "DrugMacro_AUPRC": 0.6271776820145959,
+          "Global_AUC": 0.4575933934486566,
+          "Global_AUPRC": 0.5206159343322604
+        },
+        "aacdr_tcga_only": {
+          "DrugMacro_AUC": 0.5014508928571428,
+          "DrugMacro_AUPRC": 0.6477519519670243,
+          "Global_AUC": 0.4377664109121909,
+          "Global_AUPRC": 0.4699464746490323
+        }
+      },
+      "weighted_DrugMacro_AUC": 7.6913105840063505,
+      "weighted_DrugMacro_AUPRC": 9.02675613234407,
+      "lexicographic_rank": 1,
+      "weighted_rank": 3
+    },
+    {
+      "model_id": "r21_biocda_xa_z",
+      "display_name": "biocda_xa_z / M1 (R21)",
+      "round": "round21",
+      "architecture": "biocda-xa-v1",
+      "family": "xa_v1",
+      "role": "BioCDA-XA-Candidate",
+      "per_target": {
+        "gdsc_intersect13": {
+          "DrugMacro_AUC": 0.5008706221692328,
+          "DrugMacro_AUPRC": 0.593812922389728,
+          "Global_AUC": 0.5119063936569525,
+          "Global_AUPRC": 0.6456483299464058
+        },
+        "tcga_only3": {
+          "DrugMacro_AUC": 0.4816290566905826,
+          "DrugMacro_AUPRC": 0.6841502215301786,
+          "Global_AUC": 0.5216577540106951,
+          "Global_AUPRC": 0.7105683863190364
+        },
+        "dapl": {
+          "DrugMacro_AUC": 0.4441879695603702,
+          "DrugMacro_AUPRC": 0.5259832933579413,
+          "Global_AUC": 0.4675689479060265,
+          "Global_AUPRC": 0.4938660760082036
+        },
+        "aacdr_gdsc_intersect": {
+          "DrugMacro_AUC": 0.570369624687787,
+          "DrugMacro_AUPRC": 0.6249607904427809,
+          "Global_AUC": 0.4862555207949944,
+          "Global_AUPRC": 0.5499281402100766
+        },
+        "aacdr_tcga_only": {
+          "DrugMacro_AUC": 0.5210193452380952,
+          "DrugMacro_AUPRC": 0.6558085567546628,
+          "Global_AUC": 0.3861892583120204,
+          "Global_AUPRC": 0.4481316849247002
+        }
+      },
+      "weighted_DrugMacro_AUC": 7.425191840903274,
+      "weighted_DrugMacro_AUPRC": 9.189345515783403,
+      "lexicographic_rank": 2,
+      "weighted_rank": 5
+    },
+    {
+      "model_id": "r21_biocda_xa_zc",
+      "display_name": "biocda_xa_zc / M2 (R21)",
+      "round": "round21",
+      "architecture": "biocda-xa-v1",
+      "family": "xa_v1",
+      "role": "BioCDA-XA-Candidate",
+      "per_target": {
+        "gdsc_intersect13": {
+          "DrugMacro_AUC": 0.4844168178073563,
+          "DrugMacro_AUPRC": 0.5864245358798333,
+          "Global_AUC": 0.493209902576863,
+          "Global_AUPRC": 0.6180008673966845
+        },
+        "tcga_only3": {
+          "DrugMacro_AUC": 0.4071876722615033,
+          "DrugMacro_AUPRC": 0.6352578593169593,
+          "Global_AUC": 0.4296791443850267,
+          "Global_AUPRC": 0.5947771679759407
+        },
+        "dapl": {
+          "DrugMacro_AUC": 0.4910536483050661,
+          "DrugMacro_AUPRC": 0.5865676004156829,
+          "Global_AUC": 0.5007660878447395,
+          "Global_AUPRC": 0.5456289979170108
+        },
+        "aacdr_gdsc_intersect": {
+          "DrugMacro_AUC": 0.6107055337878439,
+          "DrugMacro_AUPRC": 0.6374173585970441,
+          "Global_AUC": 0.4562131947000368,
+          "Global_AUPRC": 0.5082595636665875
+        },
+        "aacdr_tcga_only": {
+          "DrugMacro_AUC": 0.5530133928571428,
+          "DrugMacro_AUPRC": 0.668827572350974,
+          "Global_AUC": 0.4177323103154305,
+          "Global_AUPRC": 0.4640481780395356
+        }
+      },
+      "weighted_DrugMacro_AUC": 7.298420183430824,
+      "weighted_DrugMacro_AUPRC": 9.176519207459114,
+      "lexicographic_rank": 3,
+      "weighted_rank": 6
+    },
+    {
+      "model_id": "r23_biocda_xa_fresh",
+      "display_name": "biocda_xa_fresh / X0 (R23)",
+      "round": "round23",
+      "architecture": "biocda-xa-v2",
+      "family": "xa_v2",
+      "role": "BioCDA-XA-Candidate",
+      "per_target": {
+        "gdsc_intersect13": {
+          "DrugMacro_AUC": 0.480519849216769,
+          "DrugMacro_AUPRC": 0.5808886776119239,
+          "Global_AUC": 0.5437876934756021,
+          "Global_AUPRC": 0.638082145087111
+        },
+        "tcga_only3": {
+          "DrugMacro_AUC": 0.605043165748662,
+          "DrugMacro_AUPRC": 0.7140154874802268,
+          "Global_AUC": 0.5418449197860963,
+          "Global_AUPRC": 0.6833862745510754
+        },
+        "dapl": {
+          "DrugMacro_AUC": 0.5286124157820755,
+          "DrugMacro_AUPRC": 0.5543104153006271,
+          "Global_AUC": 0.5153217568947905,
+          "Global_AUPRC": 0.5319060344329797
+        },
+        "aacdr_gdsc_intersect": {
+          "DrugMacro_AUC": 0.5633563794202394,
+          "DrugMacro_AUPRC": 0.6264172881285842,
+          "Global_AUC": 0.5537127346337873,
+          "Global_AUPRC": 0.5666593129944805
+        },
+        "aacdr_tcga_only": {
+          "DrugMacro_AUC": 0.5643229166666667,
+          "DrugMacro_AUPRC": 0.6961576865713954,
+          "Global_AUC": 0.4654731457800512,
+          "Global_AUPRC": 0.4989473646446495
+        }
+      },
+      "weighted_DrugMacro_AUC": 8.099644831931865,
+      "weighted_DrugMacro_AUPRC": 9.37242884671097,
+      "lexicographic_rank": 4,
+      "weighted_rank": 1
+    },
+    {
+      "model_id": "r21_pooled_baseline",
+      "display_name": "pooled_baseline / M0 (R21)",
+      "round": "round21",
+      "architecture": "biocda-xa-v1",
+      "family": "predictive_pooled_e3",
+      "role": "BioCDA-Predictive-factory",
+      "per_target": {
+        "gdsc_intersect13": {
+          "DrugMacro_AUC": 0.4764598736989507,
+          "DrugMacro_AUPRC": 0.605500575636177,
+          "Global_AUC": 0.4951578381341993,
+          "Global_AUPRC": 0.6214128666145657
+        },
+        "tcga_only3": {
+          "DrugMacro_AUC": 0.5488403409855419,
+          "DrugMacro_AUPRC": 0.7031781873094388,
+          "Global_AUC": 0.5280748663101604,
+          "Global_AUPRC": 0.6948859868388361
+        },
+        "dapl": {
+          "DrugMacro_AUC": 0.5019936503320246,
+          "DrugMacro_AUPRC": 0.5519475609401938,
+          "Global_AUC": 0.5017875383043923,
+          "Global_AUPRC": 0.5047105295940781
+        },
+        "aacdr_gdsc_intersect": {
+          "DrugMacro_AUC": 0.5409902447439826,
+          "DrugMacro_AUPRC": 0.6030497442881977,
+          "Global_AUC": 0.4526131762973867,
+          "Global_AUPRC": 0.5198592970083249
+        },
+        "aacdr_tcga_only": {
+          "DrugMacro_AUC": 0.6038318452380953,
+          "DrugMacro_AUPRC": 0.6864322138677375,
+          "Global_AUC": 0.4914748508098892,
+          "Global_AUPRC": 0.4960095057222712
+        }
+      },
+      "weighted_DrugMacro_AUC": 7.769454018159056,
+      "weighted_DrugMacro_AUPRC": 9.388590012683354,
+      "lexicographic_rank": 5,
+      "weighted_rank": 2
+    },
+    {
+      "model_id": "r20_predictive_locked",
+      "display_name": "BioCDA-Predictive (R20 locked, 15-fold)",
+      "round": "round20",
+      "architecture": "biocda-predictive-e3",
+      "family": "predictive_pooled_e3",
+      "role": "BioCDA-Predictive",
+      "per_target": {
+        "gdsc_intersect13": {
+          "DrugMacro_AUC": 0.4714123228603943,
+          "DrugMacro_AUPRC": 0.5588939019822131,
+          "Global_AUC": 0.5506146936021257,
+          "Global_AUPRC": 0.5904498647619323
+        },
+        "tcga_only3": {
+          "DrugMacro_AUC": 0.4591444544274732,
+          "DrugMacro_AUPRC": 0.6634617772158723,
+          "Global_AUC": 0.3826203208556149,
+          "Global_AUPRC": 0.5657267273516708
+        },
+        "dapl": {
+          "DrugMacro_AUC": 0.4283986454629176,
+          "DrugMacro_AUPRC": 0.4804228076333703,
+          "Global_AUC": 0.4632277834525026,
+          "Global_AUPRC": 0.4780678235782197
+        },
+        "aacdr_gdsc_intersect": {
+          "DrugMacro_AUC": 0.6173277689066976,
+          "DrugMacro_AUPRC": 0.6467766174609212,
+          "Global_AUC": 0.6019736842105262,
+          "Global_AUPRC": 0.5239569851657095
+        },
+        "aacdr_tcga_only": {
+          "DrugMacro_AUC": 0.5391369047619048,
+          "DrugMacro_AUPRC": 0.6803940985852358,
+          "Global_AUC": 0.4181585677749361,
+          "Global_AUPRC": 0.4645180698336478
+        }
+      },
+      "weighted_DrugMacro_AUC": 7.252627810975917,
+      "weighted_DrugMacro_AUPRC": 8.863532375181745,
+      "lexicographic_rank": 6,
+      "weighted_rank": 7
+    },
+    {
+      "model_id": "r23_biocda_xa_kd",
+      "display_name": "biocda_xa_kd / X2 (R23)",
+      "round": "round23",
+      "architecture": "biocda-xa-v2",
+      "family": "xa_v2",
+      "role": "BioCDA-XA-Candidate",
+      "per_target": {
+        "gdsc_intersect13": {
+          "DrugMacro_AUC": 0.4560605648703086,
+          "DrugMacro_AUPRC": 0.572522979705725,
+          "Global_AUC": 0.4927117160811438,
+          "Global_AUPRC": 0.6156704057231497
+        },
+        "tcga_only3": {
+          "DrugMacro_AUC": 0.4954398175275944,
+          "DrugMacro_AUPRC": 0.6752054218536964,
+          "Global_AUC": 0.4144385026737968,
+          "Global_AUPRC": 0.5875446808796019
+        },
+        "dapl": {
+          "DrugMacro_AUC": 0.4442307978725748,
+          "DrugMacro_AUPRC": 0.5202870182812336,
+          "Global_AUC": 0.4681435137895812,
+          "Global_AUPRC": 0.4972818151783544
+        },
+        "aacdr_gdsc_intersect": {
+          "DrugMacro_AUC": 0.5624330777427082,
+          "DrugMacro_AUPRC": 0.6348384191787436,
+          "Global_AUC": 0.4865775671696725,
+          "Global_AUPRC": 0.538919516225582
+        },
+        "aacdr_tcga_only": {
+          "DrugMacro_AUC": 0.513095238095238,
+          "DrugMacro_AUPRC": 0.6868053475703403,
+          "Global_AUC": 0.4100596760443308,
+          "Global_AUPRC": 0.4714160225534778
+        }
+      },
+      "weighted_DrugMacro_AUC": 7.232715881660299,
+      "weighted_DrugMacro_AUPRC": 9.080779826714938,
+      "lexicographic_rank": 7,
+      "weighted_rank": 8
+    },
+    {
+      "model_id": "r23_biocda_xa_transfer",
+      "display_name": "biocda_xa_transfer / X1 (R23)",
+      "round": "round23",
+      "architecture": "biocda-xa-v2",
+      "family": "xa_v2",
+      "role": "BioCDA-XA-Candidate",
+      "per_target": {
+        "gdsc_intersect13": {
+          "DrugMacro_AUC": 0.4549065865503686,
+          "DrugMacro_AUPRC": 0.5747280733408722,
+          "Global_AUC": 0.4895670785711273,
+          "Global_AUPRC": 0.6279589670305237
+        },
+        "tcga_only3": {
+          "DrugMacro_AUC": 0.5425624264836734,
+          "DrugMacro_AUPRC": 0.6949244820797927,
+          "Global_AUC": 0.4557486631016043,
+          "Global_AUPRC": 0.6092835301600632
+        },
+        "dapl": {
+          "DrugMacro_AUC": 0.4443820089803075,
+          "DrugMacro_AUPRC": 0.4937634568010083,
+          "Global_AUC": 0.4647599591419816,
+          "Global_AUPRC": 0.4721629052449398
+        },
+        "aacdr_gdsc_intersect": {
+          "DrugMacro_AUC": 0.5708566246104144,
+          "DrugMacro_AUPRC": 0.6492492443062884,
+          "Global_AUC": 0.458617040853883,
+          "Global_AUPRC": 0.5429939770819279
+        },
+        "aacdr_tcga_only": {
+          "DrugMacro_AUC": 0.5469494047619048,
+          "DrugMacro_AUPRC": 0.6881199847919324,
+          "Global_AUC": 0.4030264279624893,
+          "Global_AUPRC": 0.4674921004240485
+        }
+      },
+      "weighted_DrugMacro_AUC": 7.466591319610193,
+      "weighted_DrugMacro_AUPRC": 9.121247138831066,
+      "lexicographic_rank": 8,
+      "weighted_rank": 4
+    }
+  ],
+  "final_recommendation": {
+    "final_architecture": {
+      "canonical_name": "BioCDA-XA",
+      "model_id": "r23_biocda_xa_fresh",
+      "display_name": "biocda_xa_fresh / X0 (R23)",
+      "architecture": "biocda-xa-v2",
+      "training_recipe": "biocda_xa_fresh",
+      "selection_method": "TCGA_weighted_DrugMacro_AUC",
+      "weighted_DrugMacro_AUC": 8.099644831931865,
+      "weighted_DrugMacro_AUPRC": 9.37242884671097
+    },
+    "lexicographic_alternative": {
+      "model_id": "r23_biocda_predictive",
+      "display_name": "biocda_predictive / P0 (R23)",
+      "architecture": "biocda-predictive-e3",
+      "note": "\u82e5\u56b4\u683c\u4ee5\u6700\u9ad8\u512a\u5148 target gdsc_intersect13 \u7684 DrugMacro AUC \u70ba\u552f\u4e00\u6a19\u6e96\uff0c\u5247\u9078 biocda_predictive / P0 (R23)\uff080.513\uff09\u3002"
+    },
+    "predictive_family_best": {
+      "model_id": "r21_pooled_baseline",
+      "display_name": "pooled_baseline / M0 (R21)",
+      "round": "round21",
+      "architecture": "biocda-xa-v1",
+      "family": "predictive_pooled_e3",
+      "role": "BioCDA-Predictive-factory",
+      "per_target": {
+        "gdsc_intersect13": {
+          "DrugMacro_AUC": 0.4764598736989507,
+          "DrugMacro_AUPRC": 0.605500575636177,
+          "Global_AUC": 0.4951578381341993,
+          "Global_AUPRC": 0.6214128666145657
+        },
+        "tcga_only3": {
+          "DrugMacro_AUC": 0.5488403409855419,
+          "DrugMacro_AUPRC": 0.7031781873094388,
+          "Global_AUC": 0.5280748663101604,
+          "Global_AUPRC": 0.6948859868388361
+        },
+        "dapl": {
+          "DrugMacro_AUC": 0.5019936503320246,
+          "DrugMacro_AUPRC": 0.5519475609401938,
+          "Global_AUC": 0.5017875383043923,
+          "Global_AUPRC": 0.5047105295940781
+        },
+        "aacdr_gdsc_intersect": {
+          "DrugMacro_AUC": 0.5409902447439826,
+          "DrugMacro_AUPRC": 0.6030497442881977,
+          "Global_AUC": 0.4526131762973867,
+          "Global_AUPRC": 0.5198592970083249
+        },
+        "aacdr_tcga_only": {
+          "DrugMacro_AUC": 0.6038318452380953,
+          "DrugMacro_AUPRC": 0.6864322138677375,
+          "Global_AUC": 0.4914748508098892,
+          "Global_AUPRC": 0.4960095057222712
+        }
+      },
+      "weighted_DrugMacro_AUC": 7.769454018159056,
+      "weighted_DrugMacro_AUPRC": 9.388590012683354,
+      "lexicographic_rank": 5,
+      "weighted_rank": 2
+    },
+    "xa_family_best": {
+      "model_id": "r23_biocda_xa_fresh",
+      "display_name": "biocda_xa_fresh / X0 (R23)",
+      "round": "round23",
+      "architecture": "biocda-xa-v2",
+      "family": "xa_v2",
+      "role": "BioCDA-XA-Candidate",
+      "per_target": {
+        "gdsc_intersect13": {
+          "DrugMacro_AUC": 0.480519849216769,
+          "DrugMacro_AUPRC": 0.5808886776119239,
+          "Global_AUC": 0.5437876934756021,
+          "Global_AUPRC": 0.638082145087111
+        },
+        "tcga_only3": {
+          "DrugMacro_AUC": 0.605043165748662,
+          "DrugMacro_AUPRC": 0.7140154874802268,
+          "Global_AUC": 0.5418449197860963,
+          "Global_AUPRC": 0.6833862745510754
+        },
+        "dapl": {
+          "DrugMacro_AUC": 0.5286124157820755,
+          "DrugMacro_AUPRC": 0.5543104153006271,
+          "Global_AUC": 0.5153217568947905,
+          "Global_AUPRC": 0.5319060344329797
+        },
+        "aacdr_gdsc_intersect": {
+          "DrugMacro_AUC": 0.5633563794202394,
+          "DrugMacro_AUPRC": 0.6264172881285842,
+          "Global_AUC": 0.5537127346337873,
+          "Global_AUPRC": 0.5666593129944805
+        },
+        "aacdr_tcga_only": {
+          "DrugMacro_AUC": 0.5643229166666667,
+          "DrugMacro_AUPRC": 0.6961576865713954,
+          "Global_AUC": 0.4654731457800512,
+          "Global_AUPRC": 0.4989473646446495
+        }
+      },
+      "weighted_DrugMacro_AUC": 8.099644831931865,
+      "weighted_DrugMacro_AUPRC": 9.37242884671097,
+      "lexicographic_rank": 4,
+      "weighted_rank": 1
+    },
+    "selection_basis": "TCGA_weighted_DrugMacro_AUC"
+  }
+}

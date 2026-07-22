@@ -1,0 +1,90 @@
+[
+  {
+    "model_id": "r23_biocda_xa_fresh",
+    "display_name": "biocda_xa_fresh / X0 (R23)",
+    "round": "round23",
+    "architecture": "biocda-xa-v2",
+    "ensemble": "3-seed probability ensemble",
+    "mean_drug_macro_auc": 0.5483709453668826,
+    "mean_drug_macro_auprc": 0.6343579110185514,
+    "mean_global_auc": 0.5240280501140655,
+    "mean_global_auprc": 0.5837962263420592
+  },
+  {
+    "model_id": "r21_pooled_baseline",
+    "display_name": "pooled_baseline / M0 (R21)",
+    "round": "round21",
+    "architecture": "biocda-xa-v1",
+    "ensemble": "3-seed probability ensemble",
+    "mean_drug_macro_auc": 0.534423190999719,
+    "mean_drug_macro_auprc": 0.630021656408349,
+    "mean_global_auc": 0.4938216539712057,
+    "mean_global_auprc": 0.5673756371556152
+  },
+  {
+    "model_id": "r23_biocda_predictive",
+    "display_name": "biocda_predictive / P0 (R23)",
+    "round": "round23",
+    "architecture": "biocda-predictive-e3",
+    "ensemble": "3-seed probability ensemble",
+    "mean_drug_macro_auc": 0.5149536361921172,
+    "mean_drug_macro_auprc": 0.608127566250831,
+    "mean_global_auc": 0.4609013113037784,
+    "mean_global_auprc": 0.5414664761845527
+  },
+  {
+    "model_id": "r23_biocda_xa_transfer",
+    "display_name": "biocda_xa_transfer / X1 (R23)",
+    "round": "round23",
+    "architecture": "biocda-xa-v2",
+    "ensemble": "3-seed probability ensemble",
+    "mean_drug_macro_auc": 0.5119314102773338,
+    "mean_drug_macro_auprc": 0.6201570482639788,
+    "mean_global_auc": 0.454343833926217,
+    "mean_global_auprc": 0.5439782959883006
+  },
+  {
+    "model_id": "r21_biocda_xa_zc",
+    "display_name": "biocda_xa_zc / M2 (R21)",
+    "round": "round21",
+    "architecture": "biocda-xa-v1",
+    "ensemble": "3-seed probability ensemble",
+    "mean_drug_macro_auc": 0.5092754130037825,
+    "mean_drug_macro_auprc": 0.6228989853120988,
+    "mean_global_auc": 0.4595201279644193,
+    "mean_global_auprc": 0.5461429549991518
+  },
+  {
+    "model_id": "r21_biocda_xa_z",
+    "display_name": "biocda_xa_z / M1 (R21)",
+    "round": "round21",
+    "architecture": "biocda-xa-v1",
+    "ensemble": "3-seed probability ensemble",
+    "mean_drug_macro_auc": 0.5036153236692137,
+    "mean_drug_macro_auprc": 0.6169431568950583,
+    "mean_global_auc": 0.47471557493613786,
+    "mean_global_auprc": 0.5696285234816845
+  },
+  {
+    "model_id": "r20_predictive_locked",
+    "display_name": "BioCDA-Predictive (R20 locked, 15-fold)",
+    "round": "round20",
+    "architecture": "biocda-predictive-e3",
+    "ensemble": "",
+    "mean_drug_macro_auc": 0.5030840192838775,
+    "mean_drug_macro_auprc": 0.6059898405755225,
+    "mean_global_auc": 0.48331900997914107,
+    "mean_global_auprc": 0.5245438941382361
+  },
+  {
+    "model_id": "r23_biocda_xa_kd",
+    "display_name": "biocda_xa_kd / X2 (R23)",
+    "round": "round23",
+    "architecture": "biocda-xa-v2",
+    "ensemble": "3-seed probability ensemble",
+    "mean_drug_macro_auc": 0.4942518992216848,
+    "mean_drug_macro_auprc": 0.6179318373179477,
+    "mean_global_auc": 0.454386195151705,
+    "mean_global_auprc": 0.5421664881120332
+  }
+]

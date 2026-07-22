@@ -68,12 +68,10 @@ Omics-conditioned atom-level cross-attention **candidate** (`biocda-xa-v2`): Z64
 - Closest candidate: fresh XA (mean ΔAUC ≈ −0.0043) still failed ≥2/3-seed non-worse rule; transfer/KD worse
 - Retain **BioCDA-Predictive** as the only formal prediction model; do **not** use rejected XA attention to explain Predictive
 - Round 21 history: [Round 21 report](docs/round21_xa_validation_report.md)
+- TCGA comparison (post-hoc, all BioCDA models): [biocda_tcga_comparison.md](docs/biocda_tcga_comparison.md)
 
 ```bash
-docker exec DAPL bash -lc 'cd /workspace/DAPL && python3 scripts/audit_xa_no_pooling.py --strict --transfer-smoke'
-docker exec DAPL bash -lc 'cd /workspace/DAPL && python3 -m pytest test_biocda_xa_v2_contracts.py -q'
-docker exec DAPL bash -lc 'cd /workspace/DAPL && python3 scripts/train_xa_performance_closure.py --config configs/biocda/xa_v2_closure.yaml'
-docker exec DAPL bash -lc 'cd /workspace/DAPL && python3 scripts/evaluate_xa_candidates.py && python3 scripts/lock_biocda_xa.py'
+docker exec DAPL bash -lc 'cd /workspace/DAPL && python3 scripts/compare_biocda_tcga.py'
 ```
 
 ## 環境

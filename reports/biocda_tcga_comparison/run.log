@@ -1,0 +1,67 @@
+{"tcga_c32_feature_build": true, "n_kept": 8333, "n_skipped": 0, "omics_dim": 96}
+[1/8] BioCDA-Predictive (R20 locked, 15-fold) (import_round20)
+[2/8] pooled_baseline / M0 (R21) (checkpoint_ensemble)
+[3/8] biocda_xa_z / M1 (R21) (checkpoint_ensemble)
+[4/8] biocda_xa_zc / M2 (R21) (checkpoint_ensemble)
+[5/8] biocda_predictive / P0 (R23) (checkpoint_ensemble)
+[6/8] biocda_xa_fresh / X0 (R23) (checkpoint_ensemble)
+[7/8] biocda_xa_transfer / X1 (R23) (checkpoint_ensemble)
+[8/8] biocda_xa_kd / X2 (R23) (checkpoint_ensemble)
+# BioCDA TCGA Comparison (5 targets)
+
+Post-hoc descriptive evaluation only — **not used for model selection**.
+
+## Per-target metrics
+
+### DrugMacro AUC
+
+| display_name                            |   gdsc_intersect13 |   tcga_only3 |   dapl |   aacdr_tcga_only |   aacdr_gdsc_intersect |   mean_5targets |
+|:----------------------------------------|-------------------:|-------------:|-------:|------------------:|-----------------------:|----------------:|
+| BioCDA-Predictive (R20 locked, 15-fold) |             0.4714 |       0.4591 | 0.4284 |            0.5391 |                 0.6173 |          0.5031 |
+| biocda_predictive / P0 (R23)            |             0.5129 |       0.5195 | 0.4654 |            0.5015 |                 0.5754 |          0.515  |
+| biocda_xa_fresh / X0 (R23)              |             0.4805 |       0.605  | 0.5286 |            0.5643 |                 0.5634 |          0.5484 |
+| biocda_xa_kd / X2 (R23)                 |             0.4561 |       0.4954 | 0.4442 |            0.5131 |                 0.5624 |          0.4943 |
+| biocda_xa_transfer / X1 (R23)           |             0.4549 |       0.5426 | 0.4444 |            0.5469 |                 0.5709 |          0.5119 |
+| biocda_xa_z / M1 (R21)                  |             0.5009 |       0.4816 | 0.4442 |            0.521  |                 0.5704 |          0.5036 |
+| biocda_xa_zc / M2 (R21)                 |             0.4844 |       0.4072 | 0.4911 |            0.553  |                 0.6107 |          0.5093 |
+| pooled_baseline / M0 (R21)              |             0.4765 |       0.5488 | 0.502  |            0.6038 |                 0.541  |          0.5344 |
+
+### DrugMacro AUPRC
+
+| display_name                            |   gdsc_intersect13 |   tcga_only3 |   dapl |   aacdr_tcga_only |   aacdr_gdsc_intersect |   mean_5targets |
+|:----------------------------------------|-------------------:|-------------:|-------:|------------------:|-----------------------:|----------------:|
+| BioCDA-Predictive (R20 locked, 15-fold) |             0.5589 |       0.6635 | 0.4804 |            0.6804 |                 0.6468 |          0.606  |
+| biocda_predictive / P0 (R23)            |             0.5778 |       0.6718 | 0.516  |            0.6478 |                 0.6272 |          0.6081 |
+| biocda_xa_fresh / X0 (R23)              |             0.5809 |       0.714  | 0.5543 |            0.6962 |                 0.6264 |          0.6344 |
+| biocda_xa_kd / X2 (R23)                 |             0.5725 |       0.6752 | 0.5203 |            0.6868 |                 0.6348 |          0.6179 |
+| biocda_xa_transfer / X1 (R23)           |             0.5747 |       0.6949 | 0.4938 |            0.6881 |                 0.6492 |          0.6202 |
+| biocda_xa_z / M1 (R21)                  |             0.5938 |       0.6842 | 0.526  |            0.6558 |                 0.625  |          0.6169 |
+| biocda_xa_zc / M2 (R21)                 |             0.5864 |       0.6353 | 0.5866 |            0.6688 |                 0.6374 |          0.6229 |
+| pooled_baseline / M0 (R21)              |             0.6055 |       0.7032 | 0.5519 |            0.6864 |                 0.603  |          0.63   |
+
+### Global AUC
+
+| display_name                            |   gdsc_intersect13 |   tcga_only3 |   dapl |   aacdr_tcga_only |   aacdr_gdsc_intersect |   mean_5targets |
+|:----------------------------------------|-------------------:|-------------:|-------:|------------------:|-----------------------:|----------------:|
+| BioCDA-Predictive (R20 locked, 15-fold) |             0.5506 |       0.3826 | 0.4632 |            0.4182 |                 0.602  |          0.4833 |
+| biocda_predictive / P0 (R23)            |             0.4978 |       0.4433 | 0.4681 |            0.4378 |                 0.4576 |          0.4609 |
+| biocda_xa_fresh / X0 (R23)              |             0.5438 |       0.5418 | 0.5153 |            0.4655 |                 0.5537 |          0.524  |
+| biocda_xa_kd / X2 (R23)                 |             0.4927 |       0.4144 | 0.4681 |            0.4101 |                 0.4866 |          0.4544 |
+| biocda_xa_transfer / X1 (R23)           |             0.4896 |       0.4557 | 0.4648 |            0.403  |                 0.4586 |          0.4543 |
+| biocda_xa_z / M1 (R21)                  |             0.5119 |       0.5217 | 0.4676 |            0.3862 |                 0.4863 |          0.4747 |
+| biocda_xa_zc / M2 (R21)                 |             0.4932 |       0.4297 | 0.5008 |            0.4177 |                 0.4562 |          0.4595 |
+| pooled_baseline / M0 (R21)              |             0.4952 |       0.5281 | 0.5018 |            0.4915 |                 0.4526 |          0.4938 |
+
+### Global AUPRC
+
+| display_name                            |   gdsc_intersect13 |   tcga_only3 |   dapl |   aacdr_tcga_only |   aacdr_gdsc_intersect |   mean_5targets |
+|:----------------------------------------|-------------------:|-------------:|-------:|------------------:|-----------------------:|----------------:|
+| BioCDA-Predictive (R20 locked, 15-fold) |             0.5904 |       0.5657 | 0.4781 |            0.4645 |                 0.524  |          0.5245 |
+| biocda_predictive / P0 (R23)            |             0.6138 |       0.6122 | 0.4907 |            0.4699 |                 0.5206 |          0.5415 |
+| biocda_xa_fresh / X0 (R23)              |             0.6381 |       0.6834 | 0.5319 |            0.4989 |                 0.5667 |          0.5838 |
+| biocda_xa_kd / X2 (R23)                 |             0.6157 |       0.5875 | 0.4973 |            0.4714 |                 0.5389 |          0.5422 |
+| biocda_xa_transfer / X1 (R23)           |             0.628  |       0.6093 | 0.4722 |            0.4675 |                 0.543  |          0.544  |
+| biocda_xa_z / M1 (R21)                  |             0.6456 |       0.7106 | 0.4939 |            0.4481 |                 0.5499 |          0.5696 |
+| biocda_xa_zc / M2 (R21)                 |             0.618  |       0.5948 | 0.5456 |            0.464  |                 0.5083 |          0.5461 |
+| pooled_baseline / M0 (R21)              |             0.6214 |       0.6949 | 0.5047 |            0.496  |                 0.5199 |          0.5674 |
+
