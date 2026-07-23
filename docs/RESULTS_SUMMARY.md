@@ -246,3 +246,10 @@ R13 exp_008 (0.6112) ──► R17/R17R 未重現 ──► R18 XA+context16 CV 
 | `biocda_final_architecture_selection.md` | TCGA 加權架構選擇 |
 | `model_cards/round19_locked_models.md` | Round 19 鎖定模型卡片 |
 | `proposal.md` / `design.md` | 原始提案與設計 |
+
+## Round 24 train-source ablation
+
+Diagnostic (not formal lock): B0 architecture with NoHoldout vs AACDR train source.
+NoHoldout reached 3/5 gates (gdsc/aacdr_gdsc up; tcga_only3 down). AACDR train set did not improve overall TCGA.
+See `reports/round24/train_source_ablation/ablation_report.md` and `docs/round24_status_report.md`.
+

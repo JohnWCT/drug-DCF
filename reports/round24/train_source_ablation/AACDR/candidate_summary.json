@@ -1,0 +1,59 @@
+{
+  "arm": "AACDR",
+  "architecture": "pooled_mlp__own_plus_summary",
+  "feature": "own_plus_summary",
+  "per_target_fold_mean_auc": {
+    "gdsc_intersect13": 0.473527142411005,
+    "tcga_only3": 0.4480049133863736,
+    "dapl": 0.5371166492612618,
+    "aacdr_gdsc_intersect": 0.5062679760946209,
+    "aacdr_tcga_only": 0.49390625000000005
+  },
+  "per_target_fold_std_auc": {
+    "gdsc_intersect13": 0.044976563004524926,
+    "tcga_only3": 0.051650820510279596,
+    "dapl": 0.05473234824566027,
+    "aacdr_gdsc_intersect": 0.038745353429821515,
+    "aacdr_tcga_only": 0.02549445536100478
+  },
+  "gate": {
+    "status": "NO_LOCK",
+    "n_pass": 2,
+    "n_targets": 5,
+    "min_delta": -0.11059508661362638,
+    "weighted_DrugMacro_AUC": 7.277447515573547,
+    "per_target": {
+      "gdsc_intersect13": {
+        "fold_mean_DrugMacro_AUC": 0.473527142411005,
+        "gate_auroc": 0.5184,
+        "delta": -0.04487285758899495,
+        "pass": false
+      },
+      "tcga_only3": {
+        "fold_mean_DrugMacro_AUC": 0.4480049133863736,
+        "gate_auroc": 0.5586,
+        "delta": -0.11059508661362638,
+        "pass": false
+      },
+      "dapl": {
+        "fold_mean_DrugMacro_AUC": 0.5371166492612618,
+        "gate_auroc": 0.5356,
+        "delta": 0.0015166492612618265,
+        "pass": true
+      },
+      "aacdr_gdsc_intersect": {
+        "fold_mean_DrugMacro_AUC": 0.5062679760946209,
+        "gate_auroc": 0.5582,
+        "delta": -0.0519320239053791,
+        "pass": false
+      },
+      "aacdr_tcga_only": {
+        "fold_mean_DrugMacro_AUC": 0.49390625000000005,
+        "gate_auroc": 0.4394,
+        "delta": 0.054506250000000034,
+        "pass": true
+      }
+    },
+    "note": "Weighted score is ranking-only after all-target PASS; it cannot override NO_LOCK."
+  }
+}
