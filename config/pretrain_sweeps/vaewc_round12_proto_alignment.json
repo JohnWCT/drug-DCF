@@ -3,6 +3,6 @@
   "purpose": "Conditional ADV + Source-anchor EMA Prototype Alignment",
   "generated_at": "2026-06-23T01:48:08.938125+00:00",
   "job_count": 66,
-  "manifest_path": "../../tmp/pytest-of-root/pytest-40/test_config_builder_cli_smoke0/round12_smoke/manifests/pretrain_sweep_manifest.csv",
+  "manifest_path": "result/optimization_runs/round12_proto_alignment/manifests/pretrain_sweep_manifest.csv",
   "settings_path": "config/round12_proto_alignment_settings.json"
 }
