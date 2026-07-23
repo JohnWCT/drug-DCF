@@ -1,6 +1,6 @@
 # Round 24 — TCGA Recovery 解題計畫
 
-**狀態：** DESIGN_LOCKED · IMPLEMENTATION_PENDING  
+**狀態：** IMPLEMENTATION_IN_PROGRESS · 24A/24B DONE · 24C RUNNING · 見 [`round24_status_report.md`](round24_status_report.md)  
 **問題定義：** [`round24_problem_definition_plan.md`](round24_problem_definition_plan.md)  
 **操作手冊：** [`round24_ide_manual.md`](round24_ide_manual.md)
 
@@ -282,7 +282,7 @@ PASS = 單一 candidate 在五個 target 的 5-fold mean DrugMacro AUROC
 
 ## 11. 預計實作契約
 
-本文件規格化後續程式入口，但下列項目在實作完成前不得視為可執行：
+下列入口已實作並可在 Docker `DAPL` 執行（正式訓練進度見狀態報告）：
 
 ```text
 configs/round24/eval3.yaml

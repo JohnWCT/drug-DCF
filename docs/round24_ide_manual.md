@@ -1,10 +1,10 @@
 # Round 24 — IDE 操作手冊
 
-**狀態：** IMPLEMENTATION_SPEC · 尚未開始正式訓練  
+**狀態：** 24A/24B COMPLETE · 24C FORMAL RUNNING · 詳見 [`round24_status_report.md`](round24_status_report.md)  
 **解題計畫：** [`round24_solution_plan.md`](round24_solution_plan.md)  
 **問題定義：** [`round24_problem_definition_plan.md`](round24_problem_definition_plan.md)
 
-> 本手冊同時列出「目前可用」與「待實作」命令。標示 **[PLANNED]** 的 CLI 在程式完成前不可執行或宣稱已驗證。
+> CLI 核心已實作：`preflight/protocol/baseline/features/diagnose/train/evaluate/select/lock`。標示 **[PLANNED]** 的段落若仍存在，以狀態報告為準。
 
 ---
 

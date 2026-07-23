@@ -94,19 +94,31 @@ def cmd_diagnose(args) -> int:
 
 
 def cmd_features(args) -> int:
-    from scripts.round24.analyze_features import run_feature_coverage, run_feature_attribution_stub
+    from scripts.round24.analyze_features import run_feature_coverage
 
     cfg = load_eval3_config(args.config)
     out = _out_stage(cfg, "stage24c")
-    if args.coverage_only or args.smoke:
+    if args.coverage_only:
         biocda_notify("Round24 Stage24C feature coverage START")
         report = run_feature_coverage(cfg, out)
         biocda_notify(f"Round24 Stage24C feature coverage DONE n={len(report)}")
         print(json.dumps(report, indent=2, default=str))
         return 0
-    biocda_notify("Round24 Stage24C feature attribution requires Stage24B complete")
-    run_feature_attribution_stub(cfg, out)
-    return 0
+    # Full attribution: coverage then F0-F4 pooled-E3 trains
+    run_feature_coverage(cfg, out)
+    import subprocess, os
+    cmd = [
+        sys.executable,
+        str(ROOT / "scripts/round24/train_stage24c.py"),
+        "--config",
+        str(args.config if Path(args.config).is_absolute() else ROOT / args.config),
+    ]
+    if args.smoke:
+        cmd.append("--smoke")
+    print("+", " ".join(cmd), flush=True)
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(ROOT)
+    return int(subprocess.call(cmd, cwd=str(ROOT), env=env))
 
 
 def cmd_train(args) -> int:
