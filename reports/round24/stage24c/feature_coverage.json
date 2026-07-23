@@ -1,0 +1,67 @@
+[
+  {
+    "id": "F0",
+    "name": "own_plus_summary",
+    "path": "/workspace/DAPL/result/optimization_runs/round17r_18class/features/r13_exp_008/own_plus_summary",
+    "exists": true,
+    "expected_dim": 75,
+    "observed_dim": 75,
+    "dim_match": true,
+    "includes_own_plus_summary": null,
+    "has_ccle_pkl": true,
+    "has_tcga_pkl": true,
+    "note": "plan listed own_plus_summary as 86-d; Round17R artifact is 75-d (64+11). Use observed_dim for contracts."
+  },
+  {
+    "id": "F1",
+    "name": "z_plus_summary",
+    "path": "/workspace/DAPL/result/optimization_runs/round19_factorial/features/z_plus_summary",
+    "exists": true,
+    "expected_dim": 75,
+    "observed_dim": 75,
+    "dim_match": true,
+    "includes_own_plus_summary": null,
+    "has_ccle_pkl": true,
+    "has_tcga_pkl": true,
+    "note": ""
+  },
+  {
+    "id": "F2",
+    "name": "z_plus_context16",
+    "path": "/workspace/DAPL/result/optimization_runs/round20_unseen_drug_closure/features/z_plus_context16",
+    "exists": true,
+    "expected_dim": 80,
+    "observed_dim": 80,
+    "dim_match": true,
+    "includes_own_plus_summary": false,
+    "has_ccle_pkl": true,
+    "has_tcga_pkl": false,
+    "note": ""
+  },
+  {
+    "id": "F3",
+    "name": "z_plus_context32",
+    "path": "/workspace/DAPL/result/optimization_runs/round20_unseen_drug_closure/features/z_plus_context32",
+    "exists": true,
+    "expected_dim": 96,
+    "observed_dim": 96,
+    "dim_match": true,
+    "includes_own_plus_summary": false,
+    "has_ccle_pkl": true,
+    "has_tcga_pkl": false,
+    "note": ""
+  },
+  {
+    "id": "F4",
+    "name": "z_plus_summary_context16",
+    "path": "/workspace/DAPL/result/optimization_runs/round19_factorial/features/z_plus_summary_context16",
+    "exists": true,
+    "expected_dim": 91,
+    "observed_dim": 91,
+    "dim_match": true,
+    "includes_own_plus_summary": null,
+    "has_ccle_pkl": true,
+    "has_tcga_pkl": true,
+    "note": ""
+  }
+]

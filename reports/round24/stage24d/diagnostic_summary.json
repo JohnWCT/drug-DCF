@@ -1,0 +1,43 @@
+{
+  "target": "gdsc_intersect13",
+  "cohort": {
+    "target_key": "gdsc_intersect13",
+    "response_path": "/workspace/DAPL/data/TCGA/PMID27354694_DR_OMICS_ad_intersect_pretrain_gdsc_intersect13.csv",
+    "feature_dir": "/workspace/DAPL/result/optimization_runs/round17r_18class/features/r13_exp_008/own_plus_summary",
+    "n_raw": 906,
+    "n_eligible": 886,
+    "n_dropped": 20,
+    "n_miss_latent": 20,
+    "n_miss_smiles": 0,
+    "n_latent_keys": 8333,
+    "n_patient_map": 8333,
+    "csv_sha256": "dc465e4a3d1be96e1b66bc6827b57504e9bcd99460101afb24134d093aaf5b6b",
+    "feature_sha256": "184d636196479a93dee3e3806b1c25c3d35966a61ffa2c2ba8e4b32e867d194d"
+  },
+  "models": {
+    "B0_r18_own_plus_summary": {
+      "status": "ok",
+      "DrugMacro_AUC": 0.5414668530558656,
+      "Global_AUC": 0.6283976846189532,
+      "n_rows": 886,
+      "n_valid_auc_drugs": 11,
+      "gap_global_minus_drugmacro": 0.08693083156308756
+    },
+    "P0_r23": {
+      "status": "ok",
+      "DrugMacro_AUC": 0.5129002088923124,
+      "Global_AUC": 0.4977515710008013,
+      "n_rows": 886,
+      "n_valid_auc_drugs": 11,
+      "gap_global_minus_drugmacro": -0.015148637891511052
+    },
+    "X0_r23": {
+      "status": "ok",
+      "DrugMacro_AUC": 0.480519849216769,
+      "Global_AUC": 0.5437876934756021,
+      "n_rows": 886,
+      "n_valid_auc_drugs": 11,
+      "gap_global_minus_drugmacro": 0.06326784425883308
+    }
+  }
+}

@@ -1,0 +1,2 @@
+candidate_id,architecture,feature,fold_id,result_dir
+B1,biocda_predictive_e3,z_plus_context32,0,/workspace/DAPL/result/optimization_runs/round24_tcga_recovery/stage24b/B1/fold_0

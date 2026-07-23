@@ -1,0 +1,50 @@
+{
+  "candidate_id": "B2",
+  "architecture": "biocda_xa_fresh",
+  "feature": "z_plus_context32",
+  "n_folds": 5,
+  "per_target_fold_mean_auc": {
+    "gdsc_intersect13": 0.48402089430117884,
+    "tcga_only3": 0.48789118281530086,
+    "dapl": 0.49449165047303045,
+    "aacdr_gdsc_intersect": 0.5263166477163362,
+    "aacdr_tcga_only": 0.4857589285714286
+  },
+  "per_target_fold_mean_auprc": {
+    "gdsc_intersect13": 0.5615658684535443,
+    "tcga_only3": 0.6529910487265065,
+    "dapl": 0.5423432205000315,
+    "aacdr_gdsc_intersect": 0.6027582254290659,
+    "aacdr_tcga_only": 0.6380375228008868
+  },
+  "per_target_fold_std_auc": {
+    "gdsc_intersect13": 0.020594969417384867,
+    "tcga_only3": 0.0412511278516529,
+    "dapl": 0.03109823881637013,
+    "aacdr_gdsc_intersect": 0.022327343412784834,
+    "aacdr_tcga_only": 0.06673468616599326
+  },
+  "per_target_ensemble": {
+    "gdsc_intersect13": {
+      "DrugMacro_AUC": 0.4886997852579515,
+      "DrugMacro_AUPRC": 0.5661864238677817
+    },
+    "tcga_only3": {
+      "DrugMacro_AUC": 0.48357737498426584,
+      "DrugMacro_AUPRC": 0.6302406634167824
+    },
+    "dapl": {
+      "DrugMacro_AUC": 0.4814675245989045,
+      "DrugMacro_AUPRC": 0.521855539267152
+    },
+    "aacdr_gdsc_intersect": {
+      "DrugMacro_AUC": 0.5603528338984982,
+      "DrugMacro_AUPRC": 0.6339669745214888
+    },
+    "aacdr_tcga_only": {
+      "DrugMacro_AUC": 0.5370907738095239,
+      "DrugMacro_AUPRC": 0.652145992133417
+    }
+  },
+  "status": "complete"
+}

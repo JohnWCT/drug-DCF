@@ -1,0 +1,6 @@
+id,name,path,exists,expected_dim,observed_dim,dim_match,includes_own_plus_summary,has_ccle_pkl,has_tcga_pkl,note
+F0,own_plus_summary,/workspace/DAPL/result/optimization_runs/round17r_18class/features/r13_exp_008/own_plus_summary,True,75,75,True,,True,True,plan listed own_plus_summary as 86-d; Round17R artifact is 75-d (64+11). Use observed_dim for contracts.
+F1,z_plus_summary,/workspace/DAPL/result/optimization_runs/round19_factorial/features/z_plus_summary,True,75,75,True,,True,True,
+F2,z_plus_context16,/workspace/DAPL/result/optimization_runs/round20_unseen_drug_closure/features/z_plus_context16,True,80,80,True,False,True,False,
+F3,z_plus_context32,/workspace/DAPL/result/optimization_runs/round20_unseen_drug_closure/features/z_plus_context32,True,96,96,True,False,True,False,
+F4,z_plus_summary_context16,/workspace/DAPL/result/optimization_runs/round19_factorial/features/z_plus_summary_context16,True,91,91,True,,True,True,

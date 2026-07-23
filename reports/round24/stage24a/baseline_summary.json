@@ -1,0 +1,102 @@
+{
+  "architecture_id": "pooled_mlp__own_plus_summary",
+  "targets": {
+    "gdsc_intersect13": {
+      "fold_mean_DrugMacro_AUC": 0.5297908817120343,
+      "fold_std_DrugMacro_AUC": 0.025428131720271942,
+      "fold_mean_DrugMacro_AUPRC": 0.5963130581867844,
+      "ensemble_DrugMacro_AUC": 0.5414668530558656,
+      "ensemble_DrugMacro_AUPRC": 0.6127479458195527,
+      "ensemble_Global_AUC": 0.6283976846189532,
+      "ensemble_Global_AUPRC": 0.6978021319429728,
+      "Average_TCGA_AUC_proxy": 0.5414668530558656,
+      "n_rows_eligible": 886,
+      "headline_n_pairs": 906,
+      "gate_auroc": 0.5184,
+      "pass_gate_fold_mean": true,
+      "delta_fold_mean_vs_gate": 0.011390881712034284
+    },
+    "tcga_only3": {
+      "fold_mean_DrugMacro_AUC": 0.5437467717923009,
+      "fold_std_DrugMacro_AUC": 0.07711409434762918,
+      "fold_mean_DrugMacro_AUPRC": 0.6962079406887041,
+      "ensemble_DrugMacro_AUC": 0.550766414486677,
+      "ensemble_DrugMacro_AUPRC": 0.6960069339189886,
+      "ensemble_Global_AUC": 0.4868983957219251,
+      "ensemble_Global_AUPRC": 0.6233546881793419,
+      "Average_TCGA_AUC_proxy": 0.550766414486677,
+      "n_rows_eligible": 129,
+      "headline_n_pairs": 129,
+      "gate_auroc": 0.5586,
+      "pass_gate_fold_mean": false,
+      "delta_fold_mean_vs_gate": -0.014853228207699076
+    },
+    "dapl": {
+      "fold_mean_DrugMacro_AUC": 0.5083555188352921,
+      "fold_std_DrugMacro_AUC": 0.02248469183476935,
+      "fold_mean_DrugMacro_AUPRC": 0.5605359812711881,
+      "ensemble_DrugMacro_AUC": 0.5154280782229742,
+      "ensemble_DrugMacro_AUPRC": 0.5729813512318664,
+      "ensemble_Global_AUC": 0.4998723186925434,
+      "ensemble_Global_AUPRC": 0.5215880641221282,
+      "Average_TCGA_AUC_proxy": 0.5154280782229742,
+      "n_rows_eligible": 177,
+      "headline_n_pairs": 178,
+      "gate_auroc": 0.5356,
+      "pass_gate_fold_mean": false,
+      "delta_fold_mean_vs_gate": -0.0272444811647079
+    },
+    "aacdr_gdsc_intersect": {
+      "fold_mean_DrugMacro_AUC": 0.5284778596243094,
+      "fold_std_DrugMacro_AUC": 0.05985157586805359,
+      "fold_mean_DrugMacro_AUPRC": 0.5765122432161272,
+      "ensemble_DrugMacro_AUC": 0.517836942061463,
+      "ensemble_DrugMacro_AUPRC": 0.5582305121115508,
+      "ensemble_Global_AUC": 0.6776085756348914,
+      "ensemble_Global_AUPRC": 0.6380443229939963,
+      "Average_TCGA_AUC_proxy": 0.44351150046866505,
+      "n_rows_eligible": 417,
+      "headline_n_pairs": 425,
+      "gate_auroc": 0.5582,
+      "pass_gate_fold_mean": false,
+      "delta_fold_mean_vs_gate": -0.029722140375690653
+    },
+    "aacdr_tcga_only": {
+      "fold_mean_DrugMacro_AUC": 0.4860528273809524,
+      "fold_std_DrugMacro_AUC": 0.06527747383512547,
+      "fold_mean_DrugMacro_AUPRC": 0.6559356237041254,
+      "ensemble_DrugMacro_AUC": 0.5183035714285714,
+      "ensemble_DrugMacro_AUPRC": 0.650022256136723,
+      "ensemble_Global_AUC": 0.36700767263427114,
+      "ensemble_Global_AUPRC": 0.43502448721012865,
+      "Average_TCGA_AUC_proxy": 0.5104591836734694,
+      "n_rows_eligible": 97,
+      "headline_n_pairs": 97,
+      "gate_auroc": 0.4394,
+      "pass_gate_fold_mean": true,
+      "delta_fold_mean_vs_gate": 0.04665282738095239
+    }
+  },
+  "vs_gate": {
+    "gdsc_intersect13": {
+      "pass": true,
+      "delta": 0.011390881712034284
+    },
+    "tcga_only3": {
+      "pass": false,
+      "delta": -0.014853228207699076
+    },
+    "dapl": {
+      "pass": false,
+      "delta": -0.0272444811647079
+    },
+    "aacdr_gdsc_intersect": {
+      "pass": false,
+      "delta": -0.029722140375690653
+    },
+    "aacdr_tcga_only": {
+      "pass": true,
+      "delta": 0.04665282738095239
+    }
+  }
+}

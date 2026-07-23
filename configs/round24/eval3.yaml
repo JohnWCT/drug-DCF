@@ -1,0 +1,106 @@
+# Round 24 eval3 protocol — Round 18 5 source-fold + Stage 18E TCGA
+round: round24
+protocol_name: eval3
+n_folds: 5
+target_gpu_utilization: 0.9
+max_jobs_per_gpu: 3
+
+paths:
+  project_root: .
+  round18_root: result/optimization_runs/round18_architecture
+  round18_settings: config/round18_architecture_settings.json
+  reports_root: reports/round24
+  run_root: result/optimization_runs/round24_tcga_recovery
+  drug_smiles: data/GDSC_drug_merge_pubchem_dropNA_MACCS_AACDR_extended.csv
+  feature_own_plus_summary: result/optimization_runs/round17r_18class/features/r13_exp_008/own_plus_summary
+  feature_c16: result/optimization_runs/round20_unseen_drug_closure/features/z_plus_context16
+  feature_c32: result/optimization_runs/round20_unseen_drug_closure/features/z_plus_context32
+
+targets:
+  - key: gdsc_intersect13
+    path: data/TCGA/PMID27354694_DR_OMICS_ad_intersect_pretrain_gdsc_intersect13.csv
+    gate_auroc: 0.5184
+    gate_auprc: 0.6011
+    gate_auroc_std: 0.0437
+    headline_n_pairs: 906
+  - key: tcga_only3
+    path: data/TCGA/PMID27354694_DR_OMICS_ad_intersect_pretrain_tcga_only3.csv
+    gate_auroc: 0.5586
+    gate_auprc: 0.7130
+    gate_auroc_std: 0.0442
+    headline_n_pairs: 129
+  - key: dapl
+    path: data/TCGA/TCGA_drug_response_from_DAPL.csv
+    gate_auroc: 0.5356
+    gate_auprc: 0.5591
+    gate_auroc_std: 0.0570
+    headline_n_pairs: 178
+  - key: aacdr_gdsc_intersect
+    path: data/TCGA/TCGA_AACDR_response_final_with_smiles_intersect_pretrain_gdsc_intersect.csv
+    gate_auroc: 0.5582
+    gate_auprc: 0.6017
+    gate_auroc_std: 0.0618
+    headline_n_pairs: 425
+  - key: aacdr_tcga_only
+    path: data/TCGA/TCGA_AACDR_response_final_with_smiles_intersect_pretrain_tcga_only.csv
+    gate_auroc: 0.4394
+    gate_auprc: 0.5942
+    gate_auroc_std: 0.0372
+    headline_n_pairs: 97
+
+target_priority:
+  - gdsc_intersect13
+  - tcga_only3
+  - dapl
+  - aacdr_gdsc_intersect
+  - aacdr_tcga_only
+
+target_weights:
+  gdsc_intersect13: 5
+  tcga_only3: 4
+  dapl: 3
+  aacdr_gdsc_intersect: 2
+  aacdr_tcga_only: 1
+
+drug_macro:
+  min_samples: 10
+  min_positive: 2
+  min_negative: 2
+
+baseline:
+  architecture_id: pooled_mlp__own_plus_summary
+  omics_mode: own_plus_summary
+  feature_dir: result/optimization_runs/round17r_18class/features/r13_exp_008/own_plus_summary
+
+candidates_24b:
+  - id: B0
+    architecture: pooled_mlp
+    feature: own_plus_summary
+    reuse_round18: true
+  - id: B1
+    architecture: biocda_predictive_e3
+    feature: z_plus_context32
+    reuse_round18: false
+  - id: B2
+    architecture: biocda_xa_fresh
+    feature: z_plus_context32
+    reuse_round18: false
+
+training:
+  max_epochs: 200
+  early_stopping_patience: 20
+  early_stopping_metric: validation_drug_macro_auc
+  micro_batch_size: 512
+  gradient_clip_norm: 1.0
+  predictive_warmstart_gin: true
+  accumulation_steps: 4
+  learning_rate: 0.0003
+  weight_decay: 0.0001
+  mixed_precision: true
+  forbid_tcga_in_selection: true
+
+locks:
+  supersedes:
+    - reports/round20_final_model_lock_public.json
+    - reports/biocda_xa_model_lock.json
+  output: reports/round24_final_model_lock.json

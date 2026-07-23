@@ -1,0 +1,210 @@
+{
+  "protocol_name": "eval3",
+  "config_path": "/workspace/DAPL/configs/round24/eval3.yaml",
+  "config_sha256": "0f2c165eee43125ccc3e28f1566acc518724d393eb797f12e12447c01af39de9",
+  "n_folds": 5,
+  "drug_macro": {
+    "min_samples": 10,
+    "min_positive": 2,
+    "min_negative": 2
+  },
+  "target_priority": [
+    "gdsc_intersect13",
+    "tcga_only3",
+    "dapl",
+    "aacdr_gdsc_intersect",
+    "aacdr_tcga_only"
+  ],
+  "target_weights": {
+    "gdsc_intersect13": 5,
+    "tcga_only3": 4,
+    "dapl": 3,
+    "aacdr_gdsc_intersect": 2,
+    "aacdr_tcga_only": 1
+  },
+  "baseline": {
+    "architecture_id": "pooled_mlp__own_plus_summary",
+    "omics_mode": "own_plus_summary",
+    "feature_dir": "result/optimization_runs/round17r_18class/features/r13_exp_008/own_plus_summary"
+  },
+  "feature_dir": "/workspace/DAPL/result/optimization_runs/round17r_18class/features/r13_exp_008/own_plus_summary",
+  "drug_smiles": "/workspace/DAPL/data/GDSC_drug_merge_pubchem_dropNA_MACCS_AACDR_extended.csv",
+  "targets": {
+    "gdsc_intersect13": {
+      "target_key": "gdsc_intersect13",
+      "response_path": "/workspace/DAPL/data/TCGA/PMID27354694_DR_OMICS_ad_intersect_pretrain_gdsc_intersect13.csv",
+      "feature_dir": "/workspace/DAPL/result/optimization_runs/round17r_18class/features/r13_exp_008/own_plus_summary",
+      "n_raw": 906,
+      "n_eligible": 886,
+      "n_dropped": 20,
+      "n_miss_latent": 20,
+      "n_miss_smiles": 0,
+      "n_latent_keys": 8333,
+      "n_patient_map": 8333,
+      "csv_sha256": "dc465e4a3d1be96e1b66bc6827b57504e9bcd99460101afb24134d093aaf5b6b",
+      "feature_sha256": "184d636196479a93dee3e3806b1c25c3d35966a61ffa2c2ba8e4b32e867d194d"
+    },
+    "tcga_only3": {
+      "target_key": "tcga_only3",
+      "response_path": "/workspace/DAPL/data/TCGA/PMID27354694_DR_OMICS_ad_intersect_pretrain_tcga_only3.csv",
+      "feature_dir": "/workspace/DAPL/result/optimization_runs/round17r_18class/features/r13_exp_008/own_plus_summary",
+      "n_raw": 129,
+      "n_eligible": 129,
+      "n_dropped": 0,
+      "n_miss_latent": 0,
+      "n_miss_smiles": 0,
+      "n_latent_keys": 8333,
+      "n_patient_map": 8333,
+      "csv_sha256": "d51c76454366c858ec8025df2d6773b50e8d5814bf4db4ccaf39008bd95f5c6c",
+      "feature_sha256": "184d636196479a93dee3e3806b1c25c3d35966a61ffa2c2ba8e4b32e867d194d"
+    },
+    "dapl": {
+      "target_key": "dapl",
+      "response_path": "/workspace/DAPL/data/TCGA/TCGA_drug_response_from_DAPL.csv",
+      "feature_dir": "/workspace/DAPL/result/optimization_runs/round17r_18class/features/r13_exp_008/own_plus_summary",
+      "n_raw": 178,
+      "n_eligible": 177,
+      "n_dropped": 1,
+      "n_miss_latent": 1,
+      "n_miss_smiles": 0,
+      "n_latent_keys": 8333,
+      "n_patient_map": 8333,
+      "csv_sha256": "811426e3f21e91d3525788ccbc5a3285530ca5cbbb9208fffd9569b3eeb9a11b",
+      "feature_sha256": "184d636196479a93dee3e3806b1c25c3d35966a61ffa2c2ba8e4b32e867d194d"
+    },
+    "aacdr_gdsc_intersect": {
+      "target_key": "aacdr_gdsc_intersect",
+      "response_path": "/workspace/DAPL/data/TCGA/TCGA_AACDR_response_final_with_smiles_intersect_pretrain_gdsc_intersect.csv",
+      "feature_dir": "/workspace/DAPL/result/optimization_runs/round17r_18class/features/r13_exp_008/own_plus_summary",
+      "n_raw": 425,
+      "n_eligible": 417,
+      "n_dropped": 8,
+      "n_miss_latent": 8,
+      "n_miss_smiles": 0,
+      "n_latent_keys": 8333,
+      "n_patient_map": 8333,
+      "csv_sha256": "45becb1664cfb094d23b716a16b3c5fb45628e4dfb7197e881d8d7addf406145",
+      "feature_sha256": "184d636196479a93dee3e3806b1c25c3d35966a61ffa2c2ba8e4b32e867d194d"
+    },
+    "aacdr_tcga_only": {
+      "target_key": "aacdr_tcga_only",
+      "response_path": "/workspace/DAPL/data/TCGA/TCGA_AACDR_response_final_with_smiles_intersect_pretrain_tcga_only.csv",
+      "feature_dir": "/workspace/DAPL/result/optimization_runs/round17r_18class/features/r13_exp_008/own_plus_summary",
+      "n_raw": 97,
+      "n_eligible": 97,
+      "n_dropped": 0,
+      "n_miss_latent": 0,
+      "n_miss_smiles": 0,
+      "n_latent_keys": 8333,
+      "n_patient_map": 8333,
+      "csv_sha256": "4e6d15d83026cc47a1f5eafd6de086466770affa94874eedba67374cfed6012e",
+      "feature_sha256": "184d636196479a93dee3e3806b1c25c3d35966a61ffa2c2ba8e4b32e867d194d"
+    }
+  },
+  "cohort_coverage": [
+    {
+      "target_key": "gdsc_intersect13",
+      "headline_n_pairs": 906,
+      "n_raw": 906,
+      "n_eligible": 886,
+      "n_dropped": 20,
+      "n_miss_latent": 20,
+      "n_miss_smiles": 0,
+      "raw_matches_headline": true,
+      "csv_sha256": "dc465e4a3d1be96e1b66bc6827b57504e9bcd99460101afb24134d093aaf5b6b"
+    },
+    {
+      "target_key": "tcga_only3",
+      "headline_n_pairs": 129,
+      "n_raw": 129,
+      "n_eligible": 129,
+      "n_dropped": 0,
+      "n_miss_latent": 0,
+      "n_miss_smiles": 0,
+      "raw_matches_headline": true,
+      "csv_sha256": "d51c76454366c858ec8025df2d6773b50e8d5814bf4db4ccaf39008bd95f5c6c"
+    },
+    {
+      "target_key": "dapl",
+      "headline_n_pairs": 178,
+      "n_raw": 178,
+      "n_eligible": 177,
+      "n_dropped": 1,
+      "n_miss_latent": 1,
+      "n_miss_smiles": 0,
+      "raw_matches_headline": true,
+      "csv_sha256": "811426e3f21e91d3525788ccbc5a3285530ca5cbbb9208fffd9569b3eeb9a11b"
+    },
+    {
+      "target_key": "aacdr_gdsc_intersect",
+      "headline_n_pairs": 425,
+      "n_raw": 425,
+      "n_eligible": 417,
+      "n_dropped": 8,
+      "n_miss_latent": 8,
+      "n_miss_smiles": 0,
+      "raw_matches_headline": true,
+      "csv_sha256": "45becb1664cfb094d23b716a16b3c5fb45628e4dfb7197e881d8d7addf406145"
+    },
+    {
+      "target_key": "aacdr_tcga_only",
+      "headline_n_pairs": 97,
+      "n_raw": 97,
+      "n_eligible": 97,
+      "n_dropped": 0,
+      "n_miss_latent": 0,
+      "n_miss_smiles": 0,
+      "raw_matches_headline": true,
+      "csv_sha256": "4e6d15d83026cc47a1f5eafd6de086466770affa94874eedba67374cfed6012e"
+    }
+  ],
+  "gate_table": {
+    "gdsc_intersect13": {
+      "gate_auroc": 0.5184,
+      "gate_auprc": 0.6011,
+      "gate_auroc_std": 0.0437,
+      "headline_n_pairs": 906,
+      "path": "data/TCGA/PMID27354694_DR_OMICS_ad_intersect_pretrain_gdsc_intersect13.csv"
+    },
+    "tcga_only3": {
+      "gate_auroc": 0.5586,
+      "gate_auprc": 0.713,
+      "gate_auroc_std": 0.0442,
+      "headline_n_pairs": 129,
+      "path": "data/TCGA/PMID27354694_DR_OMICS_ad_intersect_pretrain_tcga_only3.csv"
+    },
+    "dapl": {
+      "gate_auroc": 0.5356,
+      "gate_auprc": 0.5591,
+      "gate_auroc_std": 0.057,
+      "headline_n_pairs": 178,
+      "path": "data/TCGA/TCGA_drug_response_from_DAPL.csv"
+    },
+    "aacdr_gdsc_intersect": {
+      "gate_auroc": 0.5582,
+      "gate_auprc": 0.6017,
+      "gate_auroc_std": 0.0618,
+      "headline_n_pairs": 425,
+      "path": "data/TCGA/TCGA_AACDR_response_final_with_smiles_intersect_pretrain_gdsc_intersect.csv"
+    },
+    "aacdr_tcga_only": {
+      "gate_auroc": 0.4394,
+      "gate_auprc": 0.5942,
+      "gate_auroc_std": 0.0372,
+      "headline_n_pairs": 97,
+      "path": "data/TCGA/TCGA_AACDR_response_final_with_smiles_intersect_pretrain_tcga_only.csv"
+    }
+  },
+  "blockers": [],
+  "status": "PASS",
+  "gdsc_intersect13_note": {
+    "headline_pairs": 906,
+    "eligible_pairs": 886,
+    "dropped": 20,
+    "drop_breakdown": {
+      "miss_latent": 20,
+      "miss_smiles": 0
+    },
+    "explanation": "906 raw TCGA pairs minus patients missing from tcga_latent_proto.pkl (miss_latent) yields Round18 eligible cohort (886)."
+  }
+}
