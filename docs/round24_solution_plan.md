@@ -1,6 +1,6 @@
 # Round 24 — TCGA Recovery 解題計畫
 
-**狀態：** IMPLEMENTATION_IN_PROGRESS · 24A/24B DONE · 24C RUNNING · 見 [`round24_status_report.md`](round24_status_report.md)  
+**狀態：** IMPLEMENTATION_IN_PROGRESS · 24A–24C DONE · NO_LOCK · 下一步 24E（top2=F2/F3）· 見 [`round24_status_report.md`](round24_status_report.md)  
 **問題定義：** [`round24_problem_definition_plan.md`](round24_problem_definition_plan.md)  
 **操作手冊：** [`round24_ide_manual.md`](round24_ide_manual.md)
 

@@ -1,0 +1,28 @@
+{
+  "candidate_id": "F4",
+  "architecture": "biocda_predictive_e3",
+  "feature": "z_plus_summary_context16",
+  "n_folds": 5,
+  "per_target_fold_mean_auc": {
+    "gdsc_intersect13": 0.5103440749566424,
+    "tcga_only3": 0.42635432807705165,
+    "dapl": 0.4735449028602147,
+    "aacdr_gdsc_intersect": 0.5080426073645723,
+    "aacdr_tcga_only": 0.4361309523809524
+  },
+  "per_target_fold_mean_auprc": {
+    "gdsc_intersect13": 0.5799514670166586,
+    "tcga_only3": 0.6180305190476367,
+    "dapl": 0.5285210700060693,
+    "aacdr_gdsc_intersect": 0.571569859121009,
+    "aacdr_tcga_only": 0.6430645502340536
+  },
+  "per_target_fold_std_auc": {
+    "gdsc_intersect13": 0.02129411121200234,
+    "tcga_only3": 0.03565819456924281,
+    "dapl": 0.03914704623760035,
+    "aacdr_gdsc_intersect": 0.03601462865278181,
+    "aacdr_tcga_only": 0.06766265506881612
+  },
+  "status": "complete"
+}

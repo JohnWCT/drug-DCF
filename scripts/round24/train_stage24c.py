@@ -9,8 +9,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
+import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -247,14 +250,20 @@ def train_one_fold(
     fold_id: int,
     cfg: Dict[str, Any],
     smoke: bool = False,
+    mem_fraction: float = 0.35,
 ) -> Dict[str, Any]:
     feature_dir = ROOT / recipe["path"]
     result_dir = ROOT / cfg["paths"]["run_root"] / "stage24c" / recipe["id"] / f"fold_{fold_id}"
     result_dir.mkdir(parents=True, exist_ok=True)
     if _job_done(result_dir) and not smoke:
-        return {"status": "skipped_complete", "result_dir": str(result_dir)}
+        return {"status": "skipped_complete", "result_dir": str(result_dir), "feature_id": recipe["id"], "fold_id": fold_id}
 
     configure_gpu_efficiency(target_utilization=float(cfg.get("target_gpu_utilization", 0.9)))
+    if torch.cuda.is_available():
+        try:
+            torch.cuda.set_per_process_memory_fraction(float(mem_fraction), 0)
+        except Exception:
+            pass
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     smiles = str(ROOT / cfg["paths"]["drug_smiles"])
     r18 = ROOT / cfg["paths"]["round18_root"]
@@ -430,11 +439,37 @@ def rank_features(summaries: List[Dict[str, Any]], cfg: Dict[str, Any]) -> Dict[
     return {"ranked": rows, "top2": [r["candidate_id"] for r in top2], "any_all_pass": any(r["gate"]["status"] == "PASS" for r in rows)}
 
 
+def _launch_fold_job(recipe_id: str, fold_id: int, *, mem_fraction: float, config: Path) -> Dict[str, Any]:
+    env = os.environ.copy()
+    env["PYTHONPATH"] = str(ROOT)
+    cmd = [
+        sys.executable,
+        str(ROOT / "scripts/round24/train_stage24c.py"),
+        "--config",
+        str(config),
+        "--single-job",
+        json.dumps({"feature_id": recipe_id, "fold_id": fold_id}),
+        "--mem-fraction",
+        str(mem_fraction),
+    ]
+    print("+", " ".join(cmd[:6]), f"{recipe_id} fold={fold_id}", flush=True)
+    rc = subprocess.call(cmd, cwd=str(ROOT), env=env)
+    status = ROOT / "result/optimization_runs/round24_tcga_recovery/stage24c" / recipe_id / f"fold_{fold_id}" / "status.json"
+    # resolve via cfg path after load — use default run root
+    if status.is_file():
+        return json.loads(status.read_text())
+    return {"status": "failed", "rc": rc, "feature_id": recipe_id, "fold_id": fold_id}
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--smoke", action="store_true")
     parser.add_argument("--features", nargs="*", default=None, help="Subset e.g. F0 F1 F2")
+    parser.add_argument("--single-job", type=str, default=None, help='JSON {"feature_id","fold_id"}')
+    parser.add_argument("--max-parallel", type=int, default=3)
+    parser.add_argument("--mem-fraction", type=float, default=0.32)
+    parser.add_argument("--resume", action="store_true", help="Skip Telegram START (resume parallel)")
     args = parser.parse_args()
     cfg = _load_cfg(args.config)
     configure_gpu_efficiency(target_utilization=float(cfg.get("target_gpu_utilization", 0.9)))
@@ -443,13 +478,28 @@ def main() -> int:
     if args.features:
         want = set(args.features)
         recipes = [r for r in recipes if r["id"] in want]
+    recipe_by_id = {r["id"]: r for r in FEATURE_RECIPES}
+
+    if args.single_job:
+        job = json.loads(args.single_job)
+        recipe = recipe_by_id[job["feature_id"]]
+        summary = train_one_fold(
+            recipe=recipe,
+            fold_id=int(job["fold_id"]),
+            cfg=cfg,
+            smoke=args.smoke,
+            mem_fraction=float(args.mem_fraction),
+        )
+        print(json.dumps(summary, indent=2, default=str))
+        return 0 if summary.get("status") in {"complete", "skipped_complete"} else 1
 
     run_root = ROOT / cfg["paths"]["run_root"] / "stage24c"
     report_root = ROOT / cfg["paths"]["reports_root"] / "stage24c"
     run_root.mkdir(parents=True, exist_ok=True)
     report_root.mkdir(parents=True, exist_ok=True)
 
-    biocda_notify(f"Round24 Stage24C START features={[r['id'] for r in recipes]} smoke={args.smoke}")
+    if not args.resume and not args.smoke:
+        biocda_notify(f"Round24 Stage24C START features={[r['id'] for r in recipes]} parallel={args.max_parallel}")
 
     # Reuse F3 from B1 first
     if any(r["id"] == "F3" for r in recipes) and not args.smoke:
@@ -459,23 +509,54 @@ def main() -> int:
     train_recipes = [r for r in recipes if r["id"] != "F3" or args.smoke]
     if args.smoke:
         train_recipes = train_recipes[:1]
-        # only fold 0
         for recipe in train_recipes:
-            train_one_fold(recipe=recipe, fold_id=0, cfg=cfg, smoke=True)
-        biocda_notify(f"Round24 Stage24C SMOKE DONE feature={train_recipes[0]['id']}")
+            train_one_fold(recipe=recipe, fold_id=0, cfg=cfg, smoke=True, mem_fraction=float(args.mem_fraction))
+        print("Stage24C smoke done (no Telegram mid-stage)", flush=True)
         return 0
 
+    # Build pending jobs (skip completed folds)
+    jobs: List[Tuple[str, int]] = []
     for recipe in train_recipes:
         for fold_id in range(int(cfg["n_folds"])):
-            print(f"=== {recipe['id']} fold {fold_id} ===", flush=True)
-            train_one_fold(recipe=recipe, fold_id=fold_id, cfg=cfg, smoke=False)
+            result_dir = run_root / recipe["id"] / f"fold_{fold_id}"
+            if _job_done(result_dir):
+                print(f"skip complete {recipe['id']} fold{fold_id}", flush=True)
+                continue
+            jobs.append((recipe["id"], fold_id))
+
+    print(f"Pending jobs={len(jobs)} max_parallel={args.max_parallel}", flush=True)
+    cfg_path = args.config if args.config.is_absolute() else ROOT / args.config
+
+    if args.max_parallel <= 1:
+        for rid, fold_id in jobs:
+            train_one_fold(
+                recipe=recipe_by_id[rid],
+                fold_id=fold_id,
+                cfg=cfg,
+                smoke=False,
+                mem_fraction=float(args.mem_fraction),
+            )
+    else:
+        with ThreadPoolExecutor(max_workers=int(args.max_parallel)) as ex:
+            futs = {
+                ex.submit(_launch_fold_job, rid, fold_id, mem_fraction=float(args.mem_fraction), config=cfg_path): (rid, fold_id)
+                for rid, fold_id in jobs
+            }
+            for fut in as_completed(futs):
+                rid, fold_id = futs[fut]
+                try:
+                    res = fut.result()
+                    print(f"done {rid} fold{fold_id} status={res.get('status')}", flush=True)
+                except Exception as exc:  # noqa: BLE001
+                    print(f"FAILED {rid} fold{fold_id}: {exc}", flush=True)
+
+    for recipe in train_recipes:
         try:
             payload = aggregate_feature(cfg, recipe)
             print(f"Aggregated {recipe['id']}: {payload['per_target_fold_mean_auc']}", flush=True)
         except FileNotFoundError as e:
             print(e, flush=True)
 
-    # Ensure F3 aggregated if reused
     if any(r["id"] == "F3" for r in recipes):
         try:
             aggregate_feature(cfg, next(r for r in FEATURE_RECIPES if r["id"] == "F3"))

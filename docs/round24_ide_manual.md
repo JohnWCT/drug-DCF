@@ -1,6 +1,6 @@
 # Round 24 — IDE 操作手冊
 
-**狀態：** 24A/24B COMPLETE · 24C FORMAL RUNNING · 詳見 [`round24_status_report.md`](round24_status_report.md)  
+**狀態：** 24A/24B/24C COMPLETE · NO_LOCK · 下一步 24E（F2+F3）· 詳見 [`round24_status_report.md`](round24_status_report.md)  
 **解題計畫：** [`round24_solution_plan.md`](round24_solution_plan.md)  
 **問題定義：** [`round24_problem_definition_plan.md`](round24_problem_definition_plan.md)
 
