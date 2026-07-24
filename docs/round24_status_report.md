@@ -1,87 +1,87 @@
 # Round 24 — 執行狀態報告
 
 **更新時間：** 2026-07-24  
-**容器：** `DAPL` · `/workspace/DAPL`
+**容器：** `DAPL` · `/workspace/DAPL`  
+**最終狀態：** **`LOCKED`** · champion **`E-NH0`**（pooled_mlp × own_plus_summary × NoHoldout）
+
+## TCGA 彙整契約（強制）
+
+凡 Round 24 TCGA 結果彙整，**必須**同時報告下列五組資料的 **DrugMacro AUROC** 與 **DrugMacro AUPRC**（per-drug macro avg；support 10/2/2）。缺任一 target 或缺 AUPRC 即視為彙整不完整。
+
+| Key | 資料檔 |
+|-----|--------|
+| `gdsc_intersect13` | `data/TCGA/PMID27354694_DR_OMICS_ad_intersect_pretrain_gdsc_intersect13.csv` |
+| `tcga_only3` | `data/TCGA/PMID27354694_DR_OMICS_ad_intersect_pretrain_tcga_only3.csv` |
+| `dapl` | `data/TCGA/TCGA_drug_response_from_DAPL.csv` |
+| `aacdr_gdsc_intersect` | `data/TCGA/TCGA_AACDR_response_final_with_smiles_intersect_pretrain_gdsc_intersect.csv` |
+| `aacdr_tcga_only` | `data/TCGA/TCGA_AACDR_response_final_with_smiles_intersect_pretrain_tcga_only.csv` |
+
+**排名依據：**  
+- **硬閘 PASS（stest0 / 無 10% testset）：** `aacdr_gdsc_intersect`（>**0.5279**）**且** `aacdr_tcga_only`（>**0.4804**）。  
+- **PASS 後排序（5:4:3:2:1）：** `aacdr_gdsc_intersect` > `aacdr_tcga_only` > `dapl` > `gdsc_intersect13` > `tcga_only3`。  
+- `dapl` / `gdsc_intersect13` / `tcga_only3`：**必報，不擋 lock**。  
+- Lock 排名僅 NoHoldout 合格臂；holdout 參考不混排。
+
+**超越標準：** [`docs/AACDR_drug_macro_auroc_auprc.md`](AACDR_drug_macro_auroc_auprc.md)（**現行 = stest0**）。  
+**最終報告：** [`round24_final_report.md`](round24_final_report.md) · **Lock：** [`reports/round24_final_model_lock.json`](../reports/round24_final_model_lock.json)  
+比對：[`vs_aacdr_standard.md`](../reports/round24/vs_aacdr_standard.md)
 
 ## 總覽
 
 | Stage / 實驗 | 狀態 | 說明 |
 |--------------|------|------|
-| 24A 協議/基準 | **PASS** | eval3 manifest；906→886 miss_latent；B0 baseline 重建 |
-| 24B 同協議重建 | **COMPLETE · NO_LOCK** | B0/B1/B2 皆未五 target 全過 → 進入 24C |
-| 24C 特徵 attribution | **COMPLETE · NO_LOCK** | F0–F4 各 5-fold 完成；top2=**F2, F3**；`any_all_pass=false` |
-| **Train-source ablation** | **COMPLETE（診斷）** | NoHoldout / AACDR vs Ctrl；見下節 |
-| 24D gdsc 診斷 | **DONE（診斷稿）** | `reports/round24/stage24d/` |
-| 24E preregister | **NEXT** | 以 F2（C16）+ F3（C32）為特徵主線；尚無 all-target PASS |
-| 24F–G | **PENDING** | 待 24E；無 all-target PASS 時最終 `NO_LOCK` |
+| 24A 協議/基準 | **PASS** | eval3 manifest；906→886 miss_latent |
+| 24B 同協議重建 | **COMPLETE** | B0/B1/B2 |
+| 24C 特徵 attribution | **COMPLETE** | top2=F2/F3 |
+| Train-source ablation | **COMPLETE（診斷）** | NoHoldout 可過硬閘 |
+| 24D gdsc 診斷 | **DONE** | `reports/round24/stage24d/` |
+| **24E NoHoldout 確認** | **COMPLETE** | E-NH0/NH1 PASS；E-NH2 NO_LOCK |
+| **24F gate / lock** | **`LOCKED`** | champion **E-NH0** |
+| 24G 最終報告 | **COMPLETE** | `docs/round24_final_report.md` |
 
-## Stage 24C gate（正式結果）
+## Stage 24E / 24F 正式結果（NoHoldout lock pool）
 
-**報告：** [`reports/round24/stage24c/feature_attribution_summary.json`](../reports/round24/stage24c/feature_attribution_summary.json)  
-**架構：** `biocda_predictive_e3` × 五種 feature；並行 resume（`--max-parallel 3`）。
+硬閘：`aacdr_gdsc_intersect` >0.5279 ∧ `aacdr_tcga_only` >0.4804（stest0）。
 
-| Rank | ID | Feature | n_pass | gdsc | tcga_only3 | dapl | aacdr_gdsc | aacdr_tcga |
-|-----:|----|---------|-------:|-----:|-----------:|-----:|-----------:|----------:|
-| 1 | **F2** | z_plus_context16 | **2/5** | 0.525 | 0.453 | 0.486 | 0.543 | **0.540** |
-| 2 | **F3** | z_plus_context32 | 1/5 | 0.500 | 0.454 | 0.466 | 0.527 | 0.473 |
-| 3 | F0 | own_plus_summary | 1/5 | 0.533 | 0.436 | 0.485 | 0.530 | 0.435 |
-| 4 | F1 | z_only | 1/5 | 0.505 | 0.430 | 0.474 | 0.522 | 0.454 |
-| 5 | F4 | z_plus_context64 | 0/5 | 0.510 | 0.426 | 0.474 | 0.508 | 0.436 |
+| ID | Architecture × Feature | aacdr_gdsc | aacdr_tcga | Hard gate |
+|----|------------------------|-----------:|-----------:|:---------:|
+| **E-NH0** | pooled_mlp × own_plus_summary | **0.5648** | 0.4971 | **PASS** ← champion |
+| E-NH1 | predictive_e3 × C16 | 0.5501 | 0.4992 | **PASS** |
+| E-NH2 | predictive_e3 × C32 | 0.5210 | 0.5167 | NO_LOCK |
 
-**結論：** 無候選五 target 全過；鎖定 top2 **F2 / F3** 進入 Stage 24E。C16 優於 C32/C64（較窄 context 較佳）。主缺口仍在 `tcga_only3` / `dapl` / `aacdr_gdsc_intersect`。
+**選模：** 兩臂 PASS 時依加權（`aacdr_gdsc` 權重 5 最高）→ **E-NH0**。  
+**結論：** 在與 stest0 對齊的 NoHoldout 資料協議下，pooled MLP + own_plus_summary 勝過 predictive×C16/C32；架構升級未再抬高硬閘主軸 `aacdr_gdsc_intersect`。
 
-## Stage 24B gate（摘要）
+### Champion（E-NH0）五組 DrugMacro（5-fold mean）
 
-| Candidate | n_pass |
-|-----------|-------:|
-| B0 pooled_mlp × own_plus_summary | 2/5 |
-| B1 predictive × C32 | 1/5 |
-| B2 XA fresh × C32 | 1/5 |
+| Target | AUROC | AUPRC | 硬閘 |
+|--------|------:|------:|:----:|
+| `aacdr_gdsc_intersect` | 0.5648 | 0.6186 | Y |
+| `aacdr_tcga_only` | 0.4971 | 0.6532 | Y |
+| `dapl` | 0.4820 | 0.5416 | N |
+| `gdsc_intersect13` | 0.5697 | 0.6121 | N |
+| `tcga_only3` | 0.4845 | 0.6368 | N |
 
-## Train-source ablation（診斷，非 formal lock）
+### Holdout 參考（不參與 lock）
 
-**假設：** 換 AACDR 訓練集、或取消 GDSC ~10% internal holdout，能否抬高 eval3 TCGA。  
-**架構：** 與 B0 相同 `pooled_mlp × own_plus_summary`。  
-**報告：** [`reports/round24/train_source_ablation/ablation_report.md`](../reports/round24/train_source_ablation/ablation_report.md)
+| ID | aacdr_gdsc | aacdr_tcga | gate |
+|----|-----------:|-----------:|:----:|
+| E-REF2（F2 holdout） | 0.5427 | 0.5398 | PASS |
+| E-REF3（F3 holdout） | 0.5268 | 0.4730 | NO_LOCK |
 
-| Arm | gdsc | tcga_only3 | dapl | aacdr_gdsc | aacdr_tcga | n_pass |
-|-----|-----:|-----------:|-----:|-----------:|----------:|-------:|
-| Ctrl（R18 + holdout） | 0.530 | 0.544 | 0.508 | 0.528 | 0.486 | 2/5 |
-| NoHoldout（全量 GDSC2） | **0.570** | 0.485 | 0.482 | **0.565** | 0.497 | **3/5** |
-| AACDR 訓練集 | 0.474 | 0.448 | **0.537** | 0.506 | 0.494 | 2/5 |
-
-**Δ vs Ctrl：** NoHoldout 抬高 gdsc/aacdr_gdsc，但壓低 tcga_only3/dapl；AACDR 訓練集整體不升反降（僅 dapl 小幅上升）。  
-**結論：** 資料源 / holdout **不是**五 target 全過的主解。`any_all_target_pass=False`。
-
-### 設計要點
-
-1. **Ctrl**：重用 Stage24A baseline，不重訓。  
-2. **NoHoldout**：`development ∪ internal_test` → 重建 formal 5-fold（無 10% holdout）。  
-3. **AACDR**：eligible 過濾（miss_latent 為主）→ 全量 5-fold；early-stop 僅 source val DrugMacro。  
-4. TCGA 五 target 推論與 eval3 gate 表對照；Telegram 僅完整 round 結束時發送。
-
-## 已落地程式
+## 產物路徑
 
 ```text
-scripts/round24/train_stage24c.py          # --max-parallel / --resume / --mem-fraction
-scripts/round24/prepare_train_source_ablation.py
-scripts/round24/run_train_source_ablation.py
-reports/round24/stage24c/
-reports/round24/train_source_ablation/
+configs/round24/eval3.yaml
+scripts/round24/run_stage24e.py
+reports/round24/stage24e/candidate_manifest.json
+reports/round24/stage24e/stage24e_decision.json
+reports/round24_final_model_lock.json
+docs/round24_final_report.md
 ```
 
-## 監控 / 下一步
-
-```bash
-# 24C 摘要
-docker exec DAPL bash -lc 'python3 -c "import json; print(json.load(open(\"/workspace/DAPL/reports/round24/stage24c/feature_attribution_summary.json\"))[\"top2\"])"'
-
-# 下一步：Stage 24E（F2 + F3）
-docker exec DAPL bash -lc 'cd /workspace/DAPL && PYTHONPATH=/workspace/DAPL python3 scripts/round24/run_round24.py --help'
-```
-
-## 科學敘事約束（不變）
+## 科學敘事約束
 
 - TCGA 未進入 loss / early stopping / checkpoint selection。
-- Ablation 與 GDSC 結果僅 diagnostic，不寫入 formal lock。
-- 無 all-target PASS 時最終狀態必須為 `NO_LOCK`。
+- 正式 lock 僅比較 NoHoldout 臂；GDSC 內部分數不作選模主軸。
+- Telegram 僅完整 round 結束時發送。

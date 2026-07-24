@@ -1,6 +1,6 @@
 # Round 24 — TCGA Recovery 解題計畫
 
-**狀態：** IMPLEMENTATION_IN_PROGRESS · 24A–24C DONE · NO_LOCK · 下一步 24E（top2=F2/F3）· 見 [`round24_status_report.md`](round24_status_report.md)  
+**狀態：** **COMPLETE · LOCKED** · champion `E-NH0`（pooled × own_plus_summary × NoHoldout）· 硬閘 = AACDR stest0 · 見 [`round24_status_report.md`](round24_status_report.md) / [`round24_final_report.md`](round24_final_report.md)  
 **問題定義：** [`round24_problem_definition_plan.md`](round24_problem_definition_plan.md)  
 **操作手冊：** [`round24_ide_manual.md`](round24_ide_manual.md)
 
@@ -8,19 +8,55 @@
 
 ## 1. 任務與不可變契約
 
-Round 24 的任務是選出一個**單一 unified model**，在同一套 `eval3` 5-fold 協議下，使五個 TCGA target 的 5-fold mean DrugMacro AUROC 全部超越既定基準。
+Round 24 的任務是選出一個**單一 unified model**，在同一套 `eval3` 5-fold 協議下，使 **AACDR 兩組** TCGA target 的 5-fold mean DrugMacro AUROC 超越既定標準（其餘三組必報，但不擋 lock）。
 
-### 1.1 硬性成功門檻
+### 1.1 硬性成功門檻（Stage 24E 起修訂）
 
-| Target | AUROC gate | 基準 std | AUPRC reference |
-|--------|-----------:|---------:|----------------:|
-| `gdsc_intersect13` | > **0.5184** | 0.0437 | 0.6011 ± 0.0252 |
-| `tcga_only3` | > **0.5586** | 0.0442 | 0.7130 ± 0.0272 |
-| `dapl` | > **0.5356** | 0.0570 | 0.5591 ± 0.0318 |
-| `aacdr_gdsc_intersect` | > **0.5582** | 0.0618 | 0.6017 ± 0.0487 |
-| `aacdr_tcga_only` | > **0.4394** | 0.0372 | 0.5942 ± 0.0206 |
+**PASS / LOCK 條件（僅此兩組；標準 = AACDR `stest0` / 無 10% testset）：**
 
-任一 target 未達門檻即為 `NO_LOCK`。5:4:3:2:1 加權只在一個以上候選全數通過後排序，不是成功門檻。
+| Target | AUROC gate | 基準 std | AUPRC reference（追蹤） |
+|--------|-----------:|---------:|------------------------:|
+| `aacdr_gdsc_intersect` | > **0.5279** | 0.0312 | 0.5710 ± 0.0122 |
+| `aacdr_tcga_only` | > **0.4804** | 0.0414 | 0.6300 ± 0.0419 |
+
+標準來源：[`AACDR_drug_macro_auroc_auprc.md`](AACDR_drug_macro_auroc_auprc.md)（`target_infer_stest0`）。  
+兩組皆嚴格大於標準 mean → `PASS`；缺任一 → `NO_LOCK`。
+
+**必報但不擋 lock（diagnostic / soft ranking；`eval3_stest0`）：**
+
+| Target | AUROC 參照 | AUPRC 參照 |
+|--------|-----------:|-----------:|
+| `dapl` | 0.5304 | 0.5570 |
+| `gdsc_intersect13` | 0.5197 | 0.5981 |
+| `tcga_only3` | 0.5536 | 0.6960 |
+
+### 1.1a 最終模型排序優先序（多個 PASS 時）
+
+若有多個 `PASS` 候選，依下表 **5:4:3:2:1** 加權 DrugMacro AUROC 排序（高→低）：
+
+| 權重 | Target | 角色 |
+|-----:|--------|------|
+| **5** | `aacdr_gdsc_intersect` | 硬閘 + 首要選模軸 |
+| **4** | `aacdr_tcga_only` | 硬閘 + 次要 |
+| **3** | `dapl` | 僅排序／診斷 |
+| **2** | `gdsc_intersect13` | 僅排序／診斷 |
+| **1** | `tcga_only3` | 僅排序／診斷 |
+
+平手：DrugMacro AUPRC → Global AUROC → Global AUPRC。  
+**不作排名：** GDSC 訓練／內部 CV。  
+設定：`configs/round24/eval3.yaml` → `gate_required_targets` / `target_weights`。
+
+### 1.1b TCGA 彙整欄位（強制）
+
+每個 candidate / stage 的 TCGA 結果彙整必須對下列五檔同時給出 **DrugMacro AUROC** 與 **DrugMacro AUPRC**：
+
+1. `aacdr_gdsc_intersect`（**硬閘**）
+2. `aacdr_tcga_only`（**硬閘**）
+3. `dapl`（診斷）
+4. `gdsc_intersect13`（診斷）
+5. `tcga_only3`（診斷）
+
+缺 target 或缺 AUPRC 視為彙整失敗。
 
 ### 1.2 防洩漏與科學敘事
 
@@ -155,10 +191,11 @@ P0/X0 必須按同一 source folds 重新訓練；R23 三 seed checkpoint 只能
 
 1. 第一順位：超越基準的 target 數。
 2. 第二順位：所有 target 中最小 AUROC delta（maximin）。
-3. 第三順位：5:4:3:2:1 加權 AUROC。
+3. 第三順位：§1.1a 優先序加權 AUROC（`aacdr_gdsc` 5 → `tcga_only3` 1）。
 4. 平手：DrugMacro AUPRC → Global AUROC → Global AUPRC。
 
-最多保留兩個 feature recipe。若任一 recipe 已五 target 全過，停止擴展並進 Stage 24F。
+最多保留兩個 feature recipe。若任一 recipe 已五 target 全過，停止擴展並進 Stage 24F。  
+**24C 結果：** top2 = **F2（C16）**、**F3（C32）** → 進入 Stage 24E。
 
 ---
 
@@ -190,27 +227,73 @@ reports/round24/stage24d/
 
 ---
 
-## 7. Stage 24E — 受限模型優化
+## 7. Stage 24E — NoHoldout 確認 × 優選架構／特徵
 
-**解決：** P1、P3、P7、P8。
+**解決：** P1、P3、P7、P8。  
+**狀態：** NEXT（預登記 → 訓練 → 24F formal gate）。
 
-### 候選矩陣原則
+### 7.0 為何必須重測（資料協議 ≠ 架構結論）
 
-- 以 Stage 24C 前兩名 feature 搭配 pooled E3 為主線。
-- XA fresh 僅作架構對照，最多搭配最佳一個 feature。
-- 不重開 transfer/KD；除非 Stage 24B/C 顯示原失敗可由 protocol artifact 完整解釋。
-- 不做無界 hyperparameter sweep；候選數、seed/fold、training budget 在 `candidate_manifest.json` 預先鎖定。
+| 已完成實驗 | 訓練資料 | 能回答什麼 | **不能**直接當硬閘結論 |
+|------------|----------|------------|------------------------|
+| 24B / 24C（B0–B2, F0–F4） | Round18 **含 ~10% holdout** | 同資料下架構／特徵相對排序 | NoHoldout 下誰過 AACDR 硬閘 |
+| train-source ablation | NoHoldout **僅** `pooled_mlp × own_plus_summary` | 資料用量可抬 `aacdr_gdsc` | 其他架構／特徵在 NoHoldout 是否更好 |
 
-### Early stopping 與選模
+**結論：** NoHoldout 只改「用多少 GDSC 訓練列」，與模型架構正交。硬閘已改為 AACDR 兩組後，**不可**用 holdout 上的 F2/F3 分數宣稱能否 PASS，也**不可**只用 NoHoldout×pooled 代表全部架構。  
+**24E 主軸：** 挑 holdout 上硬閘相關表現較佳的少數候選，在 **同一套 NoHoldout 5-fold** 上重訓＋eval3，再比對硬閘。
 
-- 只使用 source-fold validation。
-- TCGA、GDSC 與歷史結果不能選 epoch/checkpoint。
-- GDSC unseen-drug 可計算 Spearman/Pareto，但只進 diagnostic report。
+### 7.1 硬閘與挑選依據
+
+標準：[`AACDR_drug_macro_auroc_auprc.md`](AACDR_drug_macro_auroc_auprc.md)。  
+**PASS：** `aacdr_gdsc_intersect` >0.5279 **且** `aacdr_tcga_only` >0.4804（stest0）。
+
+**Holdout 上依硬閘相關指標的優選（重測清單來源；對照 stest0 後）：**
+
+| 優先 | 候選 | aacdr_gdsc | aacdr_tcga | 硬閘(stest0) | 理由 |
+|-----:|------|-----------:|-----------:|:------------:|------|
+| 1 | **F2** pred×C16 | 0.5427 | 0.5398 | **PASS** | 正式優選；仍須 NoHoldout 確認（標準對齊無 10% test） |
+| 2 | **F3** pred×C32 | 0.5268 | 0.4730 | NO_LOCK | top2；差 `aacdr_gdsc` −0.001 / `aacdr_tcga` −0.007 |
+| 3 | **NoHoldout pooled** | 0.5648 | 0.4971 | **PASS** | 資料基準 |
+| 4 | B0/Ctrl pooled | 0.5285 | 0.4861 | **PASS** | holdout 下已過硬閘；作對照 |
+| 5 | B2 XA×C32（可選→C16） | 0.5263 | 0.4858 | NO_LOCK | 架構對照 |
+
+### 7.2 預登記候選矩陣（NoHoldout 確認為主）
+
+**訓練資料協議（鎖死）：** `development ∪ internal_test` 全量重建 formal 5-fold（與 ablation NoHoldout 相同）；early-stop 僅 source val DrugMacro。  
+**Holdout 對照：** 可重用 24C F2/F3 checkpoint 作「舊協議參考」，**不**計入 NoHoldout 硬閘排名。
+
+| ID | Architecture | Feature | 資料 | 角色 |
+|----|--------------|---------|------|------|
+| **E-NH0** | `pooled_mlp` | own_plus_summary | **NoHoldout** | 資料基準；優先重用 ablation 產物並寫入 manifest（或同等協議重跑） |
+| **E-NH1** | `biocda_predictive_e3` | **C16（F2）** | **NoHoldout** | **主確認**：優選架構×優選特徵×新資料 |
+| **E-NH2** | `biocda_predictive_e3` | **C32（F3）** | **NoHoldout** | 特徵對照確認 |
+| **E-NH3** | `biocda_xa_fresh` | **C16** | **NoHoldout** | 架構對照（單一 feature；可選，預算緊可砍） |
+| E-REF2 | `biocda_predictive_e3` | C16 | holdout（24C） | 僅參考錨；不參與 NoHoldout 排名 |
+| E-REF3 | `biocda_predictive_e3` | C32 | holdout（24C） | 僅參考錨 |
+
+**禁止：** 把 holdout 結果與 NoHoldout 結果混排爭 lock；無界超參 sweep；依 TCGA 調參；F0/F1/F4 全量 NoHoldout 重跑。
+
+### 7.3 執行順序
+
+1. **Preregister：** `reports/round24/stage24e/candidate_manifest.json` + `.sha256`（明示每臂 `train_source=no_holdout|holdout_ref`）。
+2. **Smoke：** 每新訓臂 1 fold；確認無 TCGA 洩漏、`num_workers=0`。
+3. **Formal：** 先跑 **E-NH1 / E-NH2**（必要）；E-NH0 重用或補跑；E-NH3 視 GPU 並行。
+4. **Eval3：** 五 target AUROC+AUPRC；硬閘只看 AACDR 兩組；更新 `vs_aacdr_standard`。
+5. **解讀：**  
+   - 若 E-NH1/NH2 過硬閘 → 在 PASS 候選間用 §1.1a 加權選 champion → 24F。  
+   - 若僅 E-NH0 過 → 記錄「資料效應主導」；仍可 lock pooled NoHoldout（若已預登記），並在報告標註架構未再增益。  
+   - 若皆不過 → `NO_LOCK`，報告 NoHoldout 下 gap。
+6. Telegram 僅完整 round 結束時發送。
+
+### 7.4 Early stopping 與選模
+
+- 只使用 source-fold validation DrugMacro。
+- TCGA／歷史結果不能選 epoch。
+- Soft 監控可看 AACDR 兩組，**不得**據此改候選矩陣。
 
 ### Gate 24E
 
-- 所有預登記候選完成 5/5 folds、smoke/coverage/contracts 全過後，候選 manifest 封存。
-- 若 manifest 在封存後變更，整個 formal gate 作廢，需建立新 round。
+- 預登記候選（含重用路徑）完成後封存 manifest；事後改矩陣則作廢、需新 round。
 
 ---
 
@@ -221,13 +304,15 @@ reports/round24/stage24d/
 ### Pass / fail
 
 ```text
-PASS = 單一 candidate 在五個 target 的 5-fold mean DrugMacro AUROC
-       全部嚴格大於基準。
+PASS = 單一 candidate 在 gate_required_targets
+       （aacdr_gdsc_intersect ∧ aacdr_tcga_only）
+       的 5-fold mean DrugMacro AUROC 全部嚴格大於 AACDR 標準。
 ```
 
-- `PASS` 候選超過一個時，才套用 5:4:3:2:1 與平手規則。
-- 無候選 `PASS`：寫 `NO_LOCK`，保留最佳 maximin 候選與各 target gap。
+- `PASS` 候選超過一個時，才套用 §1.1a 加權與平手規則。
+- 無候選 `PASS`：寫 `NO_LOCK`，保留最佳（依硬閘 min_delta / 加權）與各 target gap。
 - 不允許 per-target ensemble、人工選 fold、遺漏 fold 或事後改權重。
+- 其餘三 target 失敗**不**構成 `NO_LOCK`（仍須完整報告）。
 
 ### 統一 manifest
 

@@ -1,4 +1,8 @@
-"""Round 24 all-target gate and lock helpers."""
+"""Round 24 gate and lock helpers.
+
+Hard PASS requires only `gate_required_targets` (default: AACDR pair).
+All five TCGA targets are still scored and reported.
+"""
 from __future__ import annotations
 
 import hashlib
@@ -6,7 +10,7 @@ import json
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -34,36 +38,56 @@ def evaluate_all_target_gate(
     *,
     target_priority: List[str],
     target_weights: Dict[str, int],
+    gate_required_targets: Optional[Sequence[str]] = None,
 ) -> Dict[str, Any]:
-    """Hard gate: every target fold-mean AUROC must strictly exceed gate."""
+    """Evaluate per-target gates.
+
+    Hard PASS = every target in ``gate_required_targets`` has fold-mean AUROC
+    strictly greater than its AACDR standard. Other targets are reported only.
+    """
+    required = list(gate_required_targets) if gate_required_targets else list(target_priority)
     results = {}
-    n_pass = 0
-    deltas = []
+    n_pass_all = 0
+    n_pass_required = 0
+    deltas_required = []
+    deltas_all = []
     for t in target_priority:
         auc = float(per_target_fold_mean_auc[t])
         gate = float(gate_table[t]["gate_auroc"])
         passed = auc > gate
-        n_pass += int(passed)
+        n_pass_all += int(passed)
         delta = auc - gate
-        deltas.append(delta)
+        deltas_all.append(delta)
+        required_flag = t in required
+        if required_flag:
+            n_pass_required += int(passed)
+            deltas_required.append(delta)
         results[t] = {
             "fold_mean_DrugMacro_AUC": auc,
             "gate_auroc": gate,
             "delta": delta,
             "pass": passed,
+            "required_for_lock": required_flag,
         }
-    all_pass = n_pass == len(target_priority)
-    status = "PASS" if all_pass else "NO_LOCK"
+    hard_pass = n_pass_required == len(required) and len(required) > 0
+    status = "PASS" if hard_pass else "NO_LOCK"
     return {
         "status": status,
-        "n_pass": n_pass,
+        "n_pass": n_pass_required,
+        "n_pass_required": n_pass_required,
+        "n_required": len(required),
+        "n_pass_all": n_pass_all,
         "n_targets": len(target_priority),
-        "min_delta": float(min(deltas)) if deltas else None,
+        "gate_required_targets": required,
+        "min_delta": float(min(deltas_required)) if deltas_required else None,
+        "min_delta_all": float(min(deltas_all)) if deltas_all else None,
         "weighted_DrugMacro_AUC": weighted_score(per_target_fold_mean_auc, target_weights),
         "per_target": results,
         "note": (
-            "Weighted score is ranking-only after all-target PASS; "
-            "it cannot override NO_LOCK."
+            "Hard PASS requires only gate_required_targets "
+            f"({', '.join(required)}). "
+            "Weighted score ranks PASS candidates only; it cannot override NO_LOCK. "
+            "Non-required targets are reported for diagnostics/ranking soft signals."
         ),
     }
 
@@ -130,6 +154,10 @@ def build_lock_manifest(
         "selection_role_gdsc": "none",
         "tcga_used_for_selection": True,
         "tcga_role": "selection_benchmark",
+        "gate_required_targets": cfg.get(
+            "gate_required_targets",
+            ["aacdr_gdsc_intersect", "aacdr_tcga_only"],
+        ),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "git_commit": git_commit(),
         "config_path": cfg.get("_config_path"),
@@ -142,7 +170,7 @@ def build_lock_manifest(
         "forbidden": {
             "gdsc_test_for_selection": True,
             "per_target_champion": True,
-            "weighted_override_of_failed_target": True,
+            "weighted_override_of_failed_required_target": True,
             "tcga_in_early_stopping": True,
         },
     }

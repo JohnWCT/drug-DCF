@@ -308,7 +308,13 @@ def aggregate_arm(arm: str, cfg: Dict[str, Any]) -> Dict[str, Any]:
 
     means = {k: float(np.nanmean(v)) for k, v in fold_aucs.items()}
     stds = {k: float(np.nanstd(v, ddof=1)) if len(v) > 1 else 0.0 for k, v in fold_aucs.items()}
-    gate = evaluate_all_target_gate(means, gate_table(cfg), target_priority=cfg["target_priority"], target_weights=cfg["target_weights"])
+    gate = evaluate_all_target_gate(
+        means,
+        gate_table(cfg),
+        target_priority=cfg["target_priority"],
+        target_weights=cfg["target_weights"],
+        gate_required_targets=cfg.get("gate_required_targets"),
+    )
     payload = {
         "arm": arm,
         "architecture": "pooled_mlp__own_plus_summary",
@@ -326,7 +332,13 @@ def load_ctrl(cfg: Dict[str, Any]) -> Dict[str, Any]:
     base = json.loads((ROOT / "reports/round24/stage24a/baseline_summary.json").read_text())
     means = {k: v["fold_mean_DrugMacro_AUC"] for k, v in base["targets"].items()}
     stds = {k: v.get("fold_std_DrugMacro_AUC", 0.0) for k, v in base["targets"].items()}
-    gate = evaluate_all_target_gate(means, gate_table(cfg), target_priority=cfg["target_priority"], target_weights=cfg["target_weights"])
+    gate = evaluate_all_target_gate(
+        means,
+        gate_table(cfg),
+        target_priority=cfg["target_priority"],
+        target_weights=cfg["target_weights"],
+        gate_required_targets=cfg.get("gate_required_targets"),
+    )
     payload = {
         "arm": "Ctrl",
         "architecture": "pooled_mlp__own_plus_summary",

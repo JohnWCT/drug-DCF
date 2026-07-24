@@ -2,18 +2,27 @@
 
 Architecture: **pooled_mlp × own_plus_summary** (B0). Not a formal lock candidate.
 
+**Ranking note:** Selection uses the five TCGA DrugMacro targets below; GDSC train/internal scores are diagnostic only.
+
 ## Fold-mean DrugMacro AUROC
 
 | Arm | gdsc_intersect13 | tcga_only3 | dapl | aacdr_gdsc_intersect | aacdr_tcga_only | n_pass |
-|-----|------|------|------|------|------|-------|
+|-----|-----------------:|-----------:|-----:|---------------------:|---------------:|-------:|
 | Ctrl | 0.5298 | 0.5437 | 0.5084 | 0.5285 | 0.4861 | 2/5 |
 | NoHoldout | 0.5697 | 0.4845 | 0.4820 | 0.5648 | 0.4971 | 3/5 |
 | AACDR | 0.4735 | 0.4480 | 0.5371 | 0.5063 | 0.4939 | 2/5 |
 
-## Δ vs Ctrl
+## Fold-mean DrugMacro AUPRC
+
+| Arm | gdsc_intersect13 | tcga_only3 | dapl | aacdr_gdsc_intersect | aacdr_tcga_only |
+|-----|-----------------:|-----------:|-----:|---------------------:|---------------:|
+| Ctrl | 0.5963 | 0.6962 | 0.5605 | 0.5765 | 0.6559 |
+| NoHoldout | 0.6121 | 0.6368 | 0.5416 | 0.6186 | 0.6532 |
+| AACDR | 0.5487 | 0.6363 | 0.5648 | 0.5634 | 0.6667 |
+
+## Δ AUROC vs Ctrl
 
 - **NoHoldout**: gdsc_intersect13 +0.0399, tcga_only3 -0.0592, dapl -0.0263, aacdr_gdsc_intersect +0.0364, aacdr_tcga_only +0.0110
 - **AACDR**: gdsc_intersect13 -0.0563, tcga_only3 -0.0957, dapl +0.0288, aacdr_gdsc_intersect -0.0222, aacdr_tcga_only +0.0079
 
 any_all_target_pass=False
-

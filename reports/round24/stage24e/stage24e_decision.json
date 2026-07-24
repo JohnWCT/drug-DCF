@@ -1,0 +1,55 @@
+{
+  "stage": "24E/24F",
+  "standard": "aacdr_stest0_no_holdout",
+  "gate_required_targets": [
+    "aacdr_gdsc_intersect",
+    "aacdr_tcga_only"
+  ],
+  "n_candidates": 5,
+  "n_lock_pool": 3,
+  "n_pass": 2,
+  "champion_id": "E-NH0",
+  "status": "LOCKED",
+  "candidates": [
+    {
+      "id": "E-NH0",
+      "train_source": "no_holdout",
+      "gate": "PASS",
+      "aacdr_gdsc": 0.5648377832700193,
+      "aacdr_tcga": 0.49707589285714276,
+      "eligible_for_lock": true
+    },
+    {
+      "id": "E-NH1",
+      "train_source": "no_holdout",
+      "gate": "PASS",
+      "aacdr_gdsc": 0.5501483630216489,
+      "aacdr_tcga": 0.49918154761904765,
+      "eligible_for_lock": true
+    },
+    {
+      "id": "E-NH2",
+      "train_source": "no_holdout",
+      "gate": "NO_LOCK",
+      "aacdr_gdsc": 0.5209662812369805,
+      "aacdr_tcga": 0.5167113095238095,
+      "eligible_for_lock": true
+    },
+    {
+      "id": "E-REF2",
+      "train_source": "holdout_ref",
+      "gate": "PASS",
+      "aacdr_gdsc": 0.5426520946958916,
+      "aacdr_tcga": 0.5397916666666667,
+      "eligible_for_lock": false
+    },
+    {
+      "id": "E-REF3",
+      "train_source": "holdout_ref",
+      "gate": "NO_LOCK",
+      "aacdr_gdsc": 0.5267570738764994,
+      "aacdr_tcga": 0.47295386904761905,
+      "eligible_for_lock": false
+    }
+  ]
+}

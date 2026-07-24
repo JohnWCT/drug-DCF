@@ -1,0 +1,717 @@
+{
+  "standard_source": "docs/AACDR_drug_macro_auroc_auprc.md",
+  "standard_name": "aacdr_stest0_no_holdout",
+  "standard": {
+    "gdsc_intersect13": {
+      "AUROC": 0.5197,
+      "AUPRC": 0.5981,
+      "AUROC_std": 0.0269
+    },
+    "tcga_only3": {
+      "AUROC": 0.5536,
+      "AUPRC": 0.696,
+      "AUROC_std": 0.0449
+    },
+    "dapl": {
+      "AUROC": 0.5304,
+      "AUPRC": 0.557,
+      "AUROC_std": 0.0061
+    },
+    "aacdr_gdsc_intersect": {
+      "AUROC": 0.5279,
+      "AUPRC": 0.571,
+      "AUROC_std": 0.0312
+    },
+    "aacdr_tcga_only": {
+      "AUROC": 0.4804,
+      "AUPRC": 0.63,
+      "AUROC_std": 0.0414
+    }
+  },
+  "gate_required_targets": [
+    "aacdr_gdsc_intersect",
+    "aacdr_tcga_only"
+  ],
+  "candidates": [
+    {
+      "name": "B0/Ctrl pooled_mlp x own_plus_summary",
+      "gate_status": "PASS",
+      "n_pass_required": 2,
+      "n_required": 2,
+      "auc_pass": 3,
+      "auprc_pass": 4,
+      "both_pass": 2,
+      "per_target": {
+        "gdsc_intersect13": {
+          "AUROC": 0.5297908817120343,
+          "AUPRC": 0.5963130581867844,
+          "AUROC_delta": 0.010090881712034205,
+          "AUPRC_delta": -0.0017869418132155923,
+          "beat_AUROC": true,
+          "beat_AUPRC": false
+        },
+        "tcga_only3": {
+          "AUROC": 0.5437467717923009,
+          "AUPRC": 0.6962079406887041,
+          "AUROC_delta": -0.009853228207699072,
+          "AUPRC_delta": 0.0002079406887041113,
+          "beat_AUROC": false,
+          "beat_AUPRC": true
+        },
+        "dapl": {
+          "AUROC": 0.5083555188352921,
+          "AUPRC": 0.5605359812711881,
+          "AUROC_delta": -0.02204448116470792,
+          "AUPRC_delta": 0.003535981271188038,
+          "beat_AUROC": false,
+          "beat_AUPRC": true
+        },
+        "aacdr_gdsc_intersect": {
+          "AUROC": 0.5284778596243094,
+          "AUPRC": 0.5765122432161272,
+          "AUROC_delta": 0.0005778596243093403,
+          "AUPRC_delta": 0.0055122432161271995,
+          "beat_AUROC": true,
+          "beat_AUPRC": true
+        },
+        "aacdr_tcga_only": {
+          "AUROC": 0.4860528273809524,
+          "AUPRC": 0.6559356237041254,
+          "AUROC_delta": 0.005652827380952408,
+          "AUPRC_delta": 0.025935623704125388,
+          "beat_AUROC": true,
+          "beat_AUPRC": true
+        }
+      }
+    },
+    {
+      "name": "B1 predictive x C32",
+      "gate_status": "NO_LOCK",
+      "n_pass_required": 0,
+      "n_required": 2,
+      "auc_pass": 0,
+      "auprc_pass": 2,
+      "both_pass": 0,
+      "per_target": {
+        "gdsc_intersect13": {
+          "AUROC": 0.49987394837552046,
+          "AUPRC": 0.57179873410753,
+          "AUROC_delta": -0.01982605162447959,
+          "AUPRC_delta": -0.02630126589246995,
+          "beat_AUROC": false,
+          "beat_AUPRC": false
+        },
+        "tcga_only3": {
+          "AUROC": 0.45442020304612596,
+          "AUPRC": 0.6377484187525158,
+          "AUROC_delta": -0.09917979695387402,
+          "AUPRC_delta": -0.058251581247484197,
+          "beat_AUROC": false,
+          "beat_AUPRC": false
+        },
+        "dapl": {
+          "AUROC": 0.4660816121811395,
+          "AUPRC": 0.5265801952986348,
+          "AUROC_delta": -0.06431838781886046,
+          "AUPRC_delta": -0.030419804701365294,
+          "beat_AUROC": false,
+          "beat_AUPRC": false
+        },
+        "aacdr_gdsc_intersect": {
+          "AUROC": 0.5267570738764994,
+          "AUPRC": 0.5889674477748408,
+          "AUROC_delta": -0.0011429261235006427,
+          "AUPRC_delta": 0.017967447774840828,
+          "beat_AUROC": false,
+          "beat_AUPRC": true
+        },
+        "aacdr_tcga_only": {
+          "AUROC": 0.47295386904761905,
+          "AUPRC": 0.6557535487199548,
+          "AUROC_delta": -0.007446130952380947,
+          "AUPRC_delta": 0.025753548719954833,
+          "beat_AUROC": false,
+          "beat_AUPRC": true
+        }
+      }
+    },
+    {
+      "name": "B2 XA x C32",
+      "gate_status": "NO_LOCK",
+      "n_pass_required": 1,
+      "n_required": 2,
+      "auc_pass": 1,
+      "auprc_pass": 2,
+      "both_pass": 1,
+      "per_target": {
+        "gdsc_intersect13": {
+          "AUROC": 0.48402089430117884,
+          "AUPRC": 0.5615658684535443,
+          "AUROC_delta": -0.03567910569882121,
+          "AUPRC_delta": -0.036534131546455684,
+          "beat_AUROC": false,
+          "beat_AUPRC": false
+        },
+        "tcga_only3": {
+          "AUROC": 0.48789118281530086,
+          "AUPRC": 0.6529910487265065,
+          "AUROC_delta": -0.06570881718469912,
+          "AUPRC_delta": -0.04300895127349347,
+          "beat_AUROC": false,
+          "beat_AUPRC": false
+        },
+        "dapl": {
+          "AUROC": 0.49449165047303045,
+          "AUPRC": 0.5423432205000315,
+          "AUROC_delta": -0.03590834952696953,
+          "AUPRC_delta": -0.014656779499968575,
+          "beat_AUROC": false,
+          "beat_AUPRC": false
+        },
+        "aacdr_gdsc_intersect": {
+          "AUROC": 0.5263166477163362,
+          "AUPRC": 0.6027582254290659,
+          "AUROC_delta": -0.001583352283663797,
+          "AUPRC_delta": 0.03175822542906592,
+          "beat_AUROC": false,
+          "beat_AUPRC": true
+        },
+        "aacdr_tcga_only": {
+          "AUROC": 0.4857589285714286,
+          "AUPRC": 0.6380375228008868,
+          "AUROC_delta": 0.005358928571428612,
+          "AUPRC_delta": 0.008037522800886765,
+          "beat_AUROC": true,
+          "beat_AUPRC": true
+        }
+      }
+    },
+    {
+      "name": "F2 pred x C16",
+      "gate_status": "PASS",
+      "n_pass_required": 2,
+      "n_required": 2,
+      "auc_pass": 3,
+      "auprc_pass": 2,
+      "both_pass": 2,
+      "per_target": {
+        "gdsc_intersect13": {
+          "AUROC": 0.5250421631587849,
+          "AUPRC": 0.5773237269911099,
+          "AUROC_delta": 0.005342163158784885,
+          "AUPRC_delta": -0.020776273008890067,
+          "beat_AUROC": true,
+          "beat_AUPRC": false
+        },
+        "tcga_only3": {
+          "AUROC": 0.4533922766080273,
+          "AUPRC": 0.6473357530850732,
+          "AUROC_delta": -0.1002077233919727,
+          "AUPRC_delta": -0.04866424691492677,
+          "beat_AUROC": false,
+          "beat_AUPRC": false
+        },
+        "dapl": {
+          "AUROC": 0.48587839835023205,
+          "AUPRC": 0.5466200369159,
+          "AUROC_delta": -0.04452160164976793,
+          "AUPRC_delta": -0.010379963084100052,
+          "beat_AUROC": false,
+          "beat_AUPRC": false
+        },
+        "aacdr_gdsc_intersect": {
+          "AUROC": 0.5426520946958916,
+          "AUPRC": 0.5858927462649042,
+          "AUROC_delta": 0.01475209469589156,
+          "AUPRC_delta": 0.014892746264904222,
+          "beat_AUROC": true,
+          "beat_AUPRC": true
+        },
+        "aacdr_tcga_only": {
+          "AUROC": 0.5397916666666667,
+          "AUPRC": 0.6824223731327388,
+          "AUROC_delta": 0.059391666666666676,
+          "AUPRC_delta": 0.052422373132738787,
+          "beat_AUROC": true,
+          "beat_AUPRC": true
+        }
+      }
+    },
+    {
+      "name": "F3 pred x C32",
+      "gate_status": "NO_LOCK",
+      "n_pass_required": 0,
+      "n_required": 2,
+      "auc_pass": 0,
+      "auprc_pass": 2,
+      "both_pass": 0,
+      "per_target": {
+        "gdsc_intersect13": {
+          "AUROC": 0.49987394837552046,
+          "AUPRC": 0.57179873410753,
+          "AUROC_delta": -0.01982605162447959,
+          "AUPRC_delta": -0.02630126589246995,
+          "beat_AUROC": false,
+          "beat_AUPRC": false
+        },
+        "tcga_only3": {
+          "AUROC": 0.45442020304612596,
+          "AUPRC": 0.6377484187525158,
+          "AUROC_delta": -0.09917979695387402,
+          "AUPRC_delta": -0.058251581247484197,
+          "beat_AUROC": false,
+          "beat_AUPRC": false
+        },
+        "dapl": {
+          "AUROC": 0.4660816121811395,
+          "AUPRC": 0.5265801952986348,
+          "AUROC_delta": -0.06431838781886046,
+          "AUPRC_delta": -0.030419804701365294,
+          "beat_AUROC": false,
+          "beat_AUPRC": false
+        },
+        "aacdr_gdsc_intersect": {
+          "AUROC": 0.5267570738764994,
+          "AUPRC": 0.5889674477748408,
+          "AUROC_delta": -0.0011429261235006427,
+          "AUPRC_delta": 0.017967447774840828,
+          "beat_AUROC": false,
+          "beat_AUPRC": true
+        },
+        "aacdr_tcga_only": {
+          "AUROC": 0.47295386904761905,
+          "AUPRC": 0.6557535487199548,
+          "AUROC_delta": -0.007446130952380947,
+          "AUPRC_delta": 0.025753548719954833,
+          "beat_AUROC": false,
+          "beat_AUPRC": true
+        }
+      }
+    },
+    {
+      "name": "F0 pred x own+sum",
+      "gate_status": "NO_LOCK",
+      "n_pass_required": 1,
+      "n_required": 2,
+      "auc_pass": 2,
+      "auprc_pass": 2,
+      "both_pass": 1,
+      "per_target": {
+        "gdsc_intersect13": {
+          "AUROC": 0.5328921266014038,
+          "AUPRC": 0.5825925671543407,
+          "AUROC_delta": 0.013192126601403786,
+          "AUPRC_delta": -0.015507432845659253,
+          "beat_AUROC": true,
+          "beat_AUPRC": false
+        },
+        "tcga_only3": {
+          "AUROC": 0.4356693620844564,
+          "AUPRC": 0.6182876414197184,
+          "AUROC_delta": -0.11793063791554359,
+          "AUPRC_delta": -0.07771235858028158,
+          "beat_AUROC": false,
+          "beat_AUPRC": false
+        },
+        "dapl": {
+          "AUROC": 0.4850683657867022,
+          "AUPRC": 0.5447205220235681,
+          "AUROC_delta": -0.04533163421329778,
+          "AUPRC_delta": -0.012279477976431918,
+          "beat_AUROC": false,
+          "beat_AUPRC": false
+        },
+        "aacdr_gdsc_intersect": {
+          "AUROC": 0.5299033236178647,
+          "AUPRC": 0.5824002537417767,
+          "AUROC_delta": 0.002003323617864705,
+          "AUPRC_delta": 0.011400253741776778,
+          "beat_AUROC": true,
+          "beat_AUPRC": true
+        },
+        "aacdr_tcga_only": {
+          "AUROC": 0.43509672619047624,
+          "AUPRC": 0.6358996031833813,
+          "AUROC_delta": -0.04530327380952376,
+          "AUPRC_delta": 0.005899603183381341,
+          "beat_AUROC": false,
+          "beat_AUPRC": true
+        }
+      }
+    },
+    {
+      "name": "F1 pred x z_only",
+      "gate_status": "NO_LOCK",
+      "n_pass_required": 0,
+      "n_required": 2,
+      "auc_pass": 0,
+      "auprc_pass": 2,
+      "both_pass": 0,
+      "per_target": {
+        "gdsc_intersect13": {
+          "AUROC": 0.5046386393985002,
+          "AUPRC": 0.5593725947347664,
+          "AUROC_delta": -0.015061360601499874,
+          "AUPRC_delta": -0.03872740526523355,
+          "beat_AUROC": false,
+          "beat_AUPRC": false
+        },
+        "tcga_only3": {
+          "AUROC": 0.42966142340629626,
+          "AUPRC": 0.6111511983593774,
+          "AUROC_delta": -0.12393857659370372,
+          "AUPRC_delta": -0.08484880164062258,
+          "beat_AUROC": false,
+          "beat_AUPRC": false
+        },
+        "dapl": {
+          "AUROC": 0.47385853724095695,
+          "AUPRC": 0.5349677718339161,
+          "AUROC_delta": -0.05654146275904304,
+          "AUPRC_delta": -0.022032228166083967,
+          "beat_AUROC": false,
+          "beat_AUPRC": false
+        },
+        "aacdr_gdsc_intersect": {
+          "AUROC": 0.522074977893652,
+          "AUPRC": 0.578384127424196,
+          "AUROC_delta": -0.0058250221063480545,
+          "AUPRC_delta": 0.00738412742419603,
+          "beat_AUROC": false,
+          "beat_AUPRC": true
+        },
+        "aacdr_tcga_only": {
+          "AUROC": 0.4536979166666667,
+          "AUPRC": 0.6609535790491489,
+          "AUROC_delta": -0.026702083333333293,
+          "AUPRC_delta": 0.03095357904914886,
+          "beat_AUROC": false,
+          "beat_AUPRC": true
+        }
+      }
+    },
+    {
+      "name": "F4 pred x C64",
+      "gate_status": "NO_LOCK",
+      "n_pass_required": 0,
+      "n_required": 2,
+      "auc_pass": 0,
+      "auprc_pass": 2,
+      "both_pass": 0,
+      "per_target": {
+        "gdsc_intersect13": {
+          "AUROC": 0.5103440749566424,
+          "AUPRC": 0.5799514670166586,
+          "AUROC_delta": -0.009355925043357693,
+          "AUPRC_delta": -0.018148532983341403,
+          "beat_AUROC": false,
+          "beat_AUPRC": false
+        },
+        "tcga_only3": {
+          "AUROC": 0.42635432807705165,
+          "AUPRC": 0.6180305190476367,
+          "AUROC_delta": -0.12724567192294833,
+          "AUPRC_delta": -0.07796948095236322,
+          "beat_AUROC": false,
+          "beat_AUPRC": false
+        },
+        "dapl": {
+          "AUROC": 0.4735449028602147,
+          "AUPRC": 0.5285210700060693,
+          "AUROC_delta": -0.05685509713978526,
+          "AUPRC_delta": -0.028478929993930757,
+          "beat_AUROC": false,
+          "beat_AUPRC": false
+        },
+        "aacdr_gdsc_intersect": {
+          "AUROC": 0.5080426073645723,
+          "AUPRC": 0.571569859121009,
+          "AUROC_delta": -0.01985739263542774,
+          "AUPRC_delta": 0.000569859121009042,
+          "beat_AUROC": false,
+          "beat_AUPRC": true
+        },
+        "aacdr_tcga_only": {
+          "AUROC": 0.4361309523809524,
+          "AUPRC": 0.6430645502340536,
+          "AUROC_delta": -0.0442690476190476,
+          "AUPRC_delta": 0.013064550234053618,
+          "beat_AUROC": false,
+          "beat_AUPRC": true
+        }
+      }
+    },
+    {
+      "name": "Ablation NoHoldout",
+      "gate_status": "PASS",
+      "n_pass_required": 2,
+      "n_required": 2,
+      "auc_pass": 3,
+      "auprc_pass": 3,
+      "both_pass": 3,
+      "per_target": {
+        "gdsc_intersect13": {
+          "AUROC": 0.5696988634861493,
+          "AUPRC": 0.6120577645727945,
+          "AUROC_delta": 0.049998863486149236,
+          "AUPRC_delta": 0.013957764572794518,
+          "beat_AUROC": true,
+          "beat_AUPRC": true
+        },
+        "tcga_only3": {
+          "AUROC": 0.48449733279511786,
+          "AUPRC": 0.6368095701061607,
+          "AUROC_delta": -0.06910266720488212,
+          "AUPRC_delta": -0.05919042989383927,
+          "beat_AUROC": false,
+          "beat_AUPRC": false
+        },
+        "dapl": {
+          "AUROC": 0.48201871852155403,
+          "AUPRC": 0.5415790060085391,
+          "AUROC_delta": -0.04838128147844595,
+          "AUPRC_delta": -0.015420993991460907,
+          "beat_AUROC": false,
+          "beat_AUPRC": false
+        },
+        "aacdr_gdsc_intersect": {
+          "AUROC": 0.5648377832700193,
+          "AUPRC": 0.618605590530278,
+          "AUROC_delta": 0.036937783270019287,
+          "AUPRC_delta": 0.04760559053027802,
+          "beat_AUROC": true,
+          "beat_AUPRC": true
+        },
+        "aacdr_tcga_only": {
+          "AUROC": 0.49707589285714276,
+          "AUPRC": 0.6531777437398175,
+          "AUROC_delta": 0.01667589285714277,
+          "AUPRC_delta": 0.023177743739817513,
+          "beat_AUROC": true,
+          "beat_AUPRC": true
+        }
+      }
+    },
+    {
+      "name": "Ablation AACDR",
+      "gate_status": "NO_LOCK",
+      "n_pass_required": 1,
+      "n_required": 2,
+      "auc_pass": 2,
+      "auprc_pass": 2,
+      "both_pass": 2,
+      "per_target": {
+        "gdsc_intersect13": {
+          "AUROC": 0.473527142411005,
+          "AUPRC": 0.5486820236449129,
+          "AUROC_delta": -0.04617285758899503,
+          "AUPRC_delta": -0.049417976355087045,
+          "beat_AUROC": false,
+          "beat_AUPRC": false
+        },
+        "tcga_only3": {
+          "AUROC": 0.4480049133863736,
+          "AUPRC": 0.636307529380933,
+          "AUROC_delta": -0.10559508661362638,
+          "AUPRC_delta": -0.059692470619066906,
+          "beat_AUROC": false,
+          "beat_AUPRC": false
+        },
+        "dapl": {
+          "AUROC": 0.5371166492612618,
+          "AUPRC": 0.5648061847100869,
+          "AUROC_delta": 0.006716649261261809,
+          "AUPRC_delta": 0.007806184710086872,
+          "beat_AUROC": true,
+          "beat_AUPRC": true
+        },
+        "aacdr_gdsc_intersect": {
+          "AUROC": 0.5062679760946209,
+          "AUPRC": 0.563412653320596,
+          "AUROC_delta": -0.021632023905379105,
+          "AUPRC_delta": -0.007587346679403972,
+          "beat_AUROC": false,
+          "beat_AUPRC": false
+        },
+        "aacdr_tcga_only": {
+          "AUROC": 0.49390625000000005,
+          "AUPRC": 0.6667134095459172,
+          "AUROC_delta": 0.013506250000000053,
+          "AUPRC_delta": 0.036713409545917175,
+          "beat_AUROC": true,
+          "beat_AUPRC": true
+        }
+      }
+    },
+    {
+      "name": "E-NH0 pooled_mlp__own_plus_summary x own_plus_summary (NoHoldout)",
+      "gate_status": "PASS",
+      "n_pass_required": 2,
+      "n_required": 2,
+      "auc_pass": 3,
+      "auprc_pass": 3,
+      "both_pass": 3,
+      "per_target": {
+        "gdsc_intersect13": {
+          "AUROC": 0.5696988634861493,
+          "AUPRC": 0.6120577645727945,
+          "AUROC_delta": 0.049998863486149236,
+          "AUPRC_delta": 0.013957764572794518,
+          "beat_AUROC": true,
+          "beat_AUPRC": true
+        },
+        "tcga_only3": {
+          "AUROC": 0.48449733279511786,
+          "AUPRC": 0.6368095701061607,
+          "AUROC_delta": -0.06910266720488212,
+          "AUPRC_delta": -0.05919042989383927,
+          "beat_AUROC": false,
+          "beat_AUPRC": false
+        },
+        "dapl": {
+          "AUROC": 0.48201871852155403,
+          "AUPRC": 0.5415790060085391,
+          "AUROC_delta": -0.04838128147844595,
+          "AUPRC_delta": -0.015420993991460907,
+          "beat_AUROC": false,
+          "beat_AUPRC": false
+        },
+        "aacdr_gdsc_intersect": {
+          "AUROC": 0.5648377832700193,
+          "AUPRC": 0.618605590530278,
+          "AUROC_delta": 0.036937783270019287,
+          "AUPRC_delta": 0.04760559053027802,
+          "beat_AUROC": true,
+          "beat_AUPRC": true
+        },
+        "aacdr_tcga_only": {
+          "AUROC": 0.49707589285714276,
+          "AUPRC": 0.6531777437398175,
+          "AUROC_delta": 0.01667589285714277,
+          "AUPRC_delta": 0.023177743739817513,
+          "beat_AUROC": true,
+          "beat_AUPRC": true
+        }
+      }
+    },
+    {
+      "name": "E-NH1 biocda_predictive_e3 x z_plus_context16 (NoHoldout)",
+      "gate_status": "PASS",
+      "n_pass_required": 2,
+      "n_required": 2,
+      "auc_pass": 3,
+      "auprc_pass": 2,
+      "both_pass": 2,
+      "per_target": {
+        "gdsc_intersect13": {
+          "AUROC": 0.5555958836002235,
+          "AUPRC": 0.5935213299305568,
+          "AUROC_delta": 0.035895883600223444,
+          "AUPRC_delta": -0.004578670069443125,
+          "beat_AUROC": true,
+          "beat_AUPRC": false
+        },
+        "tcga_only3": {
+          "AUROC": 0.4492201301266108,
+          "AUPRC": 0.6339131592814241,
+          "AUROC_delta": -0.10437986987338921,
+          "AUPRC_delta": -0.06208684071857584,
+          "beat_AUROC": false,
+          "beat_AUPRC": false
+        },
+        "dapl": {
+          "AUROC": 0.4690073741633288,
+          "AUPRC": 0.5398768013002467,
+          "AUROC_delta": -0.061392625836671155,
+          "AUPRC_delta": -0.017123198699753317,
+          "beat_AUROC": false,
+          "beat_AUPRC": false
+        },
+        "aacdr_gdsc_intersect": {
+          "AUROC": 0.5501483630216489,
+          "AUPRC": 0.5926507376803756,
+          "AUROC_delta": 0.022248363021648898,
+          "AUPRC_delta": 0.02165073768037562,
+          "beat_AUROC": true,
+          "beat_AUPRC": true
+        },
+        "aacdr_tcga_only": {
+          "AUROC": 0.49918154761904765,
+          "AUPRC": 0.6663029683418603,
+          "AUROC_delta": 0.018781547619047656,
+          "AUPRC_delta": 0.03630296834186031,
+          "beat_AUROC": true,
+          "beat_AUPRC": true
+        }
+      }
+    },
+    {
+      "name": "E-NH2 biocda_predictive_e3 x z_plus_context32 (NoHoldout)",
+      "gate_status": "NO_LOCK",
+      "n_pass_required": 1,
+      "n_required": 2,
+      "auc_pass": 2,
+      "auprc_pass": 2,
+      "both_pass": 1,
+      "per_target": {
+        "gdsc_intersect13": {
+          "AUROC": 0.527603884416722,
+          "AUPRC": 0.5837604794435683,
+          "AUROC_delta": 0.007903884416721962,
+          "AUPRC_delta": -0.014339520556431617,
+          "beat_AUROC": true,
+          "beat_AUPRC": false
+        },
+        "tcga_only3": {
+          "AUROC": 0.49245000889791707,
+          "AUPRC": 0.6722707938182817,
+          "AUROC_delta": -0.06114999110208291,
+          "AUPRC_delta": -0.023729206181718254,
+          "beat_AUROC": false,
+          "beat_AUPRC": false
+        },
+        "dapl": {
+          "AUROC": 0.462788266553862,
+          "AUPRC": 0.5377275219098798,
+          "AUROC_delta": -0.06761173344613797,
+          "AUPRC_delta": -0.019272478090120226,
+          "beat_AUROC": false,
+          "beat_AUPRC": false
+        },
+        "aacdr_gdsc_intersect": {
+          "AUROC": 0.5209662812369805,
+          "AUPRC": 0.594271538010694,
+          "AUROC_delta": -0.006933718763019514,
+          "AUPRC_delta": 0.023271538010694037,
+          "beat_AUROC": false,
+          "beat_AUPRC": true
+        },
+        "aacdr_tcga_only": {
+          "AUROC": 0.5167113095238095,
+          "AUPRC": 0.681739352561629,
+          "AUROC_delta": 0.03631130952380951,
+          "AUPRC_delta": 0.05173935256162898,
+          "beat_AUROC": true,
+          "beat_AUPRC": true
+        }
+      }
+    }
+  ],
+  "targets_ever_beat_AUROC": [
+    "gdsc_intersect13",
+    "dapl",
+    "aacdr_gdsc_intersect",
+    "aacdr_tcga_only"
+  ],
+  "targets_never_beat_AUROC": [
+    "tcga_only3"
+  ],
+  "targets_ever_beat_AUPRC": [
+    "gdsc_intersect13",
+    "tcga_only3",
+    "dapl",
+    "aacdr_gdsc_intersect",
+    "aacdr_tcga_only"
+  ],
+  "targets_never_beat_AUPRC": []
+}

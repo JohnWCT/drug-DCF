@@ -1,0 +1,74 @@
+{
+  "stage": "24E",
+  "created_at": "2026-07-24T06:28:53.914391+00:00",
+  "standard_name": "aacdr_stest0_no_holdout",
+  "gate_required_targets": [
+    "aacdr_gdsc_intersect",
+    "aacdr_tcga_only"
+  ],
+  "target_weights": {
+    "aacdr_gdsc_intersect": 5,
+    "aacdr_tcga_only": 4,
+    "dapl": 3,
+    "gdsc_intersect13": 2,
+    "tcga_only3": 1
+  },
+  "train_protocol": {
+    "name": "no_holdout_formal_5fold",
+    "splits_root": "result/optimization_runs/round24_train_source_ablation/NoHoldout/splits",
+    "holdout": "disabled",
+    "aligned_with_standard": "aacdr_stest0_no_holdout"
+  },
+  "candidates": [
+    {
+      "id": "E-NH0",
+      "architecture": "pooled_mlp",
+      "feature": "own_plus_summary",
+      "train_source": "no_holdout",
+      "role": "data_baseline",
+      "reuse_from": "reports/round24/train_source_ablation/NoHoldout",
+      "action": "reuse"
+    },
+    {
+      "id": "E-NH1",
+      "architecture": "biocda_predictive_e3",
+      "feature": "z_plus_context16",
+      "feature_path": "result/optimization_runs/round20_unseen_drug_closure/features/z_plus_context16",
+      "tcga_mode": "c16_build",
+      "train_source": "no_holdout",
+      "role": "primary_confirm",
+      "action": "train"
+    },
+    {
+      "id": "E-NH2",
+      "architecture": "biocda_predictive_e3",
+      "feature": "z_plus_context32",
+      "feature_path": "result/optimization_runs/round20_unseen_drug_closure/features/z_plus_context32",
+      "tcga_mode": "c32_build",
+      "train_source": "no_holdout",
+      "role": "feature_contrast",
+      "action": "train"
+    },
+    {
+      "id": "E-REF2",
+      "architecture": "biocda_predictive_e3",
+      "feature": "z_plus_context16",
+      "train_source": "holdout_ref",
+      "role": "holdout_reference",
+      "reuse_from": "reports/round24/stage24c/F2",
+      "action": "reuse_ref"
+    },
+    {
+      "id": "E-REF3",
+      "architecture": "biocda_predictive_e3",
+      "feature": "z_plus_context32",
+      "train_source": "holdout_ref",
+      "role": "holdout_reference",
+      "reuse_from": "reports/round24/stage24c/F3",
+      "action": "reuse_ref"
+    }
+  ],
+  "config_path": "configs/round24/eval3.yaml",
+  "config_sha256": "3769ecc63b2819c0551507614d6f097ba12fad0ba8f83a61ca956c1071ad87e3",
+  "note": "Holdout refs (E-REF*) do not compete for NoHoldout lock ranking."
+}

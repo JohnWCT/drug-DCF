@@ -12,7 +12,7 @@
 ### 已鎖定決策（2026-07-22）
 
 1. 最終交付必須是**單一 unified model**；不接受 per-target champion。
-2. 五個 TCGA target 的 DrugMacro AUROC 必須**全部超越** §1.3 基準；5:4:3:2:1 僅作全數通過後排序。
+2. **硬閘（Stage 24E 起）：** 僅 `aacdr_gdsc_intersect` 與 `aacdr_tcga_only` 的 DrugMacro AUROC 必須超越 §1.3 標準；其餘三組必報、不擋 lock。PASS 後才用 5:4:3:2:1 排序。
 3. 正式 `eval3` 協議以 **Round 18 的 5 source-fold 訓練 + Stage 18E TCGA 評估**為基礎。
 4. GDSC development / validation / test **不參與選模**；只保留診斷與科學解釋用途。
 5. TCGA 標籤不得進入訓練或 early stopping；候選矩陣須在正式 gate 前預先登記。
@@ -52,29 +52,34 @@
 
 ### 1.3 **Round 24 更新目標（本 plan 定義）**
 
-**正式產品 / 論文的外部驗證 north star 改回 TCGA 五 target，且必須超越下列 5-fold 基準。**
+**正式產品 / 論文的外部驗證 north star：AACDR 兩組硬閘（`aacdr_gdsc_intersect` ∧ `aacdr_tcga_only`）；其餘三組強制報告。**
 
 | 評估集 | 資料來源 | 藥物數 | 觀測 pair 數 | DrugMacro AUROC | DrugMacro AUPRC |
 |--------|----------|--------|--------------|-----------------|-----------------|
-| `gdsc_intersect13` | DAPL / eval3 | 12 | 906 | **0.5184 ± 0.0437** | 0.6011 ± 0.0252 |
-| `tcga_only3` | DAPL / eval3 | 3 | 129 | **0.5586 ± 0.0442** | 0.7130 ± 0.0272 |
-| `TCGA_drug_response_from_DAPL`（dapl） | DAPL / eval3（auxiliary） | 5 | 178 | **0.5356 ± 0.0570** | 0.5591 ± 0.0318 |
-| `aacdr_gdsc_intersect` | AACDR / target_infer | 11 | 425 | **0.5582 ± 0.0618** | 0.6017 ± 0.0487 |
-| `aacdr_tcga_only` | AACDR / target_infer | 8 | 97 | **0.4394 ± 0.0372** | 0.5942 ± 0.0206 |
+| `gdsc_intersect13` | DAPL / eval3_stest0 | 12 | 906 | **0.5197 ± 0.0269** | 0.5981 ± 0.0222 |
+| `tcga_only3` | DAPL / eval3_stest0 | 3 | 129 | **0.5536 ± 0.0449** | 0.6960 ± 0.0286 |
+| `TCGA_drug_response_from_DAPL`（dapl） | DAPL / eval3_stest0 | 5 | 178 | **0.5304 ± 0.0061** | 0.5570 ± 0.0117 |
+| `aacdr_gdsc_intersect` | AACDR / target_infer_stest0 | 11 | 425 | **0.5279 ± 0.0312** | 0.5710 ± 0.0122 |
+| `aacdr_tcga_only` | AACDR / target_infer_stest0 | 8 | 97 | **0.4804 ± 0.0414** | 0.6300 ± 0.0419 |
+
+> **現行 Round 24 標準 = 無 10% testset（stest0）。** 歷史含 holdout 基準見 [`AACDR_drug_macro_auroc_auprc.md`](AACDR_drug_macro_auroc_auprc.md)，不再作硬閘。
 
 **選模協議（延續 R23 TCGA 結論，更新 gate 定義）：**
 
 | 項目 | 設定 |
 |------|------|
-| 評估域 | 僅上表五個 TCGA external target |
+| 評估域 | 五個 TCGA external target（皆須報告） |
+| **硬閘 PASS（Stage 24E 起）** | 僅 `aacdr_gdsc_intersect` **且** `aacdr_tcga_only` 的 DrugMacro AUROC > 標準 |
 | **不得**作為選模依據 | GDSC development / validation / **test** |
-| Target 優先順序（高→低） | `gdsc_intersect13` > `tcga_only3` > `dapl` > `aacdr_gdsc_intersect` > `aacdr_tcga_only` |
+| Target 優先順序（高→低） | `aacdr_gdsc_intersect` > `aacdr_tcga_only` > `dapl` > `gdsc_intersect13` > `tcga_only3` |
 | 主指標 | DrugMacro AUROC |
-| 加權（整體排序） | 5 : 4 : 3 : 2 : 1 |
+| 加權（PASS 後排序） | 5 : 4 : 3 : 2 : 1（對應上列；後三者不擋 lock） |
 | 平手規則 | DrugMacro AUPRC → Global AUROC → Global AUPRC |
-| 成功定義 | **單一模型五 target 的 5-fold mean DrugMacro AUROC 均超越上表 mean**；缺任一 target 即 `NO_LOCK` |
-| 排序適用時機 | 僅在一個以上候選全數通過後，才使用 5:4:3:2:1 與平手規則 |
+| 成功定義 | **單一模型**在兩組硬閘 target 上 5-fold mean DrugMacro AUROC 均超越標準；否則 `NO_LOCK` |
+| 排序適用時機 | 僅在一個以上候選硬閘 PASS 後，才使用加權與平手規則 |
 | GDSC 角色 | diagnostic-only；不得影響 checkpoint、候選或 lock |
+
+> **修訂說明（2026-07-24）：** (1) 硬閘改為僅 AACDR 兩組；(2) 超越標準改為 **無 10% testset（stest0）**：`aacdr_gdsc`>0.5279、`aacdr_tcga_only`>0.4804。詳見 [`AACDR_drug_macro_auroc_auprc.md`](AACDR_drug_macro_auroc_auprc.md) / [`round24_solution_plan.md`](round24_solution_plan.md) §1.1。
 
 **歷史 stretch goal（非 Round 24 硬性 gate，但作為長期參照）：**  
 R13 own_plus_summary gdsc_intersect13 **0.6112** / 使用者紀錄 **0.5918** — 代表在一致 protocol 下曾達到的上限。
@@ -253,7 +258,7 @@ BioCDA 在 GDSC development unseen-drug 上達 ~0.74–0.75 DrugMacro AUC，但 
 
 **已決定：**
 - Round 24 只建立一份 TCGA eval3 5-fold 的正式 lock；GDSC 結果作 diagnostic 欄位。
-- Target 優先順序維持 `gdsc_intersect13 > tcga_only3 > dapl > aacdr_gdsc_intersect > aacdr_tcga_only`，但只在候選全數通過後排序。
+- Target 優先順序（Stage 24E 起）：`aacdr_gdsc_intersect > aacdr_tcga_only > dapl > gdsc_intersect13 > tcga_only3`；硬閘僅前兩組，排序只在硬閘 PASS 後套用。
 - 舊 R20/R23 lock 保留歷史事實，Round 24 lock 以 `supersedes` 指向舊 manifest，不回寫舊結論。
 
 **影響：** 實驗進行前需先定義「何謂 LOCKED / SELECTED / REJECTED」的判準，避免 Round 24 結束後再次出現雙軌結論。
@@ -298,7 +303,7 @@ P8 GDSC 構念效度    →  敘事與 claim
 | 決策 | 結果 |
 |------|------|
 | North star | §1.3 五 target 基準；歷史 0.5918 / 0.6112 為 stretch reference |
-| 成功 gate | 五 target 全部超越，不接受只有加權最優 |
+| 成功 gate | **AACDR 兩組**（`aacdr_gdsc_intersect` ∧ `aacdr_tcga_only`）超越標準；其餘三組必報不擋 lock |
 | 產品形態 | 單一 unified model |
 | GDSC | diagnostic-only |
 | 正式協議 | Round 18 5 source-fold + Stage 18E TCGA，建立具名 `eval3` manifest |

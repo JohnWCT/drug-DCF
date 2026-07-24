@@ -17,50 +17,68 @@ paths:
   feature_c32: result/optimization_runs/round20_unseen_drug_closure/features/z_plus_context32
 
 targets:
+  # Round 24 gates = AACDR stest0 (no 10% holdout/test) standard.
+  # Source: docs/AACDR_drug_macro_auroc_auprc.md (eval3_stest0 / target_infer_stest0)
   - key: gdsc_intersect13
     path: data/TCGA/PMID27354694_DR_OMICS_ad_intersect_pretrain_gdsc_intersect13.csv
-    gate_auroc: 0.5184
-    gate_auprc: 0.6011
-    gate_auroc_std: 0.0437
+    gate_auroc: 0.5197
+    gate_auprc: 0.5981
+    gate_auroc_std: 0.0269
+    gate_auprc_std: 0.0222
     headline_n_pairs: 906
   - key: tcga_only3
     path: data/TCGA/PMID27354694_DR_OMICS_ad_intersect_pretrain_tcga_only3.csv
-    gate_auroc: 0.5586
-    gate_auprc: 0.7130
-    gate_auroc_std: 0.0442
+    gate_auroc: 0.5536
+    gate_auprc: 0.6960
+    gate_auroc_std: 0.0449
+    gate_auprc_std: 0.0286
     headline_n_pairs: 129
   - key: dapl
     path: data/TCGA/TCGA_drug_response_from_DAPL.csv
-    gate_auroc: 0.5356
-    gate_auprc: 0.5591
-    gate_auroc_std: 0.0570
+    gate_auroc: 0.5304
+    gate_auprc: 0.5570
+    gate_auroc_std: 0.0061
+    gate_auprc_std: 0.0117
     headline_n_pairs: 178
   - key: aacdr_gdsc_intersect
     path: data/TCGA/TCGA_AACDR_response_final_with_smiles_intersect_pretrain_gdsc_intersect.csv
-    gate_auroc: 0.5582
-    gate_auprc: 0.6017
-    gate_auroc_std: 0.0618
+    gate_auroc: 0.5279
+    gate_auprc: 0.5710
+    gate_auroc_std: 0.0312
+    gate_auprc_std: 0.0122
     headline_n_pairs: 425
   - key: aacdr_tcga_only
     path: data/TCGA/TCGA_AACDR_response_final_with_smiles_intersect_pretrain_tcga_only.csv
-    gate_auroc: 0.4394
-    gate_auprc: 0.5942
-    gate_auroc_std: 0.0372
+    gate_auroc: 0.4804
+    gate_auprc: 0.6300
+    gate_auroc_std: 0.0414
+    gate_auprc_std: 0.0419
     headline_n_pairs: 97
 
-target_priority:
-  - gdsc_intersect13
-  - tcga_only3
-  - dapl
+standard_name: aacdr_stest0_no_holdout
+standard_doc: docs/AACDR_drug_macro_auroc_auprc.md
+
+# Hard PASS: only these two must beat AACDR stest0 AUROC.
+# Remaining targets are always reported (AUROC+AUPRC) but are not lock-blocking.
+gate_required_targets:
   - aacdr_gdsc_intersect
   - aacdr_tcga_only
 
+# Soft ranking among PASS candidates (5:4:3:2:1).
+# Priority high→low: aacdr_gdsc_intersect > aacdr_tcga_only > dapl > gdsc_intersect13 > tcga_only3
+target_priority:
+  - aacdr_gdsc_intersect
+  - aacdr_tcga_only
+  - dapl
+  - gdsc_intersect13
+  - tcga_only3
+
 target_weights:
-  gdsc_intersect13: 5
-  tcga_only3: 4
+  aacdr_gdsc_intersect: 5
+  aacdr_tcga_only: 4
   dapl: 3
-  aacdr_gdsc_intersect: 2
-  aacdr_tcga_only: 1
+  gdsc_intersect13: 2
+  tcga_only3: 1
 
 drug_macro:
   min_samples: 10

@@ -1,0 +1,84 @@
+{
+  "candidate_id": "E-REF3",
+  "architecture": "biocda_predictive_e3",
+  "feature": "z_plus_context32",
+  "n_folds": 5,
+  "per_target_fold_mean_auc": {
+    "gdsc_intersect13": 0.49987394837552046,
+    "tcga_only3": 0.45442020304612596,
+    "dapl": 0.4660816121811395,
+    "aacdr_gdsc_intersect": 0.5267570738764994,
+    "aacdr_tcga_only": 0.47295386904761905
+  },
+  "per_target_fold_mean_auprc": {
+    "gdsc_intersect13": 0.57179873410753,
+    "tcga_only3": 0.6377484187525158,
+    "dapl": 0.5265801952986348,
+    "aacdr_gdsc_intersect": 0.5889674477748408,
+    "aacdr_tcga_only": 0.6557535487199548
+  },
+  "per_target_fold_std_auc": {
+    "gdsc_intersect13": 0.042366469864017035,
+    "tcga_only3": 0.06265221752421203,
+    "dapl": 0.02859307338885608,
+    "aacdr_gdsc_intersect": 0.04497865775766667,
+    "aacdr_tcga_only": 0.061019531907481196
+  },
+  "status": "complete",
+  "train_source": "holdout_ref",
+  "reused_from": "reports/round24/stage24c/F3",
+  "eligible_for_noholdout_lock": false,
+  "gate": {
+    "status": "NO_LOCK",
+    "n_pass": 0,
+    "n_pass_required": 0,
+    "n_required": 2,
+    "n_pass_all": 0,
+    "n_targets": 5,
+    "gate_required_targets": [
+      "aacdr_gdsc_intersect",
+      "aacdr_tcga_only"
+    ],
+    "min_delta": -0.007446130952380947,
+    "min_delta_all": -0.09917979695387402,
+    "weighted_DrugMacro_AUC": 7.378013781913559,
+    "per_target": {
+      "aacdr_gdsc_intersect": {
+        "fold_mean_DrugMacro_AUC": 0.5267570738764994,
+        "gate_auroc": 0.5279,
+        "delta": -0.0011429261235006427,
+        "pass": false,
+        "required_for_lock": true
+      },
+      "aacdr_tcga_only": {
+        "fold_mean_DrugMacro_AUC": 0.47295386904761905,
+        "gate_auroc": 0.4804,
+        "delta": -0.007446130952380947,
+        "pass": false,
+        "required_for_lock": true
+      },
+      "dapl": {
+        "fold_mean_DrugMacro_AUC": 0.4660816121811395,
+        "gate_auroc": 0.5304,
+        "delta": -0.06431838781886046,
+        "pass": false,
+        "required_for_lock": false
+      },
+      "gdsc_intersect13": {
+        "fold_mean_DrugMacro_AUC": 0.49987394837552046,
+        "gate_auroc": 0.5197,
+        "delta": -0.01982605162447959,
+        "pass": false,
+        "required_for_lock": false
+      },
+      "tcga_only3": {
+        "fold_mean_DrugMacro_AUC": 0.45442020304612596,
+        "gate_auroc": 0.5536,
+        "delta": -0.09917979695387402,
+        "pass": false,
+        "required_for_lock": false
+      }
+    },
+    "note": "Hard PASS requires only gate_required_targets (aacdr_gdsc_intersect, aacdr_tcga_only). Weighted score ranks PASS candidates only; it cannot override NO_LOCK. Non-required targets are reported for diagnostics/ranking soft signals."
+  }
+}

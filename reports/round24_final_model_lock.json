@@ -1,0 +1,171 @@
+{
+  "candidate_manifest_sha256": "2d8c5191b9a6fd115c49c9e1d790883a653b258f4f45939f053488a5ea7a9b72",
+  "champion": {
+    "architecture": "pooled_mlp__own_plus_summary",
+    "arm": "NoHoldout",
+    "candidate_id": "E-NH0",
+    "feature": "own_plus_summary",
+    "gate": {
+      "gate_required_targets": [
+        "aacdr_gdsc_intersect",
+        "aacdr_tcga_only"
+      ],
+      "min_delta": 0.01667589285714277,
+      "min_delta_all": -0.06910266720488212,
+      "n_pass": 2,
+      "n_pass_all": 3,
+      "n_pass_required": 2,
+      "n_required": 2,
+      "n_targets": 5,
+      "note": "Hard PASS requires only gate_required_targets (aacdr_gdsc_intersect, aacdr_tcga_only). Weighted score ranks PASS candidates only; it cannot override NO_LOCK. Non-required targets are reported for diagnostics/ranking soft signals.",
+      "per_target": {
+        "aacdr_gdsc_intersect": {
+          "delta": 0.036937783270019287,
+          "fold_mean_DrugMacro_AUC": 0.5648377832700193,
+          "gate_auroc": 0.5279,
+          "pass": true,
+          "required_for_lock": true
+        },
+        "aacdr_tcga_only": {
+          "delta": 0.01667589285714277,
+          "fold_mean_DrugMacro_AUC": 0.49707589285714276,
+          "gate_auroc": 0.4804,
+          "pass": true,
+          "required_for_lock": true
+        },
+        "dapl": {
+          "delta": -0.04838128147844595,
+          "fold_mean_DrugMacro_AUC": 0.48201871852155403,
+          "gate_auroc": 0.5304,
+          "pass": false,
+          "required_for_lock": false
+        },
+        "gdsc_intersect13": {
+          "delta": 0.049998863486149236,
+          "fold_mean_DrugMacro_AUC": 0.5696988634861493,
+          "gate_auroc": 0.5197,
+          "pass": true,
+          "required_for_lock": false
+        },
+        "tcga_only3": {
+          "delta": -0.06910266720488212,
+          "fold_mean_DrugMacro_AUC": 0.48449733279511786,
+          "gate_auroc": 0.5536,
+          "pass": false,
+          "required_for_lock": false
+        }
+      },
+      "status": "PASS",
+      "weighted_DrugMacro_AUC": 7.882443703110746
+    },
+    "per_target_fold_mean_auc": {
+      "aacdr_gdsc_intersect": 0.5648377832700193,
+      "aacdr_tcga_only": 0.49707589285714276,
+      "dapl": 0.48201871852155403,
+      "gdsc_intersect13": 0.5696988634861493,
+      "tcga_only3": 0.48449733279511786
+    },
+    "per_target_fold_mean_auprc": {
+      "aacdr_gdsc_intersect": 0.618605590530278,
+      "aacdr_tcga_only": 0.6531777437398175,
+      "dapl": 0.5415790060085391,
+      "gdsc_intersect13": 0.6120577645727945,
+      "tcga_only3": 0.6368095701061607
+    },
+    "per_target_fold_std_auc": {
+      "aacdr_gdsc_intersect": 0.014491709307965216,
+      "aacdr_tcga_only": 0.05333970816783871,
+      "dapl": 0.02536459370731331,
+      "gdsc_intersect13": 0.018389790642692947,
+      "tcga_only3": 0.09314080571276726
+    },
+    "reused_from": "reports/round24/train_source_ablation/NoHoldout",
+    "train_source": "no_holdout"
+  },
+  "config_path": "/workspace/DAPL/configs/round24/eval3.yaml",
+  "config_sha256": "3769ecc63b2819c0551507614d6f097ba12fad0ba8f83a61ca956c1071ad87e3",
+  "created_at": "2026-07-24T10:23:09.601442+00:00",
+  "forbidden": {
+    "gdsc_test_for_selection": true,
+    "per_target_champion": true,
+    "tcga_in_early_stopping": true,
+    "weighted_override_of_failed_required_target": true
+  },
+  "gate": {
+    "gate_required_targets": [
+      "aacdr_gdsc_intersect",
+      "aacdr_tcga_only"
+    ],
+    "min_delta": 0.01667589285714277,
+    "min_delta_all": -0.06910266720488212,
+    "n_pass": 2,
+    "n_pass_all": 3,
+    "n_pass_required": 2,
+    "n_required": 2,
+    "n_targets": 5,
+    "note": "Hard PASS requires only gate_required_targets (aacdr_gdsc_intersect, aacdr_tcga_only). Weighted score ranks PASS candidates only; it cannot override NO_LOCK. Non-required targets are reported for diagnostics/ranking soft signals.",
+    "per_target": {
+      "aacdr_gdsc_intersect": {
+        "delta": 0.036937783270019287,
+        "fold_mean_DrugMacro_AUC": 0.5648377832700193,
+        "gate_auroc": 0.5279,
+        "pass": true,
+        "required_for_lock": true
+      },
+      "aacdr_tcga_only": {
+        "delta": 0.01667589285714277,
+        "fold_mean_DrugMacro_AUC": 0.49707589285714276,
+        "gate_auroc": 0.4804,
+        "pass": true,
+        "required_for_lock": true
+      },
+      "dapl": {
+        "delta": -0.04838128147844595,
+        "fold_mean_DrugMacro_AUC": 0.48201871852155403,
+        "gate_auroc": 0.5304,
+        "pass": false,
+        "required_for_lock": false
+      },
+      "gdsc_intersect13": {
+        "delta": 0.049998863486149236,
+        "fold_mean_DrugMacro_AUC": 0.5696988634861493,
+        "gate_auroc": 0.5197,
+        "pass": true,
+        "required_for_lock": false
+      },
+      "tcga_only3": {
+        "delta": -0.06910266720488212,
+        "fold_mean_DrugMacro_AUC": 0.48449733279511786,
+        "gate_auroc": 0.5536,
+        "pass": false,
+        "required_for_lock": false
+      }
+    },
+    "status": "PASS",
+    "weighted_DrugMacro_AUC": 7.882443703110746
+  },
+  "gate_required_targets": [
+    "aacdr_gdsc_intersect",
+    "aacdr_tcga_only"
+  ],
+  "git_commit": "unknown",
+  "protocol_manifest_sha256": "2d8158c8945b57d9b14b43aac2cf896d85af4e4e021c45c9c30cb5c475d21e88",
+  "protocol_name": "eval3",
+  "selection_note": "Champion selected among NoHoldout-eligible PASS candidates under AACDR stest0 hard gate; holdout refs excluded from lock ranking.",
+  "selection_role_gdsc": "none",
+  "status": "LOCKED",
+  "supersedes": [
+    {
+      "path": "reports/round20_final_model_lock_public.json",
+      "role": "historical_superseded",
+      "sha256": "91060e62587232f83148117feeba9b8dee9923492cfc597f738f5d28a47fe86b"
+    },
+    {
+      "path": "reports/biocda_xa_model_lock.json",
+      "role": "historical_superseded",
+      "sha256": "05e638fcf361f52f0a7b3ea14d9b8cc70299bbca79a004aeaf51601c3bfccaf8"
+    }
+  ],
+  "tcga_role": "selection_benchmark",
+  "tcga_used_for_selection": true
+}

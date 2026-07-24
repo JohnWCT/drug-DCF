@@ -1,10 +1,15 @@
 # Round 24 — IDE 操作手冊
 
-**狀態：** 24A/24B/24C COMPLETE · NO_LOCK · 下一步 24E（F2+F3）· 詳見 [`round24_status_report.md`](round24_status_report.md)  
-**解題計畫：** [`round24_solution_plan.md`](round24_solution_plan.md)  
-**問題定義：** [`round24_problem_definition_plan.md`](round24_problem_definition_plan.md)
+**狀態：** **COMPLETE · LOCKED（E-NH0）** · 硬閘 stest0：`aacdr_gdsc`>0.5279 ∧ `aacdr_tcga_only`>0.4804 · 詳見 [`round24_final_report.md`](round24_final_report.md) / [`round24_status_report.md`](round24_status_report.md)  
+**解題計畫：** [`round24_solution_plan.md`](round24_solution_plan.md) §1.1 / §7  
+**問題定義：** [`round24_problem_definition_plan.md`](round24_problem_definition_plan.md)  
+**TCGA 五組指標表：** [`../reports/round24/tcga_metric_tables.md`](../reports/round24/tcga_metric_tables.md)  
+**vs AACDR stest0：** [`../reports/round24/vs_aacdr_standard.md`](../reports/round24/vs_aacdr_standard.md)
 
-> CLI 核心已實作：`preflight/protocol/baseline/features/diagnose/train/evaluate/select/lock`。標示 **[PLANNED]** 的段落若仍存在，以狀態報告為準。
+> CLI 核心已實作：`preflight/protocol/baseline/features/diagnose/train/evaluate/select/lock`。標示 **[PLANNED]** 的段落若仍存在，以狀態報告為準。  
+> **硬閘 PASS：** 僅 `aacdr_gdsc_intersect` >0.5279 + `aacdr_tcga_only` >0.4804（**stest0 / 無 10% testset**）。其餘三組必報、不擋 lock。  
+> **PASS 後排序：** `aacdr_gdsc`(5) > `aacdr_tcga_only`(4) > `dapl`(3) > `gdsc13`(2) > `tcga_only3`(1)。  
+> **彙整強制：** 五組皆須報 DrugMacro AUROC + AUPRC。
 
 ---
 
@@ -18,7 +23,7 @@
 1. 所有命令在 Docker 容器 DAPL、/workspace/DAPL 執行。
 2. 最終必須是單一 unified model；禁止 per-target champion。
 3. 五個 TCGA target 的 5-fold mean DrugMacro AUROC 必須全部超越基準。
-4. 5:4:3:2:1 只在全數通過後排序，不能掩蓋任何 target failure。
+4. **硬閘：** 僅 `aacdr_gdsc_intersect` 與 `aacdr_tcga_only` 須超越標準；其餘三組必報但不擋 PASS。PASS 後排序權重 5:4:3:2:1（同選模序）。
 5. eval3 = Round 18 的 5 source-fold + Stage 18E TCGA 評估。
 6. TCGA 不得進入 loss、early stopping、checkpoint selection 或超參數搜尋。
 7. GDSC development / validation / test 僅供診斷，不參與選模。
@@ -302,7 +307,11 @@ python3 scripts/round24/run_round24.py diagnose \
 
 ---
 
-## 7. Stage 24E — 受限模型優化
+## 7. Stage 24E — 受限模型優化（F2 + F3）
+
+**詳細計畫：** [`round24_solution_plan.md`](round24_solution_plan.md) §7。  
+**重點：** NoHoldout 與架構正交 → **不**全量重跑 F0–F4；只對優選（pooled 基準 + F2 + F3 ± XA×C16）做 NoHoldout 確認。  
+**硬閘：** `aacdr_gdsc_intersect` ∧ `aacdr_tcga_only`。
 
 ### 7.1 候選預登記 [PLANNED]
 
@@ -320,7 +329,8 @@ reports/round24/stage24e/candidate_manifest.json
 reports/round24/stage24e/candidate_manifest.sha256
 ```
 
-manifest 封存後禁止修改。
+manifest 須列出 E0–E5（或實際鎖定子集）：F2/F3 錨點、predictive 優化臂、pooled 對照、XA×C16。封存後禁止修改。  
+確認 `configs/round24/eval3.yaml` 的 `target_priority` / `target_weights` 已為新選模序。
 
 ### 7.2 Train [PLANNED]
 
@@ -331,7 +341,7 @@ python3 scripts/round24/run_round24.py train \
   --config configs/round24/eval3.yaml \
   --stage 24e --smoke'
 
-# Formal
+# Formal（並行；沿用 24C GPU 策略）
 docker exec \
   -e OMP_NUM_THREADS=2 \
   -e MKL_NUM_THREADS=2 \
@@ -341,7 +351,8 @@ python3 scripts/round24/run_round24.py train \
   --stage 24e --max-jobs-per-gpu 3'
 ```
 
-Early stopping 只能讀 source validation metrics；run log 若出現 TCGA metric 參與 epoch selection，該候選立即 `INVALID`。
+Early stopping 只能讀 source validation metrics；run log 若出現 TCGA metric 參與 epoch selection，該候選立即 `INVALID`。  
+訓練完成後更新 `reports/round24/vs_aacdr_standard.md`（五組 AUROC+AUPRC vs 標準）。
 
 ---
 

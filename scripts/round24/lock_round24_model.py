@@ -69,6 +69,7 @@ def run_lock(cfg: Dict[str, Any], *, force: bool = False) -> Dict[str, Any]:
             gate_table(cfg),
             target_priority=cfg["target_priority"],
             target_weights=cfg["target_weights"],
+            gate_required_targets=cfg.get("gate_required_targets"),
         )
     cand_manifest = None
     cm_path = ROOT / cfg["paths"]["reports_root"] / "stage24e" / "candidate_manifest.json"

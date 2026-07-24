@@ -27,6 +27,7 @@ def run_evaluate_24b(cfg: Dict[str, Any], *, stage: str = "24b") -> Dict[str, An
             gate_table(cfg),
             target_priority=cfg["target_priority"],
             target_weights=cfg["target_weights"],
+            gate_required_targets=cfg.get("gate_required_targets"),
         )
         candidates.append(
             {
@@ -50,6 +51,7 @@ def run_evaluate_24b(cfg: Dict[str, Any], *, stage: str = "24b") -> Dict[str, An
                     gate_table(cfg),
                     target_priority=cfg["target_priority"],
                     target_weights=cfg["target_weights"],
+                    gate_required_targets=cfg.get("gate_required_targets"),
                 )
                 payload["gate"] = gate
                 candidates.append(payload)

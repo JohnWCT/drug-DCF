@@ -55,5 +55,12 @@
       }
     },
     "note": "Weighted score is ranking-only after all-target PASS; it cannot override NO_LOCK."
+  },
+  "per_target_fold_mean_auprc": {
+    "gdsc_intersect13": 0.5486820236449129,
+    "tcga_only3": 0.636307529380933,
+    "dapl": 0.5648061847100869,
+    "aacdr_gdsc_intersect": 0.563412653320596,
+    "aacdr_tcga_only": 0.6667134095459172
   }
 }

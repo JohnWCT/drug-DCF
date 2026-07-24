@@ -422,6 +422,7 @@ def rank_features(summaries: List[Dict[str, Any]], cfg: Dict[str, Any]) -> Dict[
             gates,
             target_priority=cfg["target_priority"],
             target_weights=cfg["target_weights"],
+            gate_required_targets=cfg.get("gate_required_targets"),
         )
         deltas = {k: s["per_target_fold_mean_auc"][k] - gates[k]["gate_auroc"] for k in gates}
         rows.append(

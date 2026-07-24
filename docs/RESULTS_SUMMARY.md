@@ -207,19 +207,21 @@ X0 mean ΔAUC 達 −0.005 門檻，但 seed non-worse **1/3**（需 2/3）→ G
 
 ---
 
-## Round 24 — TCGA Recovery（進行中）
+## Round 24 — TCGA Recovery（LOCKED）
 
-**目標：** 單一 unified model，在 Round 18 `eval3` 5-fold 協議下，使五個 TCGA target 的 mean DrugMacro AUROC **全部**超越既定基準（非加權門檻）。
+**狀態：** `LOCKED` · champion **`E-NH0`**（`pooled_mlp` × `own_plus_summary` × NoHoldout）  
+**標準：** AACDR **stest0**（無 10% testset）  
+**硬閘：** `aacdr_gdsc_intersect` > **0.5279** ∧ `aacdr_tcga_only` > **0.4804**（其餘三 target 必報、不擋 lock）
 
-| Target | AUROC gate |
-|--------|-----------:|
-| gdsc_intersect13 | > 0.5184 |
-| tcga_only3 | > 0.5586 |
-| dapl | > 0.5356 |
-| aacdr_gdsc_intersect | > 0.5582 |
-| aacdr_tcga_only | > 0.4394 |
+| Target | Gate / 角色 | Champion AUROC |
+|--------|-------------|----------------:|
+| aacdr_gdsc_intersect | **硬閘** > 0.5279 | **0.5648** |
+| aacdr_tcga_only | **硬閘** > 0.4804 | **0.4971** |
+| dapl | 診斷 | 0.4820 |
+| gdsc_intersect13 | 診斷 | 0.5697 |
+| tcga_only3 | 診斷 | 0.4845 |
 
-計畫：[`round24_problem_definition_plan.md`](round24_problem_definition_plan.md)、[`round24_solution_plan.md`](round24_solution_plan.md)。
+報告：[`round24_final_report.md`](round24_final_report.md)、[`round24_status_report.md`](round24_status_report.md)、[`reports/round24/vs_aacdr_standard.md`](../reports/round24/vs_aacdr_standard.md)。
 
 ---
 
@@ -229,12 +231,12 @@ X0 mean ΔAUC 達 −0.005 門檻，但 seed non-worse **1/3**（需 2/3）→ G
 R13 exp_008 (0.6112) ──► R17/R17R 未重現 ──► R18 XA+context16 CV 贏、TCGA 未過
     ──► R19 E3/F3 pooled 鎖角色 ──► R20 C32+E3 = BioCDA-Predictive LOCKED
     ──► R21 XA v1 REJECTED ──► R23 XA v2：GDSC REJECTED / TCGA SELECTED (Fresh)
-    ──► R24 TCGA Recovery（進行中）
+    ──► R24 TCGA Recovery LOCKED（E-NH0 NoHoldout pooled）
 ```
 
 **GDSC 開發基準：** BioCDA-Predictive（R20）。  
 **TCGA 外部架構：** BioCDA-XA v2 Fresh（R23 選模）。  
-**Round 24：** 以單一模型同時通過五 target TCGA gate。
+**Round 24：** stest0 硬閘通過並鎖定 E-NH0。
 
 ---
 
@@ -249,7 +251,7 @@ R13 exp_008 (0.6112) ──► R17/R17R 未重現 ──► R18 XA+context16 CV 
 
 ## Round 24 train-source ablation
 
-Diagnostic (not formal lock): B0 architecture with NoHoldout vs AACDR train source.
-NoHoldout reached 3/5 gates (gdsc/aacdr_gdsc up; tcga_only3 down). AACDR train set did not improve overall TCGA.
+Diagnostic precursor to Stage 24E: B0 × NoHoldout vs AACDR train source.
+NoHoldout beat stest0 hard gates and was formalized as **E-NH0** (locked).
 See `reports/round24/train_source_ablation/ablation_report.md` and `docs/round24_status_report.md`.
 
