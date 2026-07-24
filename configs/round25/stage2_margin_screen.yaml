@@ -1,0 +1,93 @@
+# Canonical mirror of config/round25_stage2_margin_screen.yaml
+# See that file for the authoritative Stage 25A screen settings.
+experiment:
+  name: round25_stage2_margin_screen
+  stage: 25A
+  strict: true
+  seeds: [17, 29, 43]
+
+data:
+  cancer_mapping_classes: 18
+  forbid_tcga_response_labels: true
+
+baseline:
+  variant_id: S0
+  reference_pretrain_root: result/optimization_runs/round12_proto_alignment/pretrain
+  reference_exp_id: exp_037
+
+fixed_xa:
+  topology: biocda-xa-v2
+  query: Z64_plus_C32_single_token
+  drug_encoder: fresh_gin_atom_nodes
+  graph_pooling: false
+  cross_attention: sample_to_atom
+  forbid_e3_transfer: true
+  forbid_kd: true
+  forbid_summary11: true
+  summary_dim: 0
+
+variants:
+  S0:
+    global_alignment: wgan
+    conditional_alignment: conditional_wgan
+    prototype_alignment: always_on
+  S2:
+    global_alignment: wgan
+    conditional_alignment: conditional_wgan
+    prototype_alignment: margin_gated
+    prototype_margin:
+      metric: cosine
+      estimator: source_radius_percentile
+      upper_percentile: 90
+      minimum_cancer_observations: 20
+      fallback: global_median
+      freeze_after_estimation: true
+  S1:
+    global_alignment: aada_autoencoder
+    conditional_alignment: conditional_wgan
+    prototype_alignment: always_on
+    aada:
+      source_frozen: true
+      target_residual_adapter: true
+      reconstruction_loss: smooth_l1
+      beta: 1.0
+      alpha_margin: 0.02
+      reconstruction_margin_policy: calibrated_percentile
+      lambda_aada: 0.05
+      ramp_fraction: 0.2
+  S3:
+    enabled_if:
+      any_variant_passes: [S1, S2]
+    global_alignment: aada_autoencoder
+    conditional_alignment: conditional_wgan
+    prototype_alignment: margin_gated
+  S2b:
+    enabled_if:
+      prototype_overlap_gate: true
+    global_alignment: wgan
+    conditional_alignment: conditional_wgan
+    prototype_alignment: distance_band
+    prototype_band:
+      lower_percentile: 10
+      upper_percentile: 90
+      lower_weight: 0.1
+
+selection:
+  source_cancer_accuracy_delta_min: -0.01
+  target_effective_rank_ratio_min: 0.90
+  between_cancer_separation_ratio_min: 0.95
+  c32_effective_rank_ratio_min: 0.90
+  screening_auc_delta_min: -0.003
+  screening_auprc_delta_min: -0.005
+  prototype_hinge_active_fraction_min: 0.05
+  prototype_hinge_active_fraction_max: 0.95
+
+forbidden:
+  overwrite_round23_rejected: true
+  tcga_for_selection: true
+  graph_pooling: true
+  pooled_e3_transfer: true
+  pooled_teacher_kd: true
+  summary11_in_c32: true
+  rename_margins_ambiguously: true
+  posthoc_seed_or_gate_change: true

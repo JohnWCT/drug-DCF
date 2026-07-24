@@ -1,0 +1,129 @@
+{
+  "created_at": "2026-07-24T14:25:17.819589+00:00",
+  "artifact_audit": {
+    "required": {
+      "docs/round24_final_report.md": {
+        "path": "docs/round24_final_report.md",
+        "exists": true,
+        "sha256": "94c63d9fce4dc091a50afc1dac358b8871e79abc8ab41e02ee642b096c8cc268",
+        "size": 6232
+      },
+      "reports/round24_final_model_lock.json": {
+        "path": "reports/round24_final_model_lock.json",
+        "exists": true,
+        "sha256": "aa8353c5cd408c4dc3b346956c2f46f96e15e50e965e1afe1bb39014c747b5aa",
+        "size": 5982
+      },
+      "reports/round24/stage24e/stage24e_decision.json": {
+        "path": "reports/round24/stage24e/stage24e_decision.json",
+        "exists": true,
+        "sha256": "82d0e4b8c3cb9d7dc455ed582a4b5f42babb8118c56e55d22fd07aeff834f33a",
+        "size": 1311
+      },
+      "configs/round24/eval3.yaml": {
+        "path": "configs/round24/eval3.yaml",
+        "exists": true,
+        "sha256": "3769ecc63b2819c0551507614d6f097ba12fad0ba8f83a61ca956c1071ad87e3",
+        "size": 3808
+      },
+      "docs/AACDR_drug_macro_auroc_auprc.md": {
+        "path": "docs/AACDR_drug_macro_auroc_auprc.md",
+        "exists": true,
+        "sha256": "0adb70d474e11ea76f114b371e2fb349909faad1213faf6b610816b05ed01779",
+        "size": 3522
+      }
+    },
+    "conflicts": [],
+    "lock_status": "LOCKED",
+    "lock_champion": "E-NH0",
+    "round23_xa_status": "REJECTED",
+    "referenced_from_report": [
+      {
+        "path": "configs/round24/eval3.yaml",
+        "exists": true
+      },
+      {
+        "path": "docs/AACDR_drug_macro_auroc_auprc.md",
+        "exists": true
+      },
+      {
+        "path": "reports/round24/stage24e/candidate_manifest.json",
+        "exists": true
+      },
+      {
+        "path": "reports/round24/stage24e/stage24e_decision.json",
+        "exists": true
+      },
+      {
+        "path": "reports/round24/tcga_metric_tables.md",
+        "exists": true
+      },
+      {
+        "path": "reports/round24/tcga_metric_tables.md)",
+        "exists": false
+      },
+      {
+        "path": "reports/round24/vs_aacdr_standard.md",
+        "exists": true
+      },
+      {
+        "path": "reports/round24/vs_aacdr_standard.md)",
+        "exists": false
+      },
+      {
+        "path": "reports/round24_final_model_lock.json",
+        "exists": true
+      },
+      {
+        "path": "reports/round24_final_model_lock.json)",
+        "exists": false
+      }
+    ]
+  },
+  "checkpoints": {
+    "n_files": 58,
+    "sample": [
+      "result/optimization_runs/round24_tcga_recovery/stage24b/B1/fold_3/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24b/B1/fold_4/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24b/B1/fold_0/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24b/B1/fold_1/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24b/B1/fold_2/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24b/B2/fold_3/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24b/B2/fold_4/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24b/B2/fold_0/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24b/B2/fold_1/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24b/B2/fold_2/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24b/B1_smoke_bak/fold_0/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24c/F1/fold_3/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24c/F1/fold_4/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24c/F1/fold_0/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24c/F1/fold_1/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24c/F1/fold_2/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24c/F3/fold_3/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24c/F3/fold_4/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24c/F3/fold_0/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24c/F3/fold_1/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24c/F3/fold_2/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24c/F2/fold_3/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24c/F2/fold_4/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24c/F2/fold_0/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24c/F2/fold_1/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24c/F2/fold_2/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24c/F4/fold_3/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24c/F4/fold_4/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24c/F4/fold_0/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24c/F4/fold_1/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24c/F4/fold_2/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24c/F0/fold_3/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24c/F0/fold_2_incomplete_bak/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24c/F0/fold_4/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24c/F0/fold_0/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24c/F0/fold_1/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24c/F0/fold_2/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24c/F0_smoke_bak/fold_0/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24e/E-NH0/fold_3/best.pt",
+      "result/optimization_runs/round24_tcga_recovery/stage24e/E-NH0/fold_4/best.pt"
+    ]
+  },
+  "round23_preserved_rejected": true
+}

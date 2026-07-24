@@ -1,0 +1,6 @@
+variant,global_alignment,prototype_alignment,latent_ae_parameters,target_adapter_parameters,variant_extra_parameters,note
+S0,wgan,always_on,0,0,0,critic/encoder/proto bank shared with S0 baseline
+S2,wgan,margin_gated,0,0,0,critic/encoder/proto bank shared with S0 baseline
+S1,aada_autoencoder,always_on,25184,8320,33504,critic/encoder/proto bank shared with S0 baseline
+S3,aada_autoencoder,margin_gated,25184,8320,33504,critic/encoder/proto bank shared with S0 baseline
+S2b,wgan,distance_band,0,0,0,critic/encoder/proto bank shared with S0 baseline

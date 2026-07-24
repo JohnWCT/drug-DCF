@@ -1,0 +1,90 @@
+{
+  "stage": "25A",
+  "config": "config/round25_stage2_margin_screen.yaml",
+  "dry_run": false,
+  "jobs": [
+    {
+      "job_id": "S3_seed17",
+      "variant": "S3",
+      "seed": 17,
+      "status": "PLANNED",
+      "outfolder": "/workspace/DAPL/result/optimization_runs/round25_stage25a/S3_seed17",
+      "config_path": "/workspace/DAPL/result/optimization_runs/round25_stage25a/S3_seed17/params_combo.json",
+      "params_preview": {
+        "proto_align_mode": "margin_gated",
+        "aada_enabled": true,
+        "global_adv_mode": "conditional_replacement",
+        "train_num_epochs": 200,
+        "pretrain_num_epochs": 100
+      }
+    },
+    {
+      "job_id": "S3_seed29",
+      "variant": "S3",
+      "seed": 29,
+      "status": "PLANNED",
+      "outfolder": "/workspace/DAPL/result/optimization_runs/round25_stage25a/S3_seed29",
+      "config_path": "/workspace/DAPL/result/optimization_runs/round25_stage25a/S3_seed29/params_combo.json",
+      "params_preview": {
+        "proto_align_mode": "margin_gated",
+        "aada_enabled": true,
+        "global_adv_mode": "conditional_replacement",
+        "train_num_epochs": 200,
+        "pretrain_num_epochs": 100
+      }
+    },
+    {
+      "job_id": "S3_seed43",
+      "variant": "S3",
+      "seed": 43,
+      "status": "PLANNED",
+      "outfolder": "/workspace/DAPL/result/optimization_runs/round25_stage25a/S3_seed43",
+      "config_path": "/workspace/DAPL/result/optimization_runs/round25_stage25a/S3_seed43/params_combo.json",
+      "params_preview": {
+        "proto_align_mode": "margin_gated",
+        "aada_enabled": true,
+        "global_adv_mode": "conditional_replacement",
+        "train_num_epochs": 200,
+        "pretrain_num_epochs": 100
+      }
+    }
+  ],
+  "n_jobs": 3,
+  "forbidden": {
+    "overwrite_round23_rejected": true,
+    "tcga_for_selection": true,
+    "graph_pooling": true,
+    "pooled_e3_transfer": true,
+    "pooled_teacher_kd": true,
+    "summary11_in_c32": true,
+    "rename_margins_ambiguously": true,
+    "posthoc_seed_or_gate_change": true
+  },
+  "selection": {
+    "source_cancer_accuracy_delta_min": -0.01,
+    "target_effective_rank_ratio_min": 0.9,
+    "between_cancer_separation_ratio_min": 0.95,
+    "c32_effective_rank_ratio_min": 0.9,
+    "screening_auc_delta_min": -0.003,
+    "screening_auprc_delta_min": -0.005,
+    "prototype_hinge_active_fraction_min": 0.05,
+    "prototype_hinge_active_fraction_max": 0.95
+  },
+  "screen_budget": {
+    "pretrain_num_epochs": 100,
+    "pretrain_patience": 20,
+    "train_num_epochs": 200,
+    "gan_patience": 35,
+    "gan_early_stop_start_epoch": 50,
+    "cond_adv_start_epoch": 20,
+    "cond_adv_full_epoch": 70,
+    "proto_align_start_epoch": 30,
+    "proto_align_full_epoch": 90,
+    "cls_start_epoch": 20,
+    "cls_full_epoch": 70,
+    "batch_size": 256
+  },
+  "tcga_used_for_selection": false,
+  "round23_gdsc_lock_must_remain": "REJECTED",
+  "created_at": "2026-07-24T15:00:01.639784+00:00"
+}

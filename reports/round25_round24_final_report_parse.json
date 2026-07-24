@@ -1,0 +1,25 @@
+{
+  "created_at": "2026-07-24T14:25:17.819588+00:00",
+  "parse": {
+    "path": "/workspace/DAPL/docs/round24_final_report.md",
+    "status": "LOCKED",
+    "champion_id": "E-NH0",
+    "lock_ref": "../reports/round24_final_model_lock.json",
+    "referenced_artifacts": [
+      "configs/round24/eval3.yaml",
+      "docs/AACDR_drug_macro_auroc_auprc.md",
+      "reports/round24/stage24e/candidate_manifest.json",
+      "reports/round24/stage24e/stage24e_decision.json",
+      "reports/round24/tcga_metric_tables.md",
+      "reports/round24/tcga_metric_tables.md)",
+      "reports/round24/vs_aacdr_standard.md",
+      "reports/round24/vs_aacdr_standard.md)",
+      "reports/round24_final_model_lock.json",
+      "reports/round24_final_model_lock.json)"
+    ],
+    "mentions_no_holdout": true,
+    "mentions_stest0": true,
+    "hard_gate_aacdr_gdsc": true,
+    "hard_gate_aacdr_tcga": true
+  }
+}

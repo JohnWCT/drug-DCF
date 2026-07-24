@@ -1,0 +1,78 @@
+{
+  "created_at": "2026-07-24T14:25:17.819577+00:00",
+  "root": "/workspace/DAPL",
+  "git": {
+    "mode": "filesystem_fallback",
+    "head": {
+      "returncode": 0,
+      "stdout": "d73ba36c59e9ce6661e0c69f0963999d4001a545",
+      "stderr": ""
+    },
+    "branch": {
+      "returncode": 0,
+      "stdout": "main",
+      "stderr": ""
+    },
+    "status_porcelain": {
+      "returncode": 0,
+      "stdout": "",
+      "stderr": "status skipped under filesystem_fallback (git ownership)"
+    },
+    "log20": {
+      "returncode": 0,
+      "stdout": "d73ba36 commit: Consolidate Round 24 docs to method and results.\ncc29896 commit: Lock Round 24 champion E-NH0 under AACDR stest0 hard gate.\nd15ff80 commit: Complete Stage24C feature attribution: top2 F2/F3, no all-target PASS.\n7391648 commit: Add GDSC holdout / AACDR train-source ablation for TCGA diagnostics.\n1dffc93 commit: Add Stage24C feature attribution trainer and status report.\nff4b7bf commit: Fix Round 12 sweep manifest path polluted by pytest smoke.\na295e5c commit: Add Round 24 TCGA recovery scaffolding and sync RESULTS_SUMMARY.\n6835ee2 commit: docs: add Round 24 TCGA recovery problem definition plan\na891f13 commit: docs: add TCGA architecture selection and consolidate round reports\n0a36a7a commit: biocda: Round 23 no-pooling XA closure with REJECTED lock\n204b03a commit: docs: separate BioCDA-Predictive vs XA-Candidate and audit Q1–Q8\nb4a86b1 checkout: moving from main to main\nb4a86b1 commit: biocda: finish Round 21 GDSC validation with parallel train and REJECTED lock\nb6d6e10 commit: biocda: Round 21 cross-attention validation pipeline and architecture hardening\nd12ff53 commit: docs: add BioCDA architecture finalization report and README entry\nd8db7a3 commit: biocda: track graph batch helpers under biocda/data\n7430c8d commit: biocda: add BioCDA-XA architecture with GPU and Telegram ops\n46654e1 merge feature/round20-unseen-drug-closure: Merge made by the 'ort' strategy.\n16eceb0 checkout: moving from main to main\n16eceb0 checkout: moving from main to main",
+      "stderr": ""
+    },
+    "ls_tree_count": null,
+    "tracked_pycache": [],
+    "tracked_outputs": [],
+    "fallback_reason": "fatal: detected dubious ownership in repository at '/workspace/DAPL'\nTo add an exception for this directory, call:\n\n\tgit config --global --add safe.directory /workspace/DAPL"
+  },
+  "required_paths": {
+    "docs/round23_final_report.md": {
+      "path": "docs/round23_final_report.md",
+      "exists": true,
+      "sha256": "60872c0682c0c1abd8ea0ae4f0aa2dbda530731a5176aea33cbc9b9ef95a8d48",
+      "size": 4517
+    },
+    "docs/round24_final_report.md": {
+      "path": "docs/round24_final_report.md",
+      "exists": true,
+      "sha256": "94c63d9fce4dc091a50afc1dac358b8871e79abc8ab41e02ee642b096c8cc268",
+      "size": 6232
+    },
+    "reports/round24_final_model_lock.json": {
+      "path": "reports/round24_final_model_lock.json",
+      "exists": true,
+      "sha256": "aa8353c5cd408c4dc3b346956c2f46f96e15e50e965e1afe1bb39014c747b5aa",
+      "size": 5982
+    },
+    "reports/biocda_xa_model_lock.json": {
+      "path": "reports/biocda_xa_model_lock.json",
+      "exists": true,
+      "sha256": "05e638fcf361f52f0a7b3ea14d9b8cc70299bbca79a004aeaf51601c3bfccaf8",
+      "size": 3039
+    },
+    "reports/round23_paired_performance.csv": {
+      "path": "reports/round23_paired_performance.csv",
+      "exists": true,
+      "sha256": "864f378479ea4899d496ecde7388b3243d1fe1851db1313bbcc7419f28ed12f5",
+      "size": 1255
+    },
+    "configs/round24/eval3.yaml": {
+      "path": "configs/round24/eval3.yaml",
+      "exists": true,
+      "sha256": "3769ecc63b2819c0551507614d6f097ba12fad0ba8f83a61ca956c1071ad87e3",
+      "size": 3808
+    },
+    "config/round25_stage2_margin_screen.yaml": {
+      "path": "config/round25_stage2_margin_screen.yaml",
+      "exists": true,
+      "sha256": "95a4f327ce040f77d60e1c8ac56464224205966e0e32d23374c43e4c7aa87765",
+      "size": 2499
+    }
+  },
+  "failures": [],
+  "strict": true,
+  "pass": true
+}

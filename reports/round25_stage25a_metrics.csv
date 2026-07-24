@@ -1,0 +1,13 @@
+variant,seed,status,elapsed_sec,exp_dir,best_gan_loss,proto_align_loss,prototype_hinge_active_fraction,source_reconstruction_error,target_reconstruction_error,mean_target_to_source_anchor_distance,prototype_upper_margins_sha256
+S0,17,DONE,,/workspace/DAPL/result/optimization_runs/round25_stage25a/S0_seed17/exp_001,,,,,,0.13277254549504036,
+S0,29,DONE,,/workspace/DAPL/result/optimization_runs/round25_stage25a/S0_seed29/exp_001,,,,,,0.13151817311806502,
+S0,43,DONE,,/workspace/DAPL/result/optimization_runs/round25_stage25a/S0_seed43/exp_001,,,,,,0.1367836899810111,
+S1,17,DONE,,/workspace/DAPL/result/optimization_runs/round25_stage25a/S1_seed17/exp_001,,,,,,0.12013785842568736,
+S1,29,DONE,,/workspace/DAPL/result/optimization_runs/round25_stage25a/S1_seed29/exp_001,,,,,,0.1296693713799475,
+S1,43,DONE,,/workspace/DAPL/result/optimization_runs/round25_stage25a/S1_seed43/exp_001,,,,,,0.12602267721495453,
+S2,17,DONE,,/workspace/DAPL/result/optimization_runs/round25_stage25a/S2_seed17/exp_001,,0.0,0.0,,,0.12751979567653582,ad105d56a17b9d638c97e334a78374f6c45cdf19cc5cf5e99d5d0b94ceba5ab5
+S2,29,DONE,,/workspace/DAPL/result/optimization_runs/round25_stage25a/S2_seed29/exp_001,,0.0,0.0,,,0.12869321778750165,36a998a7fa4ab93662521ae7b757d737493efb4d89108dd4b7e96440e87a7e16
+S2,43,DONE,,/workspace/DAPL/result/optimization_runs/round25_stage25a/S2_seed43/exp_001,,0.0,0.0,,,0.12539733319362822,35d18ccde818add9cec87f78dc79fd9ea05ca2b99a54f0f24de532b251a994c3
+S3,17,DONE,,/workspace/DAPL/result/optimization_runs/round25_stage25a/S3_seed17/exp_001,2948.221629901028,0.0,0.0,,,0.13560275526148635,eb9d00d3fd7ad0b77c11e126167bc44d07e27a07878fd1643dc65b2f69460f41
+S3,29,DONE,,/workspace/DAPL/result/optimization_runs/round25_stage25a/S3_seed29/exp_001,2526.255001945591,0.0,0.0,,,0.12440111030245782,8bc03e1a1c6586e685bf4d0bfb6e63e01de788981627595937d06d1602bc1cbf
+S3,43,DONE,,/workspace/DAPL/result/optimization_runs/round25_stage25a/S3_seed43/exp_001,3725.923721366586,0.0,0.0,,,0.1217234114562189,6b542a656260f8d0d7817d706bce05107a9cb5c4d2c233e4a49cd058d60595fc

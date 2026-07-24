@@ -1,0 +1,48 @@
+{
+  "round": 25,
+  "stage25a": {
+    "status": "",
+    "baseline_variant": "S0",
+    "evaluated_variants": ["S0", "S2", "S1"],
+    "selected_variant": "",
+    "run_s3": false,
+    "run_s2b": false,
+    "reason": "",
+    "blocking_failures": []
+  },
+  "stage25b": {
+    "status": "",
+    "b0_mean_auc": null,
+    "b1_mean_auc": null,
+    "mean_auc_delta": null,
+    "b0_mean_auprc": null,
+    "b1_mean_auprc": null,
+    "mean_auprc_delta": null,
+    "noninferior_seed_count": null,
+    "worst_seed_delta": null,
+    "promote_stage2": false
+  },
+  "stage25c": {
+    "status": "",
+    "c32_predictive_effect": "",
+    "c32_attention_effect": "",
+    "final_claim": ""
+  },
+  "artifact_hashes": {
+    "stage2_checkpoint": "",
+    "margin_artifact": "",
+    "z64": "",
+    "source_prototypes": "",
+    "target_prototypes": "",
+    "pca": "",
+    "scaler": "",
+    "c32": "",
+    "split_manifest": "",
+    "initial_states": [],
+    "xa_checkpoints": []
+  },
+  "git_commit": "",
+  "tcga_used_for_selection": false,
+  "round23_gdsc_status_preserved": "REJECTED",
+  "biocda_xa_narrative_status": "SELECTED_WITH_INTERPRETABILITY_TRADEOFF"
+}

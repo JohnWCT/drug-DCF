@@ -99,6 +99,10 @@ from tools.source_anchor_prototypes import (
     resolve_source_anchor_proto_training_params,
     source_anchor_proto_metrics_payload,
 )
+from biocda.stage2.prototype_losses import dispatch_prototype_alignment_loss
+from biocda.stage2.checkpoint_loader import load_ae_checkpoint, save_ae_checkpoint
+from biocda.stage2.aada_steps import build_aada_components, aada_update_step
+from biocda.prototypes.margin_estimator import SourceRadiusMarginEstimator
 
 
 if not torch.cuda.is_available():
@@ -174,8 +178,14 @@ def _vicreg_loss_means_from_genloss_csv(genloss_csv: str) -> dict:
         return {}
     if df.empty:
         return {}
-    var_eff = pd.to_numeric(df.get("lambda_tumor_var_eff", 0), errors="coerce").fillna(0)
-    cov_eff = pd.to_numeric(df.get("lambda_tumor_cov_eff", 0), errors="coerce").fillna(0)
+    if "lambda_tumor_var_eff" in df.columns:
+        var_eff = pd.to_numeric(df["lambda_tumor_var_eff"], errors="coerce").fillna(0)
+    else:
+        var_eff = pd.Series(0, index=df.index, dtype=float)
+    if "lambda_tumor_cov_eff" in df.columns:
+        cov_eff = pd.to_numeric(df["lambda_tumor_cov_eff"], errors="coerce").fillna(0)
+    else:
+        cov_eff = pd.Series(0, index=df.index, dtype=float)
     active_mask = (var_eff > 0) | (cov_eff > 0)
     sub = df[active_mask] if active_mask.any() else df
     out: dict = {}
@@ -842,6 +852,8 @@ def train_d_ae(
     proto_align_metric: str = "cosine",
     proto_align_min_count: int = 2,
     proto_align_update_source_ema: bool = True,
+    proto_align_mode: str = "always_on",
+    prototype_upper_margins=None,
 ):
     subspace_cfg = subspace_cfg or resolve_subspace_training_params({})
     cls_view = subspace_cfg.get("classifier_latent_view", "shared")
@@ -1021,12 +1033,16 @@ def train_d_ae(
             min_count=proto_align_min_count,
         )
     if source_anchor_prototypes is not None and lambda_proto_align_eff > 0:
-        proto_align_loss, proto_align_metrics = compute_source_anchor_alignment_loss(
+        # Round 25: proto_align_mode selects always_on (S0) vs margin_gated (S2).
+        # Margins use field name prototype_upper_margins (never "margin").
+        proto_align_loss, proto_align_metrics = dispatch_prototype_alignment_loss(
+            proto_align_mode,
             tcga_z,
             t_labels,
             source_anchor_prototypes,
-            metric=proto_align_metric,
+            margins_by_cancer=prototype_upper_margins,
             min_count=proto_align_min_count,
+            metric=proto_align_metric,
         )
     combined_proto_cmmd = bool(lambda_proto_eff > 0 and lambda_cmmd_eff > 0)
     loss = (
@@ -1205,6 +1221,23 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
     proto_align_min_count = proto_align_cfg["proto_align_min_count"]
     proto_align_normalize = proto_align_cfg["proto_align_normalize"]
     proto_align_update_source_ema = proto_align_cfg["proto_align_update_source_ema"]
+    # Round 25 Stage2 variant: always_on | margin_gated (default preserves Round12 S0).
+    proto_align_mode = str(param.get("proto_align_mode", "always_on")).lower()
+    prototype_upper_margins = None
+    margin_estimator = None
+    if proto_align_mode in ("margin_gated", "margin-gated", "s2"):
+        margins_path = param.get("prototype_upper_margins_path")
+        if margins_path:
+            import json as _json
+            with open(margins_path, "r", encoding="utf-8") as _mf:
+                _mart = _json.load(_mf)
+            _per = _mart.get("per_cancer_upper") or {}
+            _global = float(_mart.get("global_upper", 0.0))
+            prototype_upper_margins = (_per, _global, True)
+        else:
+            # Estimate during GAN warm-up from source radius; freeze before formal proto loss.
+            margin_estimator = "pending"  # constructed after num_classes/mapping known
+    aada_enabled = bool(param.get("aada_enabled", False))
     recon_loss_kw = reconstruction_loss_kwargs(param)
     if cond_cfg["conditional_adv_enabled"]:
         metadata_dir = os.path.join(exp_dir, "metadata")
@@ -1227,18 +1260,36 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
     source_private_vae.apply(init_weights)
     target_private_vae.apply(init_weights)
     cancer_classifier.apply(init_weights)
+    ae_init_dir = param.get("ae_init_dir")
+    skip_ae_train = bool(param.get("skip_ae_train", False))
+    if ae_init_dir:
+        load_ae_checkpoint(
+            ae_init_dir,
+            {
+                "shared_vae": shared_vae,
+                "source_vae": source_private_vae,
+                "target_vae": target_private_vae,
+                "classifier": cancer_classifier,
+            },
+            map_location=device,
+            allow_traingan_fallback=bool(param.get("ae_init_allow_traingan_fallback", False)),
+        )
+        print(f"[Round25] loaded AE init from {ae_init_dir}")
     source_dict = copy.deepcopy(source_private_vae.state_dict())
     shared_dict = copy.deepcopy(shared_vae.state_dict())
     target_dict = copy.deepcopy(target_private_vae.state_dict())
     classifier_dict = copy.deepcopy(cancer_classifier.state_dict())
-    pretrain_epochs = param["pretrain_num_epochs"]
+    pretrain_epochs = int(param["pretrain_num_epochs"])
+    if skip_ae_train:
+        pretrain_epochs = 0
+        print("[Round25] skip_ae_train=True — jumping to GAN stage with shared AE weights")
     pre_lr = param["pretrain_learning_rate"]
     pre_tol = 0
     pre_tol_max = param.get("pretrain_patience", 50)
     min_eval_loss = float("inf")
     models = [shared_vae, source_private_vae, target_private_vae, cancer_classifier]
     optimizer = torch.optim.Adam(chain(*(m.parameters() for m in models)), lr=pre_lr)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max(1, pretrain_epochs))
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, max(1, max(pretrain_epochs, 1)))
     if use_class_weight and source_weights is not None and target_weights is not None:
         s_cls_criterion = nn.CrossEntropyLoss(weight=source_weights)
         t_cls_criterion = nn.CrossEntropyLoss(weight=target_weights)
@@ -1319,11 +1370,40 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
                 if pre_tol >= pre_tol_max:
                     print(f"pretrain early stop @ epoch {epoch + 1}")
                     break
-    _plot_pretrain_curves(trainloss_csv, evalloss_csv, exp_dir)
+    if pretrain_epochs > 0:
+        _plot_pretrain_curves(trainloss_csv, evalloss_csv, exp_dir)
     shared_vae.load_state_dict(shared_dict)
     source_private_vae.load_state_dict(source_dict)
     target_private_vae.load_state_dict(target_dict)
     cancer_classifier.load_state_dict(classifier_dict)
+    # Round 25: persist AE checkpoint for shared-base parity across Stage2 variants.
+    save_ae_checkpoint(
+        exp_dir,
+        {
+            "shared_vae": shared_vae,
+            "source_vae": source_private_vae,
+            "target_vae": target_private_vae,
+            "classifier": cancer_classifier,
+        },
+    )
+    if bool(param.get("ae_only", False)):
+        print(f"[Round25] ae_only=True — saved AE checkpoint under {exp_dir} and returning")
+        return {
+            "ae_only": True,
+            "exp_dir": exp_dir,
+            "min_eval_loss": float(min_eval_loss) if min_eval_loss < float("inf") else None,
+            "fid": None,
+            "mmd": None,
+            "wasserstein": None,
+            "best_gan_epoch": 0,
+            "best_gan_loss": None,
+            "kmeans_k": None,
+            "kmeans_ari": None,
+            "kmeans_nmi": None,
+            "kmeans_silhouette": None,
+            "kmeans_calinski_harabasz": None,
+            "kmeans_davies_bouldin": None,
+        }
     gan_epoch = param["train_num_epochs"]
     gan_lr = param["gan_learning_rate"]
     discrim = Discriminator(input_dim=discriminator_input_dim(subspace_cfg), dop=dropout_rate).to(device)
@@ -1432,6 +1512,85 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
             momentum=proto_ema_momentum,
             normalize=proto_align_normalize,
             device=device,
+        )
+    # Resolve Round25 prototype_upper_margins → tensor [num_classes] on device.
+    if isinstance(prototype_upper_margins, tuple):
+        if prototype_upper_margins[0] == "uniform":
+            prototype_upper_margins = torch.full(
+                (num_classes,),
+                float(prototype_upper_margins[1]),
+                device=device,
+            )
+        else:
+            per, global_u, _ = prototype_upper_margins
+            vals = []
+            for i in range(num_classes):
+                name = str(mapping_int2str.get(i, mapping_int2str.get(str(i), i)))
+                vals.append(float(per.get(name, global_u)))
+            prototype_upper_margins = torch.tensor(vals, device=device, dtype=torch.float32)
+    if margin_estimator == "pending":
+        cancer_names = {
+            i: str(mapping_int2str.get(i, mapping_int2str.get(str(i), i)))
+            for i in range(num_classes)
+        }
+        pm = param.get("prototype_margin") or {}
+        margin_estimator = SourceRadiusMarginEstimator(
+            num_classes,
+            metric=str(pm.get("metric", proto_align_metric)),
+            upper_percentile=float(pm.get("upper_percentile", 90)),
+            minimum_cancer_observations=int(pm.get("minimum_cancer_observations", 20)),
+            fallback=str(pm.get("fallback", "global_median")),
+            cancer_names=cancer_names,
+        )
+    aada_bundle = None
+    if aada_enabled:
+        aada_cfg = param.get("aada") or {}
+        aada_bundle = build_aada_components(
+            latent_size,
+            device=device,
+            lr=gan_lr,
+            gan_epoch=gan_epoch,
+        )
+        # S1 contract: remove global WGAN loss; keep conditional WGAN.
+        cond_cfg = dict(cond_cfg)
+        cond_cfg["global_adv_mode"] = "conditional_replacement"
+        print("[Round25] AADA enabled — global WGAN replaced by latent AE discriminator")
+    # Round 25 S2: collect source-radius observations before formal proto hinge.
+    if isinstance(margin_estimator, SourceRadiusMarginEstimator) and prototype_upper_margins is None:
+        warm_epochs = max(1, int(proto_align_start_epoch) - 1)
+        print(f"[Round25] margin warm-up pass ({warm_epochs} epoch(s)) before proto hinge")
+        shared_vae.eval()
+        for _wu in range(warm_epochs):
+            target_cycle_wu = cycle(targettrainloader)
+            for ccledata_wu, ccle_labels_wu in sourcetrainloader:
+                _ = next(target_cycle_wu)
+                with torch.no_grad():
+                    _, source_z_wu, _, _ = shared_vae(ccledata_wu)
+                    if source_anchor_prototypes is not None:
+                        source_anchor_prototypes.update(
+                            source_z_wu,
+                            ccle_labels_wu,
+                            min_count=proto_align_min_count,
+                        )
+                        margin_estimator.observe_batch(
+                            source_z_wu,
+                            ccle_labels_wu,
+                            source_anchor_prototypes.prototypes,
+                            source_anchor_prototypes.initialized,
+                            min_count=proto_align_min_count,
+                        )
+        shared_vae.train()
+        art = margin_estimator.freeze()
+        margin_path = os.path.join(exp_dir, "prototype_upper_margins.json")
+        art.save(margin_path)
+        vals = []
+        for i in range(num_classes):
+            name = margin_estimator.cancer_names[i]
+            vals.append(float(art.per_cancer_upper.get(name, art.global_upper)))
+        prototype_upper_margins = torch.tensor(vals, device=device, dtype=torch.float32)
+        print(
+            f"[Round25] froze prototype_upper_margins before GAN "
+            f"sha256={art.sha256()[:12]} path={margin_path}"
         )
     for epoch in range(gan_epoch):
         gan_epoch_idx = epoch + 1
@@ -1572,8 +1731,35 @@ def run_single_experiment(sourcedata, targetdata, param, exp_name, exp_dir, ccle
                         proto_align_metric=proto_align_metric,
                         proto_align_min_count=proto_align_min_count,
                         proto_align_update_source_ema=proto_align_update_source_ema,
+                        proto_align_mode=proto_align_mode,
+                        prototype_upper_margins=prototype_upper_margins,
                     )
                 )
+                # Round 25 S1: AADA AE/adapter updates (global WGAN already disabled).
+                if aada_bundle is not None:
+                    with torch.no_grad():
+                        _, source_z_aada, _, _ = shared_vae(ccledata)
+                        _, target_z_aada, _, _ = shared_vae(tcgadata)
+                    aada_cfg = param.get("aada") or {}
+                    _, aada_metrics = aada_update_step(
+                        latent_ae=aada_bundle["latent_ae"],
+                        target_adapter=aada_bundle["target_adapter"],
+                        ae_optimizer=aada_bundle["ae_optimizer"],
+                        adapter_optimizer=aada_bundle["adapter_optimizer"],
+                        source_z=source_z_aada,
+                        target_z_base=target_z_aada,
+                        reconstruction_margin=float(
+                            aada_cfg.get("reconstruction_margin", param.get("reconstruction_margin", 0.1))
+                        ),
+                        alpha_margin=float(aada_cfg.get("alpha_margin", 0.02)),
+                        lambda_aada=float(aada_cfg.get("lambda_aada", 0.05)),
+                        beta=float(aada_cfg.get("beta", 1.0)),
+                    )
+                    if genloss_list:
+                        genloss_list[-1].update(aada_metrics)
+                    aada_bundle["ae_scheduler"].step()
+                    aada_bundle["adapter_scheduler"].step()
+            # Margin estimator is frozen before GAN; no per-step observe here.
         if not dloss_list and not cond_dloss_list:
             continue
         dloss_mean = _mean_loss_logs(dloss_list) if dloss_list else defaultdict(float)

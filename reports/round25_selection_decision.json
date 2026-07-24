@@ -1,0 +1,22 @@
+{
+  "round": 25,
+  "stage": "25B",
+  "status": "KEEP_S0",
+  "promote_stage2": false,
+  "b0_mean_auc": 0.6303125472602416,
+  "b1_mean_auc": 0.6240602524647421,
+  "mean_auc_delta": -0.006252294795499491,
+  "b0_mean_auprc": 0.41510378028007144,
+  "b1_mean_auprc": 0.4257578488138112,
+  "mean_auprc_delta": 0.010654068533739736,
+  "noninferior_seed_count": 2,
+  "worst_seed_delta": -0.05987903130047578,
+  "blocking_failures": [
+    "mean AUC delta -0.0063 < 0",
+    "noninferior seeds 2/3 < 3",
+    "worst-seed delta -0.0599 <= -0.010"
+  ],
+  "reason": "B1 failed Stage25B paired gates vs B0",
+  "tcga_used_for_selection": false,
+  "created_at": "2026-07-24T16:27:41.403536+00:00"
+}

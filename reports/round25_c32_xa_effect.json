@@ -1,0 +1,32 @@
+{
+  "created_at": "2026-07-24T16:27:41.864859+00:00",
+  "b1_mean_auc": 0.6240602524647421,
+  "b2_mean_auc": 0.6326632222475189,
+  "c32_predictive_delta_auc": -0.00860296978277686,
+  "c32_predictive_effect": "weak",
+  "c32_attention_effect": "weak",
+  "final_claim": "do_not_emphasize_C32",
+  "interventions": {
+    "original": {
+      "query_cosine_to_original": 0.9999999999202306,
+      "attention_js": 0.0,
+      "top5_jaccard": 1.0
+    },
+    "zero_c32": {
+      "query_cosine_to_original": 0.7081583140899879,
+      "attention_js": 0.15122491656427972,
+      "top5_jaccard": 0.0
+    },
+    "shuffled_c32": {
+      "query_cosine_to_original": 0.8946043151538889,
+      "attention_js": 0.1617093162827808,
+      "top5_jaccard": 0.0
+    },
+    "wrong_cancer_c32": {
+      "query_cosine_to_original": 0.8034652412599961,
+      "attention_js": 0.15664931757204437,
+      "top5_jaccard": 0.0
+    }
+  },
+  "note": "Attention interventions use exported attention when available; otherwise report predictive B1 vs B2 primarily."
+}

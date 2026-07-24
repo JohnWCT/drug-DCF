@@ -1,0 +1,68 @@
+experiment:
+  name: biocda_xa_v2_performance_closure
+  architecture_version: biocda-xa-v2
+  seeds:
+  - 17
+  - 29
+  - 43
+models:
+- biocda_xa_z_only
+data:
+  split_manifest: reports/splits/unseen_drug_split_manifest.json
+  assignments_csv: reports/splits/unseen_drug_assignments.csv
+  development_rows: result/optimization_runs/round19_factorial/splits/development_rows.csv
+  feature_dir: result/optimization_runs/round25_stage25b/features/B1_S1/z_only
+  drug_smiles_path: data/GDSC_drug_merge_pubchem_dropNA_MACCS_AACDR_extended.csv
+  forbid_tcga_during_selection: true
+  predictive_checkpoint: result/optimization_runs/round20_unseen_drug_closure/stage20e_release/checkpoints/seed52_fold0.pt
+model:
+  type: biocda_xa_z_only
+  drug_encoder:
+    input_dim: 78
+    node_hidden_dim: 32
+    num_layers: 5
+    jk_mode: last
+    dropout: 0.1
+    use_batch_norm: true
+  cross_attention:
+    d_model: 128
+    num_heads: 4
+    num_layers: 2
+    ffn_dim: 256
+    attention_dropout: 0.1
+    block_dropout: 0.2
+  response_head:
+    hidden_dim: 128
+    dropout: 0.1
+training:
+  max_epochs: 25
+  early_stopping_patience: 8
+  early_stopping_metric: validation_drug_macro_auc
+  gradient_clip_norm: 1.0
+  mixed_precision: true
+  micro_batch_size: 1024
+  accumulation_steps: 2
+  max_parallel: 3
+  target_gpu_utilization: 0.9
+  dataloader_num_workers: 0
+  smoke_epochs: 2
+  warmup_epochs: 3
+  last_gin_epochs: 8
+  stabilize_epochs: 14
+  predictive_warmstart_gin: false
+  distillation:
+    temperature: 2.0
+    lambda_kd: 0.5
+optimizer:
+  name: adamw
+  learning_rate: 0.0003
+  last_gin_learning_rate: 1.0e-05
+  weight_decay: 0.0001
+scheduler:
+  name: reduce_on_plateau
+  factor: 0.5
+  patience: 5
+  minimum_learning_rate: 1.0e-06
+outputs:
+  root: outputs/round25_stage25b/B2
+  reports_root: reports

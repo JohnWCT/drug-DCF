@@ -1,0 +1,97 @@
+{
+  "created_at": "2026-07-24T16:26:37.755877+00:00",
+  "results": [
+    {
+      "arm": "B0",
+      "seed": 17,
+      "config": "configs/round25/stage25b_B0_seed17.yaml",
+      "model_type": "biocda_xa_fresh",
+      "log": "/workspace/DAPL/outputs/round25_stage25b/B0/seed17_train.log",
+      "smoke": true,
+      "returncode": 0,
+      "status": "DONE"
+    },
+    {
+      "arm": "B0",
+      "seed": 43,
+      "config": "configs/round25/stage25b_B0_seed43.yaml",
+      "model_type": "biocda_xa_fresh",
+      "log": "/workspace/DAPL/outputs/round25_stage25b/B0/seed43_train.log",
+      "smoke": true,
+      "returncode": 0,
+      "status": "DONE"
+    },
+    {
+      "arm": "B0",
+      "seed": 29,
+      "config": "configs/round25/stage25b_B0_seed29.yaml",
+      "model_type": "biocda_xa_fresh",
+      "log": "/workspace/DAPL/outputs/round25_stage25b/B0/seed29_train.log",
+      "smoke": true,
+      "returncode": 0,
+      "status": "DONE"
+    },
+    {
+      "arm": "B1",
+      "seed": 29,
+      "config": "configs/round25/stage25b_B1_seed29.yaml",
+      "model_type": "biocda_xa_fresh",
+      "log": "/workspace/DAPL/outputs/round25_stage25b/B1/seed29_train.log",
+      "smoke": true,
+      "returncode": 0,
+      "status": "DONE"
+    },
+    {
+      "arm": "B1",
+      "seed": 43,
+      "config": "configs/round25/stage25b_B1_seed43.yaml",
+      "model_type": "biocda_xa_fresh",
+      "log": "/workspace/DAPL/outputs/round25_stage25b/B1/seed43_train.log",
+      "smoke": true,
+      "returncode": 0,
+      "status": "DONE"
+    },
+    {
+      "arm": "B1",
+      "seed": 17,
+      "config": "configs/round25/stage25b_B1_seed17.yaml",
+      "model_type": "biocda_xa_fresh",
+      "log": "/workspace/DAPL/outputs/round25_stage25b/B1/seed17_train.log",
+      "smoke": true,
+      "returncode": 0,
+      "status": "DONE"
+    },
+    {
+      "arm": "B2",
+      "seed": 17,
+      "config": "configs/round25/stage25b_B2_seed17.yaml",
+      "model_type": "biocda_xa_z_only",
+      "log": "/workspace/DAPL/outputs/round25_stage25b/B2/seed17_train.log",
+      "smoke": true,
+      "returncode": 0,
+      "status": "DONE"
+    },
+    {
+      "arm": "B2",
+      "seed": 29,
+      "config": "configs/round25/stage25b_B2_seed29.yaml",
+      "model_type": "biocda_xa_z_only",
+      "log": "/workspace/DAPL/outputs/round25_stage25b/B2/seed29_train.log",
+      "smoke": true,
+      "returncode": 0,
+      "status": "DONE"
+    },
+    {
+      "arm": "B2",
+      "seed": 43,
+      "config": "configs/round25/stage25b_B2_seed43.yaml",
+      "model_type": "biocda_xa_z_only",
+      "log": "/workspace/DAPL/outputs/round25_stage25b/B2/seed43_train.log",
+      "smoke": true,
+      "returncode": 0,
+      "status": "DONE"
+    }
+  ],
+  "b1_export": "B1_S1",
+  "tcga_used_for_selection": false
+}

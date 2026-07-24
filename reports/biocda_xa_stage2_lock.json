@@ -1,0 +1,48 @@
+{
+  "round": 25,
+  "status": "LOCKED_KEEP_S0",
+  "architecture_version": "biocda-xa-v2",
+  "downstream_xa": "SELECTED_WITH_INTERPRETABILITY_TRADEOFF",
+  "round23_gdsc_status_preserved": "REJECTED",
+  "stage25a": {
+    "status": "PROMOTE_S1",
+    "selected_variant": "S1",
+    "run_s3": true,
+    "run_s2b": false
+  },
+  "stage25b": {
+    "round": 25,
+    "stage": "25B",
+    "status": "KEEP_S0",
+    "promote_stage2": false,
+    "b0_mean_auc": 0.6303125472602416,
+    "b1_mean_auc": 0.6240602524647421,
+    "mean_auc_delta": -0.006252294795499491,
+    "b0_mean_auprc": 0.41510378028007144,
+    "b1_mean_auprc": 0.4257578488138112,
+    "mean_auprc_delta": 0.010654068533739736,
+    "noninferior_seed_count": 2,
+    "worst_seed_delta": -0.05987903130047578,
+    "blocking_failures": [
+      "mean AUC delta -0.0063 < 0",
+      "noninferior seeds 2/3 < 3",
+      "worst-seed delta -0.0599 <= -0.010"
+    ],
+    "reason": "B1 failed Stage25B paired gates vs B0",
+    "tcga_used_for_selection": false,
+    "created_at": "2026-07-24T16:27:41.403536+00:00"
+  },
+  "stage25c": {
+    "c32_predictive_effect": "weak",
+    "c32_attention_effect": "weak",
+    "final_claim": "do_not_emphasize_C32"
+  },
+  "promoted_stage2_variant": "S0",
+  "tcga_used_for_selection": false,
+  "artifact_hashes": {
+    "stage25a_decision": "70ad4bd2055bb0999a99325e9b4266547a518161351b7941b510d332c6e88fc8",
+    "stage25b_decision": "8bcd6c91d63bcd04ee52bff49ff25a306b9caa450bf673d2ae12354a9a3d8e87",
+    "round23_xa_lock": "05e638fcf361f52f0a7b3ea14d9b8cc70299bbca79a004aeaf51601c3bfccaf8"
+  },
+  "created_at": "2026-07-24T16:28:21.355697+00:00"
+}

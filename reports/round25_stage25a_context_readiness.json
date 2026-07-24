@@ -1,0 +1,133 @@
+{
+  "created_at": "2026-07-24T15:01:43.964597+00:00",
+  "variants": {
+    "S0": {
+      "17": {
+        "ok": true,
+        "raw_context_dim": 320,
+        "raw_context_variance": 0.002253870678385528,
+        "raw_context_effective_rank": 55.629811207727585,
+        "pca32_explained_variance_sum": 0.8749542655717453,
+        "c32_effective_rank": 29.25479151598212,
+        "c32_variance": 0.014609903809208381,
+        "error": null
+      },
+      "29": {
+        "ok": true,
+        "raw_context_dim": 320,
+        "raw_context_variance": 0.0022265400616379456,
+        "raw_context_effective_rank": 55.80382798187022,
+        "pca32_explained_variance_sum": 0.8674512849654931,
+        "c32_effective_rank": 29.231792122861837,
+        "c32_variance": 0.014643229597053171,
+        "error": null
+      },
+      "43": {
+        "ok": true,
+        "raw_context_dim": 320,
+        "raw_context_variance": 0.002139013999958772,
+        "raw_context_effective_rank": 55.47761437130542,
+        "pca32_explained_variance_sum": 0.8705859249402704,
+        "c32_effective_rank": 29.178507965508437,
+        "c32_variance": 0.013707787148668006,
+        "error": null
+      }
+    },
+    "S1": {
+      "17": {
+        "ok": true,
+        "raw_context_dim": 320,
+        "raw_context_variance": 0.0021952930202920533,
+        "raw_context_effective_rank": 55.397137545016584,
+        "pca32_explained_variance_sum": 0.8640400052644501,
+        "c32_effective_rank": 29.16896454921038,
+        "c32_variance": 0.013926587420309382,
+        "error": null
+      },
+      "29": {
+        "ok": true,
+        "raw_context_dim": 320,
+        "raw_context_variance": 0.0021805312603637634,
+        "raw_context_effective_rank": 55.96716132876692,
+        "pca32_explained_variance_sum": 0.866313232158513,
+        "c32_effective_rank": 29.35272935675448,
+        "c32_variance": 0.014219508236777922,
+        "error": null
+      },
+      "43": {
+        "ok": true,
+        "raw_context_dim": 320,
+        "raw_context_variance": 0.002174495750318129,
+        "raw_context_effective_rank": 55.66521766579279,
+        "pca32_explained_variance_sum": 0.8695942583968642,
+        "c32_effective_rank": 29.23653602682275,
+        "c32_variance": 0.01403578397763908,
+        "error": null
+      }
+    },
+    "S2": {
+      "17": {
+        "ok": true,
+        "raw_context_dim": 320,
+        "raw_context_variance": 0.002245147382906483,
+        "raw_context_effective_rank": 55.64806156829168,
+        "pca32_explained_variance_sum": 0.8720342424991518,
+        "c32_effective_rank": 29.270587585090027,
+        "c32_variance": 0.014806851520678808,
+        "error": null
+      },
+      "29": {
+        "ok": true,
+        "raw_context_dim": 320,
+        "raw_context_variance": 0.0022358799957410006,
+        "raw_context_effective_rank": 55.7194270135079,
+        "pca32_explained_variance_sum": 0.8710186463302709,
+        "c32_effective_rank": 29.294259367495826,
+        "c32_variance": 0.014381539609293063,
+        "error": null
+      },
+      "43": {
+        "ok": true,
+        "raw_context_dim": 320,
+        "raw_context_variance": 0.002191657876598738,
+        "raw_context_effective_rank": 56.006308978184464,
+        "pca32_explained_variance_sum": 0.8739455719184748,
+        "c32_effective_rank": 29.229408341614857,
+        "c32_variance": 0.013989613418659532,
+        "error": null
+      }
+    },
+    "S3": {
+      "17": {
+        "ok": true,
+        "raw_context_dim": 320,
+        "raw_context_variance": 0.002162036471920244,
+        "raw_context_effective_rank": 56.037480787044295,
+        "pca32_explained_variance_sum": 0.874099539241391,
+        "c32_effective_rank": 29.511483040777925,
+        "c32_variance": 0.013871015231194318,
+        "error": null
+      },
+      "29": {
+        "ok": true,
+        "raw_context_dim": 320,
+        "raw_context_variance": 0.0021673637499650955,
+        "raw_context_effective_rank": 55.62117396739844,
+        "pca32_explained_variance_sum": 0.8714137890519682,
+        "c32_effective_rank": 29.160071084660096,
+        "c32_variance": 0.01369986310239942,
+        "error": null
+      },
+      "43": {
+        "ok": true,
+        "raw_context_dim": 320,
+        "raw_context_variance": 0.002251877551848936,
+        "raw_context_effective_rank": 55.76695698071588,
+        "pca32_explained_variance_sum": 0.8770600624148126,
+        "c32_effective_rank": 29.31791774097068,
+        "c32_variance": 0.014519080777905119,
+        "error": null
+      }
+    }
+  }
+}

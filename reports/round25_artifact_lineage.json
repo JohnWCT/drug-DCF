@@ -1,0 +1,74 @@
+{
+  "created_at": "2026-07-24T15:15:26.069762+00:00",
+  "selected_variant": "S1",
+  "exports": {
+    "B0_S0": {
+      "exp_dir": "/workspace/DAPL/result/optimization_runs/round25_stage25a/S0_seed17/exp_001",
+      "seed": "17",
+      "feature_dir": "result/optimization_runs/round25_stage25b/features/B0_S0/z_plus_context32",
+      "z_only_dir": "result/optimization_runs/round25_stage25b/features/B0_S0/z_only",
+      "meta": {
+        "display_name": "z_plus_context32",
+        "latent_dim": 64,
+        "context_dim": 32,
+        "summary_dim": 0,
+        "response_input_dim": 96,
+        "n_ids": 10035,
+        "n_trainable_cancer_types": 18,
+        "prototype_class_source": "checkpoint_metadata",
+        "uses_legacy_28class_cache": false,
+        "includes_own_plus_summary": false,
+        "includes_projected_context": true,
+        "mode": "round25_stage25b_pca32_no_summary",
+        "scaler_fit_domain": "source_only",
+        "pca_fit_domain": "source_only",
+        "pca_explained_variance_sum": 0.7890885746383357,
+        "round25_tag": "B0_S0",
+        "source_exp_dir": "/workspace/DAPL/result/optimization_runs/round25_stage25a/S0_seed17/exp_001",
+        "created_at": "2026-07-24T15:15:26.256119+00:00",
+        "raw_context_definition": {
+          "vector": "concat(source, target, source-target, z-source, z-target)",
+          "input_dim": 320,
+          "projection_type": "pca",
+          "fit_domain": "source_only",
+          "random_state": 42
+        },
+        "feature_sha256": "1245d6f2c2fec9afd4e3a8711d9d509d54e03edc070e3b3440a0a035f9c79778"
+      }
+    },
+    "B1_S1": {
+      "exp_dir": "/workspace/DAPL/result/optimization_runs/round25_stage25a/S1_seed17/exp_001",
+      "seed": "17",
+      "feature_dir": "result/optimization_runs/round25_stage25b/features/B1_S1/z_plus_context32",
+      "z_only_dir": "result/optimization_runs/round25_stage25b/features/B1_S1/z_only",
+      "meta": {
+        "display_name": "z_plus_context32",
+        "latent_dim": 64,
+        "context_dim": 32,
+        "summary_dim": 0,
+        "response_input_dim": 96,
+        "n_ids": 10035,
+        "n_trainable_cancer_types": 18,
+        "prototype_class_source": "checkpoint_metadata",
+        "uses_legacy_28class_cache": false,
+        "includes_own_plus_summary": false,
+        "includes_projected_context": true,
+        "mode": "round25_stage25b_pca32_no_summary",
+        "scaler_fit_domain": "source_only",
+        "pca_fit_domain": "source_only",
+        "pca_explained_variance_sum": 0.7906646544525797,
+        "round25_tag": "B1_S1",
+        "source_exp_dir": "/workspace/DAPL/result/optimization_runs/round25_stage25a/S1_seed17/exp_001",
+        "created_at": "2026-07-24T15:15:26.448398+00:00",
+        "raw_context_definition": {
+          "vector": "concat(source, target, source-target, z-source, z-target)",
+          "input_dim": 320,
+          "projection_type": "pca",
+          "fit_domain": "source_only",
+          "random_state": 42
+        },
+        "feature_sha256": "58bbe22e7b0636717861c8cce5b4e663b062a10452ffb9caa10e0caa694a3117"
+      }
+    }
+  }
+}

@@ -13,8 +13,9 @@
 | Round 21/23 XA（GDSC gate） | **BioCDA-XA-Candidate** | GDSC **REJECTED** |
 | Round 23 TCGA 事後選模 | **BioCDA-XA**（v2 Fresh / X0） | TCGA 加權 **SELECTED**（R23） |
 | Round 24 TCGA Recovery | **E-NH0**（pooled × own_plus_summary × NoHoldout） | **LOCKED**（stest0 硬閘） |
+| Round 25 Stage2→XA | **S0**（dual WGAN + always-on proto） | **LOCKED_KEEP_S0**（25B 未晉升 S1） |
 
-BioCDA-Predictive ≠ BioCDA-XA。Round 24 在 eval3／stest0 協議下鎖定 E-NH0；與 R23 事後 XA 選模為不同協議／目標。
+BioCDA-Predictive ≠ BioCDA-XA。Round 24 在 eval3／stest0 協議下鎖定 E-NH0；與 R23 事後 XA 選模為不同協議／目標。Round 25 只搜尋 Stage2 alignment；R23 GDSC XA lock 仍為 REJECTED。
 
 ---
 
@@ -229,6 +230,22 @@ X0 mean ΔAUC 達 −0.005 門檻，但 seed non-worse **1/3**（需 2/3）→ G
 
 ---
 
+## Round 25 — Stage2 Margin / AADA → No-Pooling XA（LOCKED_KEEP_S0）
+
+**狀態：** `LOCKED_KEEP_S0` · Stage2 維持 **S0**  
+**約束：** XA 拓撲固定（fresh no-pooling）；TCGA 不進選模；不覆寫 R23 GDSC XA `REJECTED`
+
+| Stage | 決策 | 要點 |
+|-------|------|------|
+| 25A | `PROMOTE_S1` | S1（AADA）過對齊／幾何閘；S2/S3 hinge inactive |
+| 25B | `KEEP_S0` | B0 mean AUC **0.6303** vs B1 **0.6241**（Δ≈−0.006；noninf 2/3） |
+| 25C | `do_not_emphasize_C32` | B2 ≥ B1；C32 無穩定預測增益 |
+
+**結論：** 25A 幾何 screen 晉升 S1，但固定下游 XA 配對未改善 → **不晉升 Stage2**。  
+報告：[`round25_final_report.md`](round25_final_report.md) · lock：[`reports/biocda_xa_stage2_lock.json`](../reports/biocda_xa_stage2_lock.json)
+
+---
+
 ## 決策時間線（精簡）
 
 ```text
@@ -236,11 +253,13 @@ R13 exp_008 (0.6112) ──► R17/R17R 未重現 ──► R18 XA+context16 CV 
     ──► R19 E3/F3 pooled 鎖角色 ──► R20 C32+E3 = BioCDA-Predictive LOCKED
     ──► R21 XA v1 REJECTED ──► R23 XA v2：GDSC REJECTED / TCGA SELECTED (Fresh)
     ──► R24 TCGA Recovery LOCKED（E-NH0 NoHoldout pooled × own_plus_summary）
+    ──► R25 Stage2 screen LOCKED_KEEP_S0（S1 對齊過閘、下游 XA 未晉升）
 ```
 
 **GDSC 開發基準：** BioCDA-Predictive（R20）。  
 **R23 TCGA 事後選模：** BioCDA-XA v2 Fresh。  
-**Round 24 鎖定：** E-NH0（stest0 硬閘 PASS）。
+**Round 24 鎖定：** E-NH0（stest0 硬閘 PASS）。  
+**Round 25 鎖定：** Stage2 維持 S0（`biocda_xa_stage2_lock.json`）。
 
 ---
 

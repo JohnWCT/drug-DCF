@@ -1,0 +1,10 @@
+arm,seed,run_dir,auc,auprc,status
+B0,17,/workspace/DAPL/outputs/round25_stage25b/B0/biocda_xa_fresh_seed17,0.6164002524385229,0.3696840165750577,DONE
+B0,29,/workspace/DAPL/outputs/round25_stage25b/B0/biocda_xa_fresh_seed29,0.6023027274399021,0.4076357346249182,DONE
+B0,43,/workspace/DAPL/outputs/round25_stage25b/B0/biocda_xa_fresh_seed43,0.6722346619022995,0.4679915896402385,DONE
+B1,17,/workspace/DAPL/outputs/round25_stage25b/B1/biocda_xa_fresh_seed17,0.6422463677747162,0.40275716908635234,DONE
+B1,29,/workspace/DAPL/outputs/round25_stage25b/B1/biocda_xa_fresh_seed29,0.6175787590176861,0.4179807766038907,DONE
+B1,43,/workspace/DAPL/outputs/round25_stage25b/B1/biocda_xa_fresh_seed43,0.6123556306018237,0.45653560075119054,DONE
+B2,17,/workspace/DAPL/outputs/round25_stage25b/B2/biocda_xa_z_only_seed17,0.6423220323517763,0.4037307356449147,DONE
+B2,29,/workspace/DAPL/outputs/round25_stage25b/B2/biocda_xa_z_only_seed29,0.6244132186000892,0.42017535529334327,DONE
+B2,43,/workspace/DAPL/outputs/round25_stage25b/B2/biocda_xa_z_only_seed43,0.6312544157906909,0.47330234167590124,DONE

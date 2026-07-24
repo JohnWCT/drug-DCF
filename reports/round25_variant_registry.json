@@ -1,0 +1,138 @@
+{
+  "fixed_xa": {
+    "latent": "Z64",
+    "context": "C32",
+    "query": "single_omics_context_token",
+    "drug_encoder": "fresh_gin_atom",
+    "graph_pooling": false,
+    "attention": "sample_to_atom_cross_attention",
+    "head": "final_updated_query",
+    "forbid_e3_transfer": true,
+    "forbid_kd": true,
+    "summary_dim": 0
+  },
+  "variants": {
+    "S0": {
+      "variant_id": "S0",
+      "global_alignment": "wgan",
+      "conditional_alignment": "conditional_wgan",
+      "prototype_alignment": "always_on",
+      "lock_eligible": true,
+      "enabled_if": null,
+      "prototype_margin": null,
+      "prototype_band": null,
+      "aada": null,
+      "notes": ""
+    },
+    "S2": {
+      "variant_id": "S2",
+      "global_alignment": "wgan",
+      "conditional_alignment": "conditional_wgan",
+      "prototype_alignment": "margin_gated",
+      "lock_eligible": true,
+      "enabled_if": null,
+      "prototype_margin": {
+        "metric": "cosine",
+        "estimator": "source_radius_percentile",
+        "upper_percentile": 90,
+        "minimum_cancer_observations": 20,
+        "fallback": "global_median",
+        "freeze_after_estimation": true
+      },
+      "prototype_band": null,
+      "aada": null,
+      "notes": ""
+    },
+    "S1": {
+      "variant_id": "S1",
+      "global_alignment": "aada_autoencoder",
+      "conditional_alignment": "conditional_wgan",
+      "prototype_alignment": "always_on",
+      "lock_eligible": true,
+      "enabled_if": null,
+      "prototype_margin": null,
+      "prototype_band": null,
+      "aada": {
+        "source_frozen": true,
+        "target_residual_adapter": true,
+        "reconstruction_loss": "smooth_l1",
+        "beta": 1.0,
+        "alpha_margin": 0.02,
+        "reconstruction_margin_policy": "calibrated_percentile",
+        "lambda_aada": 0.05,
+        "ramp_fraction": 0.2
+      },
+      "notes": ""
+    },
+    "S3": {
+      "variant_id": "S3",
+      "global_alignment": "aada_autoencoder",
+      "conditional_alignment": "conditional_wgan",
+      "prototype_alignment": "margin_gated",
+      "lock_eligible": true,
+      "enabled_if": {
+        "any_variant_passes": [
+          "S1",
+          "S2"
+        ]
+      },
+      "prototype_margin": null,
+      "prototype_band": null,
+      "aada": null,
+      "notes": ""
+    },
+    "S2b": {
+      "variant_id": "S2b",
+      "global_alignment": "wgan",
+      "conditional_alignment": "conditional_wgan",
+      "prototype_alignment": "distance_band",
+      "lock_eligible": true,
+      "enabled_if": {
+        "prototype_overlap_gate": true
+      },
+      "prototype_margin": null,
+      "prototype_band": {
+        "lower_percentile": 10,
+        "upper_percentile": 90,
+        "lower_weight": 0.1
+      },
+      "aada": null,
+      "notes": ""
+    }
+  },
+  "required_screen_order": [
+    "S0",
+    "S2",
+    "S1"
+  ],
+  "conditional": [
+    "S3",
+    "S2b"
+  ],
+  "margin_field_names": {
+    "prototype": [
+      "prototype_upper_margin",
+      "prototype_lower_margin"
+    ],
+    "aada": [
+      "reconstruction_margin"
+    ],
+    "forbidden_alias": [
+      "margin"
+    ]
+  },
+  "screen_variants": [
+    "S3"
+  ],
+  "seeds": [
+    17,
+    29,
+    43
+  ],
+  "created_at": "2026-07-24T15:00:01.638074+00:00",
+  "gpu": {
+    "max_parallel": 3,
+    "mem_fraction": 0.3,
+    "target_utilization": 0.9
+  }
+}
