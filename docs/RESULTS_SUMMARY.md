@@ -11,9 +11,10 @@
 |------|------|------|
 | Round 20 鎖定預測器 | **BioCDA-Predictive**（pooled E3 + C32） | LOCKED（GDSC 開發期基準） |
 | Round 21/23 XA（GDSC gate） | **BioCDA-XA-Candidate** | GDSC **REJECTED** |
-| Round 23 TCGA 選模 | **BioCDA-XA**（v2 Fresh / X0） | TCGA 加權 **SELECTED** |
+| Round 23 TCGA 事後選模 | **BioCDA-XA**（v2 Fresh / X0） | TCGA 加權 **SELECTED**（R23） |
+| Round 24 TCGA Recovery | **E-NH0**（pooled × own_plus_summary × NoHoldout） | **LOCKED**（stest0 硬閘） |
 
-BioCDA-Predictive ≠ BioCDA-XA：前者無 atom cross-attention；後者為 sample→atom cross-attention。GDSC 配對 gate 與 TCGA 外部選模為**雙軌**結論，適用場景不同（見 Round 23）。
+BioCDA-Predictive ≠ BioCDA-XA。Round 24 在 eval3／stest0 協議下鎖定 E-NH0；與 R23 事後 XA 選模為不同協議／目標。
 
 ---
 
@@ -209,19 +210,22 @@ X0 mean ΔAUC 達 −0.005 門檻，但 seed non-worse **1/3**（需 2/3）→ G
 
 ## Round 24 — TCGA Recovery（LOCKED）
 
-**狀態：** `LOCKED` · champion **`E-NH0`**（`pooled_mlp` × `own_plus_summary` × NoHoldout）  
+**狀態：** `LOCKED` · champion **`E-NH0`**（`pooled_mlp` × `own_plus_summary` × **NoHoldout**）  
 **標準：** AACDR **stest0**（無 10% testset）  
-**硬閘：** `aacdr_gdsc_intersect` > **0.5279** ∧ `aacdr_tcga_only` > **0.4804**（其餘三 target 必報、不擋 lock）
+**硬閘：** `aacdr_gdsc_intersect` > **0.5279** ∧ `aacdr_tcga_only` > **0.4804**
 
-| Target | Gate / 角色 | Champion AUROC |
-|--------|-------------|----------------:|
-| aacdr_gdsc_intersect | **硬閘** > 0.5279 | **0.5648** |
-| aacdr_tcga_only | **硬閘** > 0.4804 | **0.4971** |
-| dapl | 診斷 | 0.4820 |
-| gdsc_intersect13 | 診斷 | 0.5697 |
-| tcga_only3 | 診斷 | 0.4845 |
+| Target | Gate | Champion AUROC | Champion AUPRC |
+|--------|------|---------------:|---------------:|
+| aacdr_gdsc_intersect | **硬閘** | **0.5648** | 0.6186 |
+| aacdr_tcga_only | **硬閘** | **0.4971** | 0.6532 |
+| gdsc_intersect13 | 診斷 | 0.5697 | 0.6121 |
+| dapl | 診斷 | 0.4820 | 0.5416 |
+| tcga_only3 | 診斷 | 0.4845 | 0.6368 |
 
-報告：[`round24_final_report.md`](round24_final_report.md)、[`round24_status_report.md`](round24_status_report.md)、[`reports/round24/vs_aacdr_standard.md`](../reports/round24/vs_aacdr_standard.md)。
+**方法要點：** eval3 = Round 18 5-fold + TCGA fold-mean DrugMacro；TCGA 不進訓練；lock 僅比較 NoHoldout 臂。  
+**結論：** NoHoldout 資料協議是過硬閘關鍵；predictive×C16/C32 未再抬高 `aacdr_gdsc` 主軸。
+
+報告：[`round24_final_report.md`](round24_final_report.md) · 標準：[`AACDR_drug_macro_auroc_auprc.md`](AACDR_drug_macro_auroc_auprc.md) · vs 表：[`reports/round24/vs_aacdr_standard.md`](../reports/round24/vs_aacdr_standard.md)
 
 ---
 
@@ -231,12 +235,12 @@ X0 mean ΔAUC 達 −0.005 門檻，但 seed non-worse **1/3**（需 2/3）→ G
 R13 exp_008 (0.6112) ──► R17/R17R 未重現 ──► R18 XA+context16 CV 贏、TCGA 未過
     ──► R19 E3/F3 pooled 鎖角色 ──► R20 C32+E3 = BioCDA-Predictive LOCKED
     ──► R21 XA v1 REJECTED ──► R23 XA v2：GDSC REJECTED / TCGA SELECTED (Fresh)
-    ──► R24 TCGA Recovery LOCKED（E-NH0 NoHoldout pooled）
+    ──► R24 TCGA Recovery LOCKED（E-NH0 NoHoldout pooled × own_plus_summary）
 ```
 
 **GDSC 開發基準：** BioCDA-Predictive（R20）。  
-**TCGA 外部架構：** BioCDA-XA v2 Fresh（R23 選模）。  
-**Round 24：** stest0 硬閘通過並鎖定 E-NH0。
+**R23 TCGA 事後選模：** BioCDA-XA v2 Fresh。  
+**Round 24 鎖定：** E-NH0（stest0 硬閘 PASS）。
 
 ---
 
@@ -244,14 +248,8 @@ R13 exp_008 (0.6112) ──► R17/R17R 未重現 ──► R18 XA+context16 CV 
 
 | 文件 | 內容 |
 |------|------|
-| `round{N}_final_report.md` | 各 Round 精簡版 |
-| `biocda_final_architecture_selection.md` | TCGA 加權架構選擇 |
+| `round{N}_final_report.md` | 各 Round 精簡版（含方法＋結果） |
+| `AACDR_drug_macro_auroc_auprc.md` | Round 24 stest0 超越標準 |
+| `biocda_final_architecture_selection.md` | R23 TCGA 加權架構選擇 |
 | `model_cards/round19_locked_models.md` | Round 19 鎖定模型卡片 |
 | `proposal.md` / `design.md` | 原始提案與設計 |
-
-## Round 24 train-source ablation
-
-Diagnostic precursor to Stage 24E: B0 × NoHoldout vs AACDR train source.
-NoHoldout beat stest0 hard gates and was formalized as **E-NH0** (locked).
-See `reports/round24/train_source_ablation/ablation_report.md` and `docs/round24_status_report.md`.
-

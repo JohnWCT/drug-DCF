@@ -19,7 +19,7 @@
 
 **超越標準：** [`docs/AACDR_drug_macro_auroc_auprc.md`](../docs/AACDR_drug_macro_auroc_auprc.md)（現行 = **stest0**）  
 完整 Y/N + Δ：[`vs_aacdr_standard.md`](vs_aacdr_standard.md)  
-**24E 計畫：** [`docs/round24_solution_plan.md`](../docs/round24_solution_plan.md) §7
+**最終報告：** [`docs/round24_final_report.md`](../docs/round24_final_report.md)
 
 ---
 
