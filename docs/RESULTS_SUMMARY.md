@@ -232,16 +232,16 @@ X0 mean ΔAUC 達 −0.005 門檻，但 seed non-worse **1/3**（需 2/3）→ G
 
 ## Round 25 — Stage2 Margin / AADA → No-Pooling XA（LOCKED_KEEP_S0）
 
-**狀態：** `LOCKED_KEEP_S0` · Stage2 維持 **S0**  
-**約束：** XA 拓撲固定（fresh no-pooling）；TCGA 不進選模；不覆寫 R23 GDSC XA `REJECTED`
+**狀態：** `LOCKED_KEEP_S0` · Stage2 維持 **S0**（dual WGAN + always-on proto）  
+**方法：** 固定 fresh no-pooling XA；只搜尋 Stage2（S0/S2/S1/S3）；TCGA 不進選模；不覆寫 R23 XA `REJECTED`
 
 | Stage | 決策 | 要點 |
 |-------|------|------|
-| 25A | `PROMOTE_S1` | S1（AADA）過對齊／幾何閘；S2/S3 hinge inactive |
-| 25B | `KEEP_S0` | B0 mean AUC **0.6303** vs B1 **0.6241**（Δ≈−0.006；noninf 2/3） |
+| 25A | `PROMOTE_S1` | S1（AADA）過幾何閘；S2/S3 hinge inactive |
+| 25B | `KEEP_S0` | B0 AUC **0.6303** vs B1 **0.6241**（Δ−0.006；noninf 2/3） |
 | 25C | `do_not_emphasize_C32` | B2 ≥ B1；C32 無穩定預測增益 |
 
-**結論：** 25A 幾何 screen 晉升 S1，但固定下游 XA 配對未改善 → **不晉升 Stage2**。  
+**結論：** 25A 晉升 S1，但固定下游 XA 配對未改善 → **不晉升 Stage2**。  
 報告：[`round25_final_report.md`](round25_final_report.md) · lock：[`reports/biocda_xa_stage2_lock.json`](../reports/biocda_xa_stage2_lock.json)
 
 ---
